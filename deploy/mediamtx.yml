@@ -1,0 +1,32 @@
+api: yes
+apiAddress: :9997
+
+metrics: yes
+metricsAddress: :9998
+
+rtmp: yes
+rtmpAddress: :1935
+
+rtsp: yes
+rtspAddress: :8554
+
+srt: yes
+srtAddress: :8890
+
+hls: yes
+hlsAddress: :8888
+hlsAlwaysRemux: yes
+hlsVariant: lowLatency
+
+webrtc: yes
+webrtcAddress: :8889
+
+pathDefaults:
+  record: yes
+  recordPath: ./data/recordings/%path/%Y-%m-%d_%H-%M-%S-%f
+  recordFormat: fmp4
+
+paths:
+  stakecenter:
+    source: publisher
+    runOnReadyRestart: yes

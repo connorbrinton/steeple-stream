@@ -1,0 +1,32 @@
+services:
+  steeple-stream:
+    build: .
+    environment:
+      STEEPLE_HOST: 0.0.0.0
+      STEEPLE_PORT: 8080
+      STEEPLE_PUBLIC_BASE_URL: http://localhost:8080
+      STEEPLE_MEDIAMTX_BASE_URL: http://mediamtx:9997
+      STEEPLE_HLS_BASE_URL: http://localhost:8888
+      STEEPLE_WEBRTC_BASE_URL: http://localhost:8889
+      STEEPLE_DATA_DIR: /app/data
+    ports:
+      - "8080:8080"
+      - "4455:4455"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - mediamtx
+
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    volumes:
+      - ./deploy/mediamtx.yml:/mediamtx.yml:ro
+      - ./data/recordings:/data/recordings
+    ports:
+      - "1935:1935"
+      - "8554:8554"
+      - "8888:8888"
+      - "8889:8889"
+      - "8890:8890/udp"
+      - "9997:9997"
+      - "9998:9998"

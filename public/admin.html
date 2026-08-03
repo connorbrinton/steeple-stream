@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Steeple Stream Operator</title>
+    <link rel="stylesheet" href="/assets/app.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">Steeple Stream Operator</div>
+        <div class="status"><span id="status-dot" class="dot"></span><span id="status-label">Loading</span></div>
+      </header>
+      <section class="layout admin-grid">
+        <div class="panel preview-panel">
+          <h2>Preview</h2>
+          <div class="video-frame admin-preview" id="admin-preview">
+            <div class="slate">
+              <div>
+                <h1>Broadcast Offline</h1>
+                <p>No stream is currently active.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel operator-panel">
+          <h2>Operator Controls</h2>
+          <div class="operator-groups">
+            <div>
+              <div class="control-label">Broadcast</div>
+              <div class="controls">
+                <button class="button primary" id="start">Start Broadcast</button>
+                <button class="button" id="chapel">Chapel</button>
+                <button class="button" id="sacrament">Sacrament</button>
+                <button class="button danger" id="end">End Broadcast</button>
+              </div>
+            </div>
+            <div>
+              <div class="control-label">Camera</div>
+              <div class="controls" id="ptz-controls"></div>
+            </div>
+          </div>
+          <p class="meta" id="broadcast-details">Loading broadcast state.</p>
+        </div>
+
+        <div class="panel" id="source-panel">
+          <h2>Input Source</h2>
+          <form id="source-form" class="source-form">
+            <label>
+              Source type
+              <select id="source-type" name="type">
+                <option value="ndi">NDI camera stream</option>
+                <option value="network">Network encoder</option>
+              </select>
+            </label>
+
+            <div class="source-fields" data-source-fields="ndi">
+              <label>
+                NDI source
+                <select id="ndi-source-name"></select>
+              </label>
+              <label>
+                Discovery server
+                <input id="ndi-discovery-server" placeholder="Optional IP or hostname">
+              </label>
+              <button class="button" id="refresh-ndi-sources" type="button">Refresh Sources</button>
+            </div>
+
+            <div class="source-fields" data-source-fields="network">
+              <label>
+                Protocol
+                <select id="network-protocol">
+                  <option value="rtsp">RTSP</option>
+                  <option value="srt">SRT</option>
+                </select>
+              </label>
+              <label>
+                Source URI
+                <input id="network-uri" placeholder="rtsp://encoder.local/stream">
+              </label>
+            </div>
+
+            <label>
+              Notes
+              <textarea id="source-notes" rows="3" placeholder="Setup notes for this location"></textarea>
+            </label>
+
+            <button class="button primary" type="submit">Save Source</button>
+          </form>
+          <p class="meta" id="source-help"></p>
+        </div>
+
+        <div class="panel">
+          <h2>Health</h2>
+          <div class="meta" id="health">Checking health.</div>
+        </div>
+
+        <div class="panel">
+          <h2>Recent Activity</h2>
+          <div class="list" id="audit-log"></div>
+        </div>
+
+        <div class="panel" id="obs-credentials-panel">
+          <h2>OBS Control Credentials</h2>
+          <form id="obs-credential-form" class="source-form">
+            <label>Unit name<input id="obs-unit-name" required></label>
+            <label>WebSocket port<input id="obs-port" type="number" min="1024" max="65535" value="4455" required></label>
+            <button class="button primary" type="submit">Create Credential</button>
+          </form>
+          <div class="list" id="obs-credentials"></div>
+          <p class="meta" id="obs-new-password"></p>
+        </div>
+      </section>
+    </main>
+    <script src="/vendor/hls.light.min.js"></script>
+    <script src="/assets/player.js"></script>
+    <script src="/assets/admin.js"></script>
+  </body>
+</html>

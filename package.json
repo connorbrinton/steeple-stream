@@ -1,0 +1,19 @@
+{
+  "name": "steeple-stream",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Self-hosted sacrament meeting broadcast control plane.",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "ndi:synthetic": "bash scripts/synthetic-ndi-source.sh",
+    "ndi:probe": "python3 scripts/probe-ndi-source.py",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22.5"
+  },
+  "dependencies": {
+    "openid-client": "^6.8.4"
+  }
+}

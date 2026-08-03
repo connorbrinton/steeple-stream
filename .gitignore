@@ -1,0 +1,10 @@
+data/
+node_modules/
+.DS_Store
+auto.crt
+auto.key
+result
+__pycache__/
+*.py[cod]
+.env
+.env.*
