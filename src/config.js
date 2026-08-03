@@ -64,6 +64,7 @@ export const config = {
     hlsBaseUrl: process.env.STEEPLE_HLS_BASE_URL || "/hls",
     hlsProxyBaseUrl: process.env.STEEPLE_HLS_PROXY_BASE_URL || "http://localhost:8888",
     playbackBaseUrl: process.env.STEEPLE_PLAYBACK_BASE_URL || "http://127.0.0.1:9996",
-    webrtcBaseUrl: process.env.STEEPLE_WEBRTC_BASE_URL || "/webrtc"
+    webrtcBaseUrl: process.env.STEEPLE_WEBRTC_BASE_URL || "/webrtc",
+    publicWebRtc: process.env.STEEPLE_PUBLIC_WEBRTC !== "0"
   }
 };

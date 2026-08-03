@@ -1,0 +1,10 @@
+tunnel: steeple-stream-brintonium
+credentials-file: /var/lib/cloudflared/<tunnel-id>.json
+
+ingress:
+  - hostname: broadcasts.brintonium.com
+    service: http://127.0.0.1:8080
+    originRequest:
+      connectTimeout: 10s
+      httpHostHeader: broadcasts.brintonium.com
+  - service: http_status:404

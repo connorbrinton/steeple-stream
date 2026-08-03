@@ -231,3 +231,13 @@ Register `${STEEPLE_PUBLIC_BASE_URL}/auth/google/callback` as the Google OAuth
 redirect URI. Cloudflare Tunnel or another HTTPS reverse proxy should route the
 location to the loopback-bound application. The NixOS module is available as
 `nixosModules.default` and accepts an environment file for secrets.
+
+For the first Cloudflare Tunnel deployment, use HLS for public viewers:
+
+```bash
+STEEPLE_PUBLIC_BASE_URL=https://broadcasts.brintonium.com
+STEEPLE_PUBLIC_WEBRTC=0
+```
+
+See [docs/cloudflare-tunnel.md](docs/cloudflare-tunnel.md) for the recommended
+`brintonium.com` tunnel shape and deployment checklist.

@@ -98,7 +98,7 @@
         in
         {
           default = pkgs.mkShell {
-            packages = [ pkgs.nodejs_22 gstPluginNdi ] ++ mediaPackages pkgs;
+            packages = [ pkgs.nodejs_22 pkgs.cloudflared gstPluginNdi ] ++ mediaPackages pkgs;
             GST_PLUGIN_PATH = gstPluginPath pkgs gstPluginNdi;
             GI_TYPELIB_PATH = gstTypelibPath pkgs;
             LD_LIBRARY_PATH = "${pkgs.ndi}/lib";

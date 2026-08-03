@@ -5,15 +5,18 @@ export class MediaMtxBackend {
 
   getPlayback(channelId) {
     const encoded = encodeURIComponent(channelId);
-    return {
+    const playback = {
       hlsUrl: `${this.options.hlsBaseUrl}/${encoded}/index.m3u8`,
-      webrtcUrl: `${this.options.webrtcBaseUrl}/${encoded}-webrtc/whep`,
       publish: {
         rtmpUrl: `rtmp://localhost:1935/${encoded}`,
         rtspUrl: `rtsp://localhost:8554/${encoded}`,
         srtUrl: `srt://localhost:8890?streamid=publish:${encoded}`
       }
     };
+    if (this.options.publicWebRtc !== false && this.options.webrtcBaseUrl) {
+      playback.webrtcUrl = `${this.options.webrtcBaseUrl}/${encoded}-webrtc/whep`;
+    }
+    return playback;
   }
 
   async getHealth(channelId) {
