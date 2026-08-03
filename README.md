@@ -240,4 +240,6 @@ STEEPLE_PUBLIC_WEBRTC=0
 ```
 
 See [docs/cloudflare-tunnel.md](docs/cloudflare-tunnel.md) for the recommended
-`brintonium.com` tunnel shape and deployment checklist.
+`brintonium.com` tunnel shape and deployment checklist. The flake development
+shell includes `cloudflared`, and the NixOS module can manage the Cloudflare
+Tunnel service with `services.steeple-stream.cloudflareTunnel`.

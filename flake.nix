@@ -108,6 +108,7 @@
       nixosModules.default = { config, lib, pkgs, ... }:
         let
           cfg = config.services.steeple-stream;
+          tunnelCfg = cfg.cloudflareTunnel;
         in {
           options.services.steeple-stream = {
             enable = lib.mkEnableOption "Steeple Stream";
@@ -116,8 +117,55 @@
             environmentFile = lib.mkOption { type = lib.types.nullOr lib.types.path; default = null; };
             host = lib.mkOption { type = lib.types.str; default = "127.0.0.1"; };
             port = lib.mkOption { type = lib.types.port; default = 8080; };
+            publicBaseUrl = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              example = "https://broadcasts.brintonium.com";
+              description = "Externally visible base URL used for OAuth redirects and generated links.";
+            };
+            publicWebRtc = lib.mkOption {
+              type = lib.types.bool;
+              default = true;
+              description = "Advertise WebRTC playback URLs to public clients.";
+            };
+            cloudflareTunnel = {
+              enable = lib.mkEnableOption "a Cloudflare Tunnel for Steeple Stream";
+              tunnelName = lib.mkOption {
+                type = lib.types.str;
+                default = "steeple-stream";
+                example = "steeple-stream-brintonium";
+                description = "Cloudflare Tunnel name or UUID.";
+              };
+              hostname = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+                example = "broadcasts.brintonium.com";
+                description = "Public hostname routed through Cloudflare Tunnel.";
+              };
+              credentialsFile = lib.mkOption {
+                type = lib.types.nullOr lib.types.path;
+                default = null;
+                example = "/var/lib/cloudflared/00000000-0000-0000-0000-000000000000.json";
+                description = "Cloudflare Tunnel credentials JSON created by cloudflared.";
+              };
+              protocol = lib.mkOption {
+                type = lib.types.enum [ "auto" "http2" "quic" ];
+                default = "auto";
+                description = "Protocol cloudflared uses to reach Cloudflare's edge.";
+              };
+            };
           };
           config = lib.mkIf cfg.enable {
+            assertions = [
+              {
+                assertion = !tunnelCfg.enable || tunnelCfg.hostname != null;
+                message = "services.steeple-stream.cloudflareTunnel.hostname is required when the tunnel is enabled.";
+              }
+              {
+                assertion = !tunnelCfg.enable || tunnelCfg.credentialsFile != null;
+                message = "services.steeple-stream.cloudflareTunnel.credentialsFile is required when the tunnel is enabled.";
+              }
+            ];
             users.users.steeple-stream = { isSystemUser = true; group = "steeple-stream"; home = cfg.dataDir; };
             users.groups.steeple-stream = {};
             systemd.services.steeple-stream = {
@@ -137,6 +185,28 @@
                 STEEPLE_DATA_DIR = cfg.dataDir;
                 STEEPLE_HOST = cfg.host;
                 STEEPLE_PORT = toString cfg.port;
+                STEEPLE_PUBLIC_WEBRTC = if cfg.publicWebRtc then "1" else "0";
+              } // lib.optionalAttrs (cfg.publicBaseUrl != null) {
+                STEEPLE_PUBLIC_BASE_URL = cfg.publicBaseUrl;
+              } // lib.optionalAttrs tunnelCfg.enable {
+                STEEPLE_PUBLIC_BASE_URL = "https://${tunnelCfg.hostname}";
+                STEEPLE_PUBLIC_WEBRTC = "0";
+              };
+            };
+            services.cloudflared = lib.mkIf tunnelCfg.enable {
+              enable = true;
+              package = pkgs.cloudflared;
+              tunnels.${tunnelCfg.tunnelName} = {
+                credentialsFile = tunnelCfg.credentialsFile;
+                protocol = tunnelCfg.protocol;
+                ingress.${tunnelCfg.hostname} = {
+                  service = "http://${cfg.host}:${toString cfg.port}";
+                  originRequest = {
+                    connectTimeout = "10s";
+                    httpHostHeader = tunnelCfg.hostname;
+                  };
+                };
+                default = "http_status:404";
               };
             };
           };

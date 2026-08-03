@@ -41,7 +41,14 @@ a local deployment with `STEEPLE_PUBLIC_WEBRTC` left enabled.
 
 ## Locally Managed Tunnel
 
-Install `cloudflared`, authenticate it, create a named tunnel, and route DNS:
+`cloudflared` is included in the Steeple Stream flake development shell:
+
+```bash
+nix develop
+cloudflared --version
+```
+
+Authenticate it, create a named tunnel, and route DNS:
 
 ```bash
 cloudflared tunnel login
@@ -49,7 +56,48 @@ cloudflared tunnel create steeple-stream-brintonium
 cloudflared tunnel route dns steeple-stream-brintonium broadcasts.brintonium.com
 ```
 
-Create a config based on:
+This creates a tunnel credentials JSON file. Keep that file out of Git and copy
+it to a root-readable location on the broadcast host, for example:
+
+```text
+/var/lib/cloudflared/<tunnel-id>.json
+```
+
+## NixOS Module
+
+On NixOS, the Steeple Stream module can also manage the Cloudflare Tunnel
+service through Nixpkgs' native `services.cloudflared` module:
+
+```nix
+{
+  imports = [
+    inputs.steeple-stream.nixosModules.default
+  ];
+
+  services.steeple-stream = {
+    enable = true;
+    cloudflareTunnel = {
+      enable = true;
+      tunnelName = "steeple-stream-brintonium";
+      hostname = "broadcasts.brintonium.com";
+      credentialsFile = "/var/lib/cloudflared/<tunnel-id>.json";
+    };
+    environmentFile = "/run/secrets/steeple-stream.env";
+  };
+}
+```
+
+When `cloudflareTunnel.enable` is set, the module automatically:
+
+- runs Steeple Stream on loopback
+- sets `STEEPLE_PUBLIC_BASE_URL=https://<hostname>`
+- sets `STEEPLE_PUBLIC_WEBRTC=0`
+- enables `services.cloudflared`
+- routes the tunnel hostname to `http://127.0.0.1:8080`
+
+## Manual Config
+
+For non-NixOS systems, create a config based on:
 
 ```text
 deploy/cloudflared-config.example.yml
