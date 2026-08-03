@@ -49,6 +49,7 @@
           gstPluginNdi = pkgs.callPackage ./nix/gst-plugin-ndi.nix { };
         in
         {
+          cloudflared = pkgs.cloudflared;
           gst-plugin-ndi = gstPluginNdi;
           steeple-stream = pkgs.buildNpmPackage {
             pname = "steeple-stream";
@@ -84,6 +85,10 @@
         steeple-stream = {
           type = "app";
           program = "${self.packages.${system}.steeple-stream}/bin/steeple-stream";
+        };
+        cloudflared = {
+          type = "app";
+          program = "${self.packages.${system}.cloudflared}/bin/cloudflared";
         };
         default = self.apps.${system}.steeple-stream;
       });

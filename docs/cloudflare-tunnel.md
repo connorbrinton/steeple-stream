@@ -41,19 +41,19 @@ a local deployment with `STEEPLE_PUBLIC_WEBRTC` left enabled.
 
 ## Locally Managed Tunnel
 
-`cloudflared` is included in the Steeple Stream flake development shell:
+`cloudflared` is exposed by the Steeple Stream flake for production/manual use:
 
 ```bash
-nix develop
-cloudflared --version
+nix run .#cloudflared -- --version
 ```
 
-Authenticate it, create a named tunnel, and route DNS:
+It is also included in the development shell as a convenience. Authenticate it,
+create a named tunnel, and route DNS:
 
 ```bash
-cloudflared tunnel login
-cloudflared tunnel create steeple-stream-brintonium
-cloudflared tunnel route dns steeple-stream-brintonium broadcasts.brintonium.com
+nix run .#cloudflared -- tunnel login
+nix run .#cloudflared -- tunnel create steeple-stream-brintonium
+nix run .#cloudflared -- tunnel route dns steeple-stream-brintonium broadcasts.brintonium.com
 ```
 
 This creates a tunnel credentials JSON file. Keep that file out of Git and copy
@@ -106,14 +106,14 @@ deploy/cloudflared-config.example.yml
 Then run:
 
 ```bash
-cloudflared tunnel --config /path/to/config.yml run steeple-stream-brintonium
+nix run .#cloudflared -- tunnel --config /path/to/config.yml run steeple-stream-brintonium
 ```
 
 Validate the ingress file before installing it as a service:
 
 ```bash
-cloudflared tunnel ingress validate --config /path/to/config.yml
-cloudflared tunnel ingress rule --config /path/to/config.yml https://broadcasts.brintonium.com/broadcasts/stakecenter
+nix run .#cloudflared -- tunnel ingress validate --config /path/to/config.yml
+nix run .#cloudflared -- tunnel ingress rule --config /path/to/config.yml https://broadcasts.brintonium.com/broadcasts/stakecenter
 ```
 
 ## Steeple Stream Environment
