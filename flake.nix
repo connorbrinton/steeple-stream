@@ -85,10 +85,12 @@
         steeple-stream = {
           type = "app";
           program = "${self.packages.${system}.steeple-stream}/bin/steeple-stream";
+          meta.description = "Run the Steeple Stream broadcast server";
         };
         cloudflared = {
           type = "app";
           program = "${self.packages.${system}.cloudflared}/bin/cloudflared";
+          meta.description = "Run cloudflared from the Steeple Stream flake";
         };
         default = self.apps.${system}.steeple-stream;
       });
@@ -117,7 +119,7 @@
         in {
           options.services.steeple-stream = {
             enable = lib.mkEnableOption "Steeple Stream";
-            package = lib.mkOption { type = lib.types.package; default = self.packages.${pkgs.system}.steeple-stream; };
+            package = lib.mkOption { type = lib.types.package; default = self.packages.${pkgs.stdenv.hostPlatform.system}.steeple-stream; };
             dataDir = lib.mkOption { type = lib.types.path; default = "/var/lib/steeple-stream"; };
             environmentFile = lib.mkOption { type = lib.types.nullOr lib.types.path; default = null; };
             host = lib.mkOption { type = lib.types.str; default = "127.0.0.1"; };
