@@ -260,12 +260,23 @@ STEEPLE_GOOGLE_CLIENT_SECRET=...
 STEEPLE_ADMIN_EMAILS=admin@example.com
 STEEPLE_OPERATOR_EMAILS=operator@example.com
 STEEPLE_SESSION_SECRET=replace-with-a-long-random-secret
+STEEPLE_TRUSTED_PROXY=1
 ```
 
 Register `${STEEPLE_PUBLIC_BASE_URL}/auth/google/callback` as the Google OAuth
 redirect URI. Cloudflare Tunnel or another HTTPS reverse proxy should route the
 location to the loopback-bound application. The NixOS module is available as
 `nixosModules.default` and accepts an environment file for secrets.
+
+Use a session secret with at least 32 bytes of entropy, for example:
+
+```bash
+openssl rand -base64 48
+```
+
+Set `STEEPLE_TRUSTED_PROXY=1` only when Steeple Stream is reachable solely
+through a trusted reverse proxy such as Cloudflare Tunnel. This lets auth rate
+limits and viewer metrics use Cloudflare client IP headers.
 
 For the first Cloudflare Tunnel deployment, use HLS for public viewers:
 

@@ -4,6 +4,8 @@ const dataDir = process.env.STEEPLE_DATA_DIR || path.resolve("data");
 const publicBaseUrl = process.env.STEEPLE_PUBLIC_BASE_URL || "http://localhost:8080";
 const csv = (value) => new Set(String(value || "").split(",").map((entry) => entry.trim().toLowerCase()).filter(Boolean));
 const profile = process.env.STEEPLE_PROFILE || "broadcast";
+const host = process.env.STEEPLE_HOST || "127.0.0.1";
+const channelId = process.env.STEEPLE_CHANNEL_ID || "stakecenter";
 
 if (!["broadcast", "camera-control"].includes(profile)) {
   throw new Error(`Unsupported Steeple Stream profile: ${profile}`);
@@ -25,7 +27,7 @@ const capabilities = {
 export const config = {
   profile,
   capabilities,
-  host: process.env.STEEPLE_HOST || "127.0.0.1",
+  host,
   port: Number(process.env.STEEPLE_PORT || 8080),
   obsPort: Number(process.env.STEEPLE_OBS_PORT || 4455),
   obsHost: process.env.STEEPLE_OBS_HOST || "127.0.0.1",
@@ -33,7 +35,7 @@ export const config = {
   storePath: process.env.STEEPLE_STORE_PATH || path.join(dataDir, "steeple-stream.json"),
   databasePath: process.env.STEEPLE_DATABASE_PATH || path.join(dataDir, "steeple-stream.sqlite"),
   publicBaseUrl,
-  channelId: process.env.STEEPLE_CHANNEL_ID || "stakecenter",
+  channelId,
   retentionHours: Number(process.env.STEEPLE_RETENTION_HOURS || 24),
   auth: {
     clientId: process.env.STEEPLE_GOOGLE_CLIENT_ID || "",
@@ -42,7 +44,12 @@ export const config = {
     adminEmails: csv(process.env.STEEPLE_ADMIN_EMAILS),
     operatorEmails: csv(process.env.STEEPLE_OPERATOR_EMAILS),
     sessionSecret: process.env.STEEPLE_SESSION_SECRET || "development-only",
-    sessionHours: Number(process.env.STEEPLE_SESSION_HOURS || 12)
+    sessionHours: Number(process.env.STEEPLE_SESSION_HOURS || 12),
+    channelId,
+    publicBaseUrl,
+    host,
+    trustedProxy: process.env.STEEPLE_TRUSTED_PROXY === "1",
+    requireProductionConfig: process.env.STEEPLE_AUTH_REQUIRE_PRODUCTION !== "0"
   },
   ptz: {
     transport: process.env.STEEPLE_PTZ_TRANSPORT || "ndi",

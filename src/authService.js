@@ -1,7 +1,9 @@
 import crypto from "node:crypto";
+import { parseCookie, stringifySetCookie } from "cookie";
 import * as oidc from "openid-client";
 
 const SESSION_COOKIE = "steeple_session";
+const MIN_SESSION_SECRET_BYTES = 32;
 
 export class AuthService {
   constructor({ store, config }) {
@@ -16,6 +18,7 @@ export class AuthService {
 
   async initialize() {
     await this.store.load();
+    this.validateStartupConfig();
     if (!this.enabled) return;
     this.oidc = await oidc.discovery(
       new URL("https://accounts.google.com"),
@@ -26,11 +29,12 @@ export class AuthService {
 
   async begin(returnTo = "/admin") {
     if (!this.enabled) throw httpError(503, "Google sign-in is not configured");
+    this.cleanupExpiredAuthRecords();
     const verifier = oidc.randomPKCECodeVerifier();
     const challenge = await oidc.calculatePKCECodeChallenge(verifier);
     const state = oidc.randomState();
     const nonce = oidc.randomNonce();
-    const safeReturnTo = String(returnTo).startsWith("/") ? String(returnTo) : "/admin";
+    const safeReturnTo = safeReturnPath(returnTo, this.config.channelId);
     this.store.db.prepare("INSERT INTO oauth_attempts(state_hash, verifier, nonce, return_to, expires_at) VALUES(?, ?, ?, ?, ?)")
       .run(hash(state), verifier, nonce, safeReturnTo, new Date(Date.now() + 10 * 60_000).toISOString());
     return oidc.buildAuthorizationUrl(this.oidc, {
@@ -45,6 +49,7 @@ export class AuthService {
   }
 
   async complete(callbackUrl) {
+    if (!this.enabled) throw httpError(503, "Google sign-in is not configured");
     const url = new URL(callbackUrl);
     const state = url.searchParams.get("state") || "";
     const attempt = this.store.db.prepare("SELECT * FROM oauth_attempts WHERE state_hash=?").get(hash(state));
@@ -76,7 +81,7 @@ export class AuthService {
     if (!this.enabled) {
       return { email: "development@localhost", role: "administrator", csrfToken: "development" };
     }
-    const token = parseCookies(req.headers.cookie || "")[SESSION_COOKIE];
+    const token = parseCookie(req.headers.cookie || "")[SESSION_COOKIE];
     if (!token) return null;
     const session = this.store.db.prepare("SELECT email, role, expires_at FROM auth_sessions WHERE token_hash=?").get(hash(token));
     if (!session || new Date(session.expires_at) <= new Date()) return null;
@@ -87,26 +92,58 @@ export class AuthService {
     const principal = this.authenticate(req);
     if (!principal) throw httpError(401, "Authentication required");
     if (role === "administrator" && principal.role !== "administrator") throw httpError(403, "Administrator access required");
-    if (csrfRequired && req.headers["x-steeple-csrf"] !== principal.csrfToken) throw httpError(403, "Invalid CSRF token");
+    if (csrfRequired && !safeEqual(req.headers["x-steeple-csrf"], principal.csrfToken)) throw httpError(403, "Invalid CSRF token");
     return principal;
   }
 
   logout(req) {
-    const token = parseCookies(req.headers.cookie || "")[SESSION_COOKIE];
+    const token = parseCookie(req.headers.cookie || "")[SESSION_COOKIE];
     if (token) this.store.db.prepare("DELETE FROM auth_sessions WHERE token_hash=?").run(hash(token));
   }
 
   sessionCookie(token) {
-    return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${this.config.sessionHours * 3600}`;
+    return stringifySetCookie({
+      name: SESSION_COOKIE,
+      value: token,
+      path: "/",
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      maxAge: this.config.sessionHours * 3600
+    });
   }
 
   clearCookie() {
-    return `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
+    return stringifySetCookie({
+      name: SESSION_COOKIE,
+      value: "",
+      path: "/",
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      maxAge: 0
+    });
   }
-}
 
-function parseCookies(value) {
-  return Object.fromEntries(value.split(";").map((part) => part.trim().split("=")).filter(([key]) => key).map(([key, val]) => [key, decodeURIComponent(val || "")]));
+  cleanupExpiredAuthRecords(referenceDate = new Date()) {
+    const now = referenceDate.toISOString();
+    this.store.db.prepare("DELETE FROM oauth_attempts WHERE expires_at <= ?").run(now);
+    this.store.db.prepare("DELETE FROM auth_sessions WHERE expires_at <= ?").run(now);
+  }
+
+  validateStartupConfig() {
+    if (!this.config.requireProductionConfig || !isProductionAuthContext(this.config)) return;
+    const missing = [];
+    if (!this.config.clientId) missing.push("STEEPLE_GOOGLE_CLIENT_ID");
+    if (!this.config.clientSecret) missing.push("STEEPLE_GOOGLE_CLIENT_SECRET");
+    if (!this.config.publicBaseUrl || this.config.publicBaseUrl.startsWith("http://localhost")) missing.push("STEEPLE_PUBLIC_BASE_URL");
+    if (!this.config.adminEmails?.size) missing.push("STEEPLE_ADMIN_EMAILS");
+    if (!this.config.operatorEmails?.size && !this.config.adminEmails?.size) missing.push("STEEPLE_OPERATOR_EMAILS");
+    if (!isStrongSecret(this.config.sessionSecret)) missing.push("STEEPLE_SESSION_SECRET");
+    if (missing.length) {
+      throw new Error(`Production auth configuration is incomplete: ${missing.join(", ")}`);
+    }
+  }
 }
 
 function randomToken() {
@@ -119,6 +156,56 @@ function hash(value) {
 
 function csrf(token, secret) {
   return crypto.createHmac("sha256", secret).update(token).digest("base64url");
+}
+
+export function safeReturnPath(value, channelId = "stakecenter") {
+  const fallback = `/broadcasts/${channelId}/broadcaster`;
+  const path = String(value || fallback);
+  if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\") || /%5c/i.test(path)) return fallback;
+  let parsed;
+  try {
+    parsed = new URL(path, "https://steeple.invalid");
+  } catch {
+    return fallback;
+  }
+  if (parsed.origin !== "https://steeple.invalid") return fallback;
+  const allowed = new Set([
+    "/",
+    "/admin",
+    "/broadcaster",
+    `/broadcasts/${channelId}`,
+    `/broadcasts/${channelId}/admin`,
+    `/broadcasts/${channelId}/broadcaster`
+  ]);
+  if (!allowed.has(parsed.pathname)) return fallback;
+  return `${parsed.pathname}${parsed.search}`;
+}
+
+function safeEqual(left, right) {
+  if (typeof left !== "string" || typeof right !== "string") return false;
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  if (leftBuffer.length !== rightBuffer.length) return false;
+  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function isStrongSecret(secret) {
+  if (!secret || secret === "development-only") return false;
+  return Buffer.byteLength(secret, "utf8") >= MIN_SESSION_SECRET_BYTES;
+}
+
+function isLoopbackHost(host) {
+  return ["127.0.0.1", "localhost", "::1"].includes(host);
+}
+
+function isProductionAuthContext(config) {
+  if (!isLoopbackHost(config.host)) return true;
+  try {
+    const url = new URL(config.publicBaseUrl || "http://localhost");
+    return !isLoopbackHost(url.hostname);
+  } catch {
+    return true;
+  }
 }
 
 function httpError(status, message) {

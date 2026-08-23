@@ -60,7 +60,7 @@
                 let name = builtins.baseNameOf sourcePath;
                 in !builtins.elem name [ ".git" "data" "node_modules" "result" ];
             };
-            npmDepsHash = "sha256-a7emi5Ul7sZZNgFsr4v8Gjoab6E4uo4BB6+EuWXnqNo=";
+            npmDepsHash = "sha256-KWoby0aPR7p5tb+VGqY/e8Qppt92Y9tzI7xOydj3txw=";
             dontNpmBuild = true;
             nativeBuildInputs = [ pkgs.makeWrapper ];
             installPhase = ''
@@ -133,6 +133,11 @@
               default = true;
               description = "Advertise WebRTC playback URLs to public clients.";
             };
+            trustedProxy = lib.mkOption {
+              type = lib.types.bool;
+              default = false;
+              description = "Trust Cloudflare/proxy client IP headers for rate limiting and metrics.";
+            };
             cloudflareTunnel = {
               enable = lib.mkEnableOption "a Cloudflare Tunnel for Steeple Stream";
               tunnelName = lib.mkOption {
@@ -191,6 +196,7 @@
                 STEEPLE_HOST = cfg.host;
                 STEEPLE_PORT = toString cfg.port;
                 STEEPLE_PUBLIC_WEBRTC = if cfg.publicWebRtc then "1" else "0";
+                STEEPLE_TRUSTED_PROXY = if cfg.trustedProxy || tunnelCfg.enable then "1" else "0";
               } // lib.optionalAttrs (cfg.publicBaseUrl != null) {
                 STEEPLE_PUBLIC_BASE_URL = cfg.publicBaseUrl;
               } // lib.optionalAttrs tunnelCfg.enable {

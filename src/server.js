@@ -14,6 +14,7 @@ import { LocationCommandCoordinator } from "./commandCoordinator.js";
 import { AuthService } from "./authService.js";
 import { ObsEndpointManager } from "./obsEndpointManager.js";
 import { buildSourceCatalog } from "./sourceCatalog.js";
+import { AppRateLimiter, clientIp } from "./rateLimit.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.resolve(__dirname, "..", "public");
@@ -30,20 +31,19 @@ const ingestManager = new IngestManager({
 });
 const coordinator = new LocationCommandCoordinator({ service, ingestManager, mediaManager: mediamtxManager });
 const auth = new AuthService({ store, config: config.auth });
+const rateLimiter = new AppRateLimiter();
 const obsEndpoints = new ObsEndpointManager({ store, service, coordinator, host: config.obsHost });
 let latestBackendHealth = null;
-
-if (!auth.enabled && !["127.0.0.1", "localhost", "::1"].includes(config.host)) {
-  throw new Error("Google OAuth must be configured before binding Steeple Stream to a non-loopback address");
-}
 
 const server = http.createServer(async (req, res) => {
   try {
     applySecurityHeaders(res);
     await route(req, res);
   } catch (error) {
-    const status = error.status || 500;
-    sendJson(res, status, { error: error.message });
+    const finalError = await rateLimitedError(req, error);
+    const status = finalError.status || 500;
+    const headers = finalError.retryAfter ? { "retry-after": String(finalError.retryAfter) } : {};
+    sendJson(res, status, { error: finalError.message }, headers);
   }
 });
 
@@ -84,6 +84,7 @@ async function route(req, res) {
   const method = req.method || "GET";
 
   if (method === "GET" && url.pathname === "/auth/google") {
+    await rateLimiter.authStartFor(req, config.auth);
     const target = await auth.begin(url.searchParams.get("returnTo") || `/broadcasts/${config.channelId}/broadcaster`);
     res.writeHead(302, { location: target.href });
     res.end();
@@ -91,6 +92,7 @@ async function route(req, res) {
   }
 
   if (method === "GET" && url.pathname === "/auth/google/callback") {
+    await rateLimiter.authCallbackFor(req, config.auth);
     const result = await auth.complete(new URL(req.url, config.publicBaseUrl).href);
     res.writeHead(302, { location: result.returnTo, "set-cookie": auth.sessionCookie(result.token) });
     res.end();
@@ -226,7 +228,7 @@ async function route(req, res) {
       name: body.name,
       sessionId: body.sessionId,
       userAgent: req.headers["user-agent"],
-      ip: req.socket.remoteAddress
+      ip: clientIp(req, config.auth)
     }));
     return;
   }
@@ -242,7 +244,7 @@ async function route(req, res) {
       ...body,
       viewerName: String(body.viewerName).trim().slice(0, 80),
       locationId: config.channelId,
-      ip: req.headers["cf-connecting-ip"] || req.socket.remoteAddress,
+      ip: clientIp(req, config.auth),
       userAgent: req.headers["user-agent"] || null
     });
     sendJson(res, 202, { accepted: true });
@@ -388,6 +390,16 @@ async function route(req, res) {
   }
 
   sendJson(res, 404, { error: "Not found" });
+}
+
+async function rateLimitedError(req, error) {
+  if (error.status !== 401 || !(req.url || "").startsWith("/api/")) return error;
+  try {
+    await rateLimiter.unauthenticatedApiFor(req, config.auth);
+    return error;
+  } catch (rateLimitError) {
+    return rateLimitError;
+  }
 }
 
 function requireCapability(name) {
