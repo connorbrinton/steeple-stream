@@ -146,7 +146,11 @@ export class MediaMtxManager {
 
   async writeConfig() {
     await fs.mkdir(path.dirname(this.options.configPath), { recursive: true });
-    await fs.mkdir(this.options.recordingsDir, { recursive: true });
+    if (this.options.playback !== false) {
+      await fs.mkdir(this.options.recordingsDir, { recursive: true });
+    }
+    const hlsEnabled = this.options.hls !== false;
+    const playbackEnabled = this.options.playback !== false;
     const config = [
       "api: yes",
       "apiAddress: 127.0.0.1:9997",
@@ -163,9 +167,9 @@ export class MediaMtxManager {
       "srt: yes",
       "srtAddress: 127.0.0.1:8890",
       "",
-      "hls: yes",
+      `hls: ${hlsEnabled ? "yes" : "no"}`,
       "hlsAddress: 127.0.0.1:8888",
-      "hlsAlwaysRemux: yes",
+      `hlsAlwaysRemux: ${hlsEnabled ? "yes" : "no"}`,
       "hlsVariant: lowLatency",
       "",
       "webrtc: yes",
@@ -175,7 +179,7 @@ export class MediaMtxManager {
       "  - url: stun:stun.cloudflare.com:3478",
       "  - url: stun:stun.l.google.com:19302",
       "",
-      "playback: yes",
+      `playback: ${playbackEnabled ? "yes" : "no"}`,
       "playbackAddress: 127.0.0.1:9996",
       "",
       "pathDefaults:",

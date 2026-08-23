@@ -69,7 +69,7 @@ test("NDI pipeline publishes audio and video to MediaMTX RTMP path", () => {
 test("switchable NDI slate command uses the controller process", () => {
   const command = switchableNdiSlateToRtmpCommand({
     sourceName: "CHAPEL CAMERA",
-    sourceUrlAddress: "192.168.110.145:5961",
+    sourceUrlAddress: "192.0.2.10:5961",
     rtmpUrl: "rtmp://127.0.0.1:1935/stakecenter",
     frameRate: 30,
     videoBitrateKbps: 4500,
@@ -82,7 +82,7 @@ test("switchable NDI slate command uses the controller process", () => {
   assert.equal(command.includes("--ndi-source"), true);
   assert.equal(command.includes("CHAPEL CAMERA"), true);
   assert.equal(command.includes("--ndi-url-address"), true);
-  assert.equal(command.includes("192.168.110.145:5961"), true);
+  assert.equal(command.includes("192.0.2.10:5961"), true);
   assert.equal(command.includes("--initial-mode"), true);
   assert.equal(command.includes("sacrament"), true);
 });
@@ -140,7 +140,7 @@ test("ingest manager refreshes stale NDI direct address before starting", async 
     cwd: "/project",
     runner,
     ndiDiscovery: async () => [
-      { name: "CHAPEL CAMERA", urlAddress: "192.168.110.145:5961", available: true }
+      { name: "CHAPEL CAMERA", urlAddress: "192.0.2.10:5961", available: true }
     ],
     config: {
       autoStart: true,
@@ -156,14 +156,14 @@ test("ingest manager refreshes stale NDI direct address before starting", async 
     broadcast: { mode: "chapel" },
     source: {
       type: "ndi",
-      ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.168.110.145:5962" }
+      ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.0.2.10:5962" }
     }
   });
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].args.includes("--ndi-url-address"), true);
-  assert.equal(calls[0].args.includes("192.168.110.145:5961"), true);
-  assert.equal(manager.status().source.ndi.urlAddress, "192.168.110.145:5961");
+  assert.equal(calls[0].args.includes("192.0.2.10:5961"), true);
+  assert.equal(manager.status().source.ndi.urlAddress, "192.0.2.10:5961");
 });
 
 test("ingest manager keeps saved NDI direct address when discovery has no match", async () => {
@@ -186,12 +186,12 @@ test("ingest manager keeps saved NDI direct address when discovery has no match"
     broadcast: { mode: "chapel" },
     source: {
       type: "ndi",
-      ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.168.110.145:5962" }
+      ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.0.2.10:5962" }
     }
   });
 
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].args.includes("192.168.110.145:5962"), true);
+  assert.equal(calls[0].args.includes("192.0.2.10:5962"), true);
 });
 
 test("ingest manager switches scene mode without restarting the controller", async () => {
@@ -221,6 +221,34 @@ test("ingest manager switches scene mode without restarting the controller", asy
   assert.equal(manager.status().sourceType, "slate");
 });
 
+test("ingest manager ignores sacrament mode when scene controls are disabled", async () => {
+  const { calls, runner } = makeRunner();
+  const manager = makeIngestManager({
+    cwd: "/project",
+    runner,
+    config: {
+      autoStart: true,
+      sceneControls: false,
+      runtime: "system",
+      rtmpUrl: "rtmp://127.0.0.1:1935/stakecenter",
+      frameRate: 30,
+      videoBitrateKbps: 4500,
+      audioBitrate: 128000
+    }
+  });
+
+  await manager.startForState({
+    broadcast: { mode: "sacrament" },
+    source: { type: "ndi", ndi: { sourceName: "CHAPEL CAMERA" } }
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].args.includes("--initial-mode"), true);
+  assert.equal(calls[0].args.includes("chapel"), true);
+  assert.equal(calls[0].args.includes("sacrament"), false);
+  assert.equal(manager.status().scene.requested, "chapel");
+});
+
 test("ingest manager switches from sacrament back to chapel without NDI rediscovery", async () => {
   const { calls, runner, child } = makeRunner();
   let discoveryCalls = 0;
@@ -229,7 +257,7 @@ test("ingest manager switches from sacrament back to chapel without NDI rediscov
     runner,
     ndiDiscovery: async () => {
       discoveryCalls += 1;
-      return [{ name: "CHAPEL CAMERA", urlAddress: "192.168.110.145:5961", available: true }];
+      return [{ name: "CHAPEL CAMERA", urlAddress: "192.0.2.10:5961", available: true }];
     },
     config: {
       autoStart: true,
@@ -242,7 +270,7 @@ test("ingest manager switches from sacrament back to chapel without NDI rediscov
   });
 
   const state = {
-    source: { type: "ndi", ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.168.110.145:5962" } }
+    source: { type: "ndi", ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.0.2.10:5962" } }
   };
 
   await manager.startForState({ ...state, broadcast: { mode: "chapel" } });

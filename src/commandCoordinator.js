@@ -33,6 +33,21 @@ export class LocationCommandCoordinator extends EventEmitter {
     return this.changed(state);
   }
 
+  async updateCameraControlSource(source, actor = null) {
+    const state = await this.service.updateCameraControlSource(source, actor);
+    return this.changed(state);
+  }
+
+  async addConfiguredSource(source, actor = null) {
+    const state = await this.service.addManualSource(source, actor);
+    return this.changed(state);
+  }
+
+  async addManualSource(source, actor = null) {
+    const state = await this.service.addManualSource(source, actor);
+    return this.changed(state);
+  }
+
   async recallPreset(presetId, actor = null) {
     const result = await this.service.recallPreset(presetId, actor);
     this.emit("changed");

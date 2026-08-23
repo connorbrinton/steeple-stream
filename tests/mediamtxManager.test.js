@@ -44,3 +44,28 @@ test("resolves forced Nix runtime to nix shell command", async () => {
   assert.match(command.command, /nix$/);
   assert.deepEqual(command.args, ["shell", "nixpkgs#mediamtx", "--command", "mediamtx"]);
 });
+
+test("writes WebRTC preview config without HLS or playback", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "steeple-mediamtx-test-"));
+  const manager = new MediaMtxManager({
+    autoStart: false,
+    runtime: "auto",
+    nixPackage: "nixpkgs#mediamtx",
+    binaryPath: null,
+    version: "v1.19.2",
+    cacheDir: path.join(dir, "bin"),
+    configPath: path.join(dir, "mediamtx.yml"),
+    recordingsDir: path.join(dir, "recordings"),
+    hls: false,
+    playback: false
+  });
+
+  await manager.writeConfig();
+
+  const config = await fs.readFile(path.join(dir, "mediamtx.yml"), "utf8");
+  assert.match(config, /hls: no/);
+  assert.match(config, /hlsAlwaysRemux: no/);
+  assert.match(config, /webrtc: yes/);
+  assert.match(config, /playback: no/);
+  await assert.rejects(fs.access(path.join(dir, "recordings")));
+});

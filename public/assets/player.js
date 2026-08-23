@@ -1,9 +1,12 @@
 window.SteeplePlayer = {
   async renderWebRtc(container, whepUrl, options = {}) {
+    const sourceKey = options.streamKey ? `webrtc:${whepUrl}:${options.streamKey}` : whepUrl;
+    if (container.steepleSrc === sourceKey && container.querySelector("video")) return container.querySelector("video");
     destroy(container);
-    container.steepleSrc = whepUrl;
+    container.steepleSrc = sourceKey;
     const video = document.createElement("video");
-    video.controls = true;
+    video.controls = options.controls !== false;
+    video.muted = Boolean(options.muted);
     video.autoplay = Boolean(options.autoplay);
     video.playsInline = true;
     options.onVideo?.(video);
@@ -45,9 +48,10 @@ window.SteeplePlayer = {
     return video;
   },
   renderHls(container, hlsUrl, options = {}) {
-    if (container.steepleSrc === hlsUrl && container.querySelector("video")) return container.querySelector("video");
+    const sourceKey = options.streamKey ? `hls:${hlsUrl}:${options.streamKey}` : hlsUrl;
+    if (container.steepleSrc === sourceKey && container.querySelector("video")) return container.querySelector("video");
     destroy(container);
-    container.steepleSrc = hlsUrl;
+    container.steepleSrc = sourceKey;
     const video = document.createElement("video");
     video.controls = options.controls !== "live";
     video.muted = Boolean(options.muted);
@@ -75,8 +79,15 @@ window.SteeplePlayer = {
       hls.attachMedia(video);
       hls.on(window.Hls.Events.ERROR, (_event, data) => {
         if (data.fatal) {
-          container.steepleSrc = null;
+          destroy(container);
           renderMessage(container, "Preview Waiting", "No playable stream is available yet.");
+          if (options.retry !== false) {
+            setTimeout(() => {
+              if (container.isConnected && container.steepleSrc === sourceKey && !container.querySelector("video")) {
+                window.SteeplePlayer.renderHls(container, hlsUrl, options);
+              }
+            }, options.retryDelayMs || 1500);
+          }
         }
       });
       return video;
@@ -89,7 +100,7 @@ window.SteeplePlayer = {
   renderHybridLive(container, playback, options = {}) {
     const hlsUrl = playback?.hlsUrl;
     const webrtcUrl = playback?.webrtcUrl;
-    const key = `hybrid:${webrtcUrl || ""}:${hlsUrl || ""}:${options.timelineStartAt || ""}`;
+    const key = `hybrid:${webrtcUrl || ""}:${hlsUrl || ""}:${options.timelineStartAt || ""}:${options.streamKey || ""}`;
     if (container.steepleSrc === key && container.querySelector("video")) return container.querySelector("video");
     if (!hlsUrl && !webrtcUrl) {
       renderMessage(container, "Preview Unavailable", "No local preview URL is configured.");
@@ -173,6 +184,7 @@ function renderHybridPlayer(container, playback, options = {}) {
   let timer = null;
   let hideTimer = null;
   let hlsSwitch = null;
+  const playerKey = container.steepleSrc;
   const rangeUnits = 1000;
   const timelineStart = Date.parse(options.timelineStartAt || "") || Date.now();
 
@@ -214,7 +226,7 @@ function renderHybridPlayer(container, playback, options = {}) {
     } catch (error) {
       if (mode === "webrtc") {
         mode = null;
-        await showHls(0);
+        await showHls(0, error.message);
       }
       return null;
     } finally {
@@ -222,13 +234,26 @@ function renderHybridPlayer(container, playback, options = {}) {
     }
   };
 
-  const showHls = async (behind) => {
+  const showHls = async (behind, fallbackReason = null) => {
     if (!playback.hlsUrl) return null;
     if (mode !== "hls") {
       mode = "hls";
+      options.onTransport?.({ transport: "hls", fallbackReason });
       const video = replaceVideo(document.createElement("video"), "HLS");
       attachHls(container, video, playback.hlsUrl, {
-        onFatalError: () => renderMessage(container, "Preview Waiting", "No playable stream is available yet.")
+        onFatalError: () => {
+          removeCurrentMedia(container, activeVideo);
+          activeVideo = null;
+          mode = null;
+          renderMessage(container, "Preview Waiting", "No playable stream is available yet.");
+          if (options.retry !== false) {
+            setTimeout(() => {
+              if (container.isConnected && container.steepleSrc === playerKey && !container.querySelector("video")) {
+                showHls(targetBehind);
+              }
+            }, options.retryDelayMs || 1500);
+          }
+        }
       });
       video.addEventListener("loadedmetadata", () => seekHlsToBehind(behind), { once: true });
       video.addEventListener("playing", update);

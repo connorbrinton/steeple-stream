@@ -3,8 +3,28 @@ import path from "node:path";
 const dataDir = process.env.STEEPLE_DATA_DIR || path.resolve("data");
 const publicBaseUrl = process.env.STEEPLE_PUBLIC_BASE_URL || "http://localhost:8080";
 const csv = (value) => new Set(String(value || "").split(",").map((entry) => entry.trim().toLowerCase()).filter(Boolean));
+const profile = process.env.STEEPLE_PROFILE || "broadcast";
+
+if (!["broadcast", "camera-control"].includes(profile)) {
+  throw new Error(`Unsupported Steeple Stream profile: ${profile}`);
+}
+
+const capabilities = {
+  profile,
+  admin: true,
+  cameraControl: true,
+  livePreview: true,
+  broadcastControls: profile === "broadcast",
+  sceneControls: profile === "broadcast",
+  publicViewer: profile === "broadcast",
+  hlsScrub: profile === "broadcast",
+  recording: profile === "broadcast",
+  obsControl: profile === "broadcast"
+};
 
 export const config = {
+  profile,
+  capabilities,
   host: process.env.STEEPLE_HOST || "127.0.0.1",
   port: Number(process.env.STEEPLE_PORT || 8080),
   obsPort: Number(process.env.STEEPLE_OBS_PORT || 4455),
@@ -32,13 +52,15 @@ export const config = {
     smooth: process.env.STEEPLE_PTZ_SMOOTH !== "0",
     smoothDurationMs: Number(process.env.STEEPLE_PTZ_SMOOTH_DURATION_MS || 1400),
     ndiHelper: process.env.STEEPLE_NDI_PTZ_HELPER || null,
-    ndiPresetSpeed: Number(process.env.STEEPLE_NDI_PTZ_PRESET_SPEED || 1)
+    ndiPresetSpeed: Number(process.env.STEEPLE_NDI_PTZ_PRESET_SPEED || 1),
+    ndiSettleMs: Number(process.env.STEEPLE_NDI_PTZ_SETTLE_MS || 750)
   },
   discovery: {
     ndiIntervalMs: Number(process.env.STEEPLE_NDI_DISCOVERY_INTERVAL_MS || 7000)
   },
   ingest: {
     autoStart: process.env.STEEPLE_INGEST_AUTO_START !== "0",
+    sceneControls: capabilities.sceneControls,
     runtime: process.env.STEEPLE_INGEST_RUNTIME || "system",
     videoBitrateKbps: Number(process.env.STEEPLE_INGEST_VIDEO_BITRATE_KBPS || 4500),
     audioBitrate: Number(process.env.STEEPLE_INGEST_AUDIO_BITRATE || 128000),
@@ -53,6 +75,8 @@ export const config = {
   mediamtx: {
     channelId: process.env.STEEPLE_CHANNEL_ID || "stakecenter",
     autoStart: process.env.STEEPLE_MEDIAMTX_AUTO_START !== "0",
+    hls: capabilities.hlsScrub && process.env.STEEPLE_MEDIAMTX_HLS !== "0",
+    playback: capabilities.recording && process.env.STEEPLE_MEDIAMTX_PLAYBACK !== "0",
     runtime: process.env.STEEPLE_MEDIAMTX_RUNTIME || "system",
     nixPackage: process.env.STEEPLE_MEDIAMTX_NIX_PACKAGE || "nixpkgs#mediamtx",
     binaryPath: process.env.STEEPLE_MEDIAMTX_BINARY || null,

@@ -28,7 +28,8 @@ test("SQLite store imports legacy state and preserves a backup", async () => {
     ["music-director", 8],
     ["choir", 12],
     ["piano", 13],
-    ["pulpit-wide", 16]
+    ["pulpit-wide", 16],
+    ...Array.from({ length: 18 }, (_, index) => [`ndi-raw-${index + 1}`, index + 1])
   ]);
   await fs.access(`${legacy}.pre-sqlite`);
 });

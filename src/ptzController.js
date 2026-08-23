@@ -39,21 +39,23 @@ export class PtzController {
         error.status = 409;
         throw error;
       }
-      const presetIndex = Number(preset.ndiPreset ?? presetIndexes[preset.id]);
-      if (!Number.isInteger(presetIndex) || presetIndex < 0 || presetIndex > 99) {
-        const error = new Error(`Preset ${preset.name} does not have a valid NDI preset number`);
+      const cameraPresetNumber = Number(preset.ndiPreset ?? presetIndexes[preset.id]);
+      if (!Number.isInteger(cameraPresetNumber) || cameraPresetNumber < 1 || cameraPresetNumber > 100) {
+        const error = new Error(`Preset ${preset.name} does not have a valid NDI camera preset number`);
         error.status = 400;
         throw error;
       }
+      const presetIndex = cameraPresetNumber - 1;
       await this.runner.recallNdiPreset({
         helper: this.config.ndiHelper || null,
         sourceName,
         urlAddress: source.ndi?.urlAddress || "",
         presetIndex,
         speed: this.config.ndiPresetSpeed ?? 1,
+        settleMs: this.config.ndiSettleMs ?? 750,
         timeoutMs: this.config.timeoutMs || 1500
       });
-      return { transport, status: "recalled", movement: "ndi-preset", sourceName, preset: presetIndex };
+      return { transport, status: "recalled", movement: "ndi-preset", sourceName, preset: presetIndex, cameraPreset: cameraPresetNumber };
     }
     if (transport !== "visca-udp") {
       throw new Error(`Unsupported PTZ transport: ${transport}`);
@@ -215,7 +217,7 @@ function defaultSocketFactory() {
 }
 
 const defaultRunner = {
-  async recallNdiPreset({ helper, sourceName, urlAddress, presetIndex, speed, timeoutMs }) {
+  async recallNdiPreset({ helper, sourceName, urlAddress, presetIndex, speed, settleMs, timeoutMs }) {
     const command = helper || "python3";
     const args = [
       ...(helper ? [] : [path.resolve(__dirname, "ndi_ptz.py")]),
@@ -225,7 +227,9 @@ const defaultRunner = {
       "--preset",
       String(presetIndex),
       "--speed",
-      String(speed)
+      String(speed),
+      "--settle-ms",
+      String(settleMs)
     ];
     if (urlAddress) args.push("--url-address", urlAddress);
     await execFileAsync(command, args, { timeout: timeoutMs + 3500 });

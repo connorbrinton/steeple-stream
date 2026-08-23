@@ -6,13 +6,15 @@ export class MediaMtxBackend {
   getPlayback(channelId) {
     const encoded = encodeURIComponent(channelId);
     const playback = {
-      hlsUrl: `${this.options.hlsBaseUrl}/${encoded}/index.m3u8`,
       publish: {
         rtmpUrl: `rtmp://localhost:1935/${encoded}`,
         rtspUrl: `rtsp://localhost:8554/${encoded}`,
         srtUrl: `srt://localhost:8890?streamid=publish:${encoded}`
       }
     };
+    if (this.options.hls !== false && this.options.hlsBaseUrl) {
+      playback.hlsUrl = `${this.options.hlsBaseUrl}/${encoded}/index.m3u8`;
+    }
     if (this.options.publicWebRtc !== false && this.options.webrtcBaseUrl) {
       playback.webrtcUrl = `${this.options.webrtcBaseUrl}/${encoded}-webrtc/whep`;
     }

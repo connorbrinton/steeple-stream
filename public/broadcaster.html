@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Steeple Stream Broadcaster</title>
+    <link rel="stylesheet" href="/assets/app.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">Steeple Stream Broadcaster</div>
+        <div class="status"><span id="status-dot" class="dot"></span><span id="status-label">Loading</span></div>
+      </header>
+      <section class="layout admin-grid">
+        <div class="panel preview-panel">
+          <h2>Preview</h2>
+          <div class="video-frame admin-preview" id="admin-preview">
+            <div class="slate">
+              <div>
+                <h1>Broadcast Offline</h1>
+                <p>No stream is currently active.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel operator-panel">
+          <h2>Broadcast Controls</h2>
+          <div class="operator-groups">
+            <div id="broadcast-controls-group" hidden>
+              <div class="control-label">Scenes</div>
+              <div class="controls">
+                <button class="button primary" id="start">Start Broadcast</button>
+                <button class="button" id="chapel">Chapel</button>
+                <button class="button" id="sacrament">Sacrament</button>
+                <button class="button danger" id="end">End Broadcast</button>
+              </div>
+            </div>
+            <div>
+              <div class="control-label">Camera</div>
+              <div class="controls" id="ptz-controls"></div>
+            </div>
+          </div>
+          <p class="meta" id="broadcast-details">Loading broadcast state.</p>
+        </div>
+
+        <div class="panel">
+          <h2>Health</h2>
+          <div class="meta" id="health">Checking health.</div>
+        </div>
+      </section>
+    </main>
+    <script src="/vendor/hls.light.min.js"></script>
+    <script src="/assets/player.js"></script>
+    <script src="/assets/broadcaster.js"></script>
+  </body>
+</html>

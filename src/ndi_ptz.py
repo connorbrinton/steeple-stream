@@ -37,43 +37,63 @@ def main():
     recall.add_argument("--preset", required=True, type=int)
     recall.add_argument("--speed", default=1.0, type=float)
     recall.add_argument("--wait-ms", default=3000, type=int)
+    recall.add_argument("--settle-ms", default=750, type=int)
+    check = subparsers.add_parser("check-support")
+    check.add_argument("--source", required=True)
+    check.add_argument("--url-address", default="")
+    check.add_argument("--wait-ms", default=3000, type=int)
     args = parser.parse_args()
 
     if args.command == "recall-preset":
         recall_preset(args)
+    elif args.command == "check-support":
+        check_support(args)
 
 
 def recall_preset(args):
-    ndi = load_ndi()
-    configure_signatures(ndi)
-    if not ndi.NDIlib_initialize():
-        raise SystemExit("NDI runtime failed to initialize")
-
-    recv = None
-    try:
-        source = NDIlibSource(
-            args.source.encode("utf-8"),
-            args.url_address.encode("utf-8") if args.url_address else None,
-        )
-        create = NDIlibRecvCreateV3(
-            source,
-            NDILIB_RECV_COLOR_FORMAT_FASTEST,
-            NDILIB_RECV_BANDWIDTH_METADATA_ONLY,
-            False,
-            b"Steeple Stream PTZ",
-        )
-        recv = ndi.NDIlib_recv_create_v3(ctypes.byref(create))
-        if not recv:
-            raise SystemExit("Could not create NDI receiver")
-
+    with ndi_receiver(args) as (ndi, recv):
         wait_for_ptz_support(ndi, recv, args.wait_ms)
         ok = ndi.NDIlib_recv_ptz_recall_preset(recv, args.preset, ctypes.c_float(args.speed))
         if not ok:
             raise SystemExit(f"NDI preset recall failed for preset {args.preset}")
-    finally:
-        if recv:
-            ndi.NDIlib_recv_destroy(recv)
-        ndi.NDIlib_destroy()
+        settle_after_send(ndi, recv, args.settle_ms)
+        print(f"recalled preset={args.preset} speed={args.speed}")
+
+
+def check_support(args):
+    with ndi_receiver(args) as (ndi, recv):
+        wait_for_ptz_support(ndi, recv, args.wait_ms)
+        print("ptz-supported=true")
+
+
+class ndi_receiver:
+    def __init__(self, args):
+        self.args = args
+        self.ndi = None
+        self.recv = None
+
+    def __enter__(self):
+        args = self.args
+        ndi = load_ndi()
+        configure_signatures(ndi)
+        if not ndi.NDIlib_initialize():
+            raise SystemExit("NDI runtime failed to initialize")
+
+        source = NDIlibSource(args.source.encode("utf-8"), args.url_address.encode("utf-8") if args.url_address else None)
+        create = NDIlibRecvCreateV3(source, NDILIB_RECV_COLOR_FORMAT_FASTEST, NDILIB_RECV_BANDWIDTH_METADATA_ONLY, False, b"Steeple Stream PTZ")
+        recv = ndi.NDIlib_recv_create_v3(ctypes.byref(create))
+        if not recv:
+            ndi.NDIlib_destroy()
+            raise SystemExit("Could not create NDI receiver")
+        self.ndi = ndi
+        self.recv = recv
+        return ndi, recv
+
+    def __exit__(self, _exc_type, _exc, _traceback):
+        if self.recv:
+            self.ndi.NDIlib_recv_destroy(self.recv)
+        if self.ndi:
+            self.ndi.NDIlib_destroy()
 
 
 def wait_for_ptz_support(ndi, recv, wait_ms):
@@ -85,6 +105,12 @@ def wait_for_ptz_support(ndi, recv, wait_ms):
     if ndi.NDIlib_recv_ptz_is_supported(recv):
         return
     raise SystemExit("NDI source did not advertise PTZ support")
+
+
+def settle_after_send(ndi, recv, settle_ms):
+    deadline = time.monotonic() + (settle_ms / 1000)
+    while time.monotonic() < deadline:
+        ndi.NDIlib_recv_capture_v3(recv, None, None, None, 50)
 
 
 def load_ndi():

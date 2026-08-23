@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { sourceId } from "./sourceCatalog.js";
 
 export class BroadcastService {
   constructor({ store, mediaBackend, config, ptzController = null }) {
@@ -137,6 +138,42 @@ export class BroadcastService {
     });
   }
 
+  async updateCameraControlSource(source, actor = null) {
+    const normalized = normalizeSource(source);
+    if (normalized.type !== "ndi" || !normalized.ndi.sourceName) {
+      const error = new Error("Camera control source must be an NDI source");
+      error.status = 400;
+      throw error;
+    }
+    return this.store.update((state) => {
+      state.cameraControlSource = normalized;
+      appendAudit(state, "camera-control-source.update", { type: normalized.type, actor: auditActor(actor) });
+      return this.publicState(state);
+    });
+  }
+
+  async addManualSource(source, actor = null) {
+    const normalized = normalizeSource(source);
+    if (!sourceId(normalized)) {
+      const error = new Error("Source name or URI is required");
+      error.status = 400;
+      throw error;
+    }
+    return this.store.update((state) => {
+      const key = sourceId(normalized);
+      state.manualSources = Array.isArray(state.manualSources) ? state.manualSources : [];
+      const index = state.manualSources.findIndex((entry) => sourceId(entry) === key);
+      if (index >= 0) state.manualSources[index] = normalized;
+      else state.manualSources.push(normalized);
+      appendAudit(state, "source.manual.save", { type: normalized.type, key, actor: auditActor(actor) });
+      return this.publicState(state);
+    });
+  }
+
+  async addConfiguredSource(source, actor = null) {
+    return this.addManualSource(source, actor);
+  }
+
   async recallPreset(presetId, actor = null) {
     const current = await this.store.read();
     const target = current.ptz.presets.find((entry) => entry.id === presetId);
@@ -145,13 +182,13 @@ export class BroadcastService {
       error.status = 404;
       throw error;
     }
+    const controlSource = cameraControlSourceFor(current);
     const transport = this.ptzController
-      ? await this.ptzController.recallPreset({ preset: target, source: current.source })
+      ? await this.ptzController.recallPreset({ preset: target, source: controlSource })
       : { transport: "not_configured", status: "recorded" };
 
     return this.store.update((state) => {
       const preset = state.ptz.presets.find((entry) => entry.id === presetId);
-      state.ptz.lastRecalledPresetId = preset.id;
       appendAudit(state, "ptz.recall", { presetId, transport: transport.transport, status: transport.status, actor: auditActor(actor) });
       return { preset, transport };
     });
@@ -162,7 +199,7 @@ export class BroadcastService {
     const current = await this.store.read();
     const target = current.ptz.presets.find((entry) => entry.id === presetId);
     if (!target) throw Object.assign(new Error("Unknown PTZ preset"), { status: 404 });
-    const position = await this.ptzController.capturePosition({ source: current.source });
+    const position = await this.ptzController.capturePosition({ source: cameraControlSourceFor(current) });
     return this.store.update((state) => {
       const preset = state.ptz.presets.find((entry) => entry.id === presetId);
       preset.position = position;
@@ -173,15 +210,25 @@ export class BroadcastService {
 
   publicState(state) {
     return {
+      capabilities: this.config.capabilities,
       broadcast: state.broadcast,
       preview: this.mediaBackend.getPlayback(this.config.channelId),
       source: state.source,
+      cameraControlSource: state.cameraControlSource || null,
+      manualSources: state.manualSources || [],
+      configuredSources: state.manualSources || [],
       viewerCount: this.store.activePlaybackCount?.(state.broadcast.id) ?? 0,
       ptz: state.ptz,
       recordings: state.recordings,
       auditLog: state.auditLog.slice(-50)
     };
   }
+}
+
+function cameraControlSourceFor(state) {
+  if (state.cameraControlSource?.type === "ndi" && state.cameraControlSource.ndi?.sourceName) return state.cameraControlSource;
+  if (state.source?.type === "ndi" && state.source.ndi?.sourceName) return state.source;
+  return state.cameraControlSource || state.source;
 }
 
 function auditActor(actor) {

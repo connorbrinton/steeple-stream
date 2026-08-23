@@ -9,8 +9,8 @@ test("builds VISCA memory recall command", () => {
 
 test("infers camera host from NDI source name", () => {
   assert.equal(
-    inferHostFromSource({ ndi: { sourceName: "CHAPEL CAMERA (Chapel Camera, 192.168.110.145)" } }),
-    "192.168.110.145"
+    inferHostFromSource({ ndi: { sourceName: "CHAPEL CAMERA (Chapel Camera, 192.0.2.10)" } }),
+    "192.0.2.10"
   );
 });
 
@@ -25,22 +25,22 @@ test("VISCA UDP controller sends recall command to inferred host", async () => {
 
   const result = await controller.recallPreset({
     preset: { id: "pulpit", name: "Pulpit", viscaPreset: 2 },
-    source: { ndi: { sourceName: "CHAPEL CAMERA (Chapel Camera, 192.168.110.145)" } }
+    source: { ndi: { sourceName: "CHAPEL CAMERA (Chapel Camera, 192.0.2.10)" } }
   });
 
   assert.equal(result.status, "recalled");
-  assert.equal(result.host, "192.168.110.145");
+  assert.equal(result.host, "192.0.2.10");
   assert.deepEqual(sends, [{
     command: [0x81, 0x01, 0x04, 0x3f, 0x02, 0x02, 0xff],
     port: 52381,
-    host: "192.168.110.145"
+    host: "192.0.2.10"
   }]);
 });
 
 test("NDI controller recalls configured NDI preset", async () => {
   const calls = [];
   const controller = new PtzController({
-    config: { transport: "ndi", timeoutMs: 100, ndiPresetSpeed: 0.75 },
+    config: { transport: "ndi", timeoutMs: 100, ndiPresetSpeed: 0.75, ndiSettleMs: 900 },
     runner: {
       async recallNdiPreset(options) {
         calls.push(options);
@@ -53,8 +53,8 @@ test("NDI controller recalls configured NDI preset", async () => {
     source: {
       type: "ndi",
       ndi: {
-        sourceName: "CHAPEL CAMERA (Chapel Camera, 192.168.110.145)",
-        urlAddress: "192.168.110.145:5961"
+        sourceName: "CHAPEL CAMERA (Chapel Camera, 192.0.2.10)",
+        urlAddress: "192.0.2.10:5961"
       }
     }
   });
@@ -62,12 +62,15 @@ test("NDI controller recalls configured NDI preset", async () => {
   assert.equal(result.status, "recalled");
   assert.equal(result.transport, "ndi");
   assert.equal(result.movement, "ndi-preset");
+  assert.equal(result.preset, 1);
+  assert.equal(result.cameraPreset, 2);
   assert.deepEqual(calls, [{
     helper: null,
-    sourceName: "CHAPEL CAMERA (Chapel Camera, 192.168.110.145)",
-    urlAddress: "192.168.110.145:5961",
-    presetIndex: 2,
+    sourceName: "CHAPEL CAMERA (Chapel Camera, 192.0.2.10)",
+    urlAddress: "192.0.2.10:5961",
+    presetIndex: 1,
     speed: 0.75,
+    settleMs: 900,
     timeoutMs: 100
   }]);
 });

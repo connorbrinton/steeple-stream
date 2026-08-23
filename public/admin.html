@@ -25,70 +25,20 @@
           </div>
         </div>
 
-        <div class="panel operator-panel">
-          <h2>Operator Controls</h2>
-          <div class="operator-groups">
-            <div>
-              <div class="control-label">Broadcast</div>
-              <div class="controls">
-                <button class="button primary" id="start">Start Broadcast</button>
-                <button class="button" id="chapel">Chapel</button>
-                <button class="button" id="sacrament">Sacrament</button>
-                <button class="button danger" id="end">End Broadcast</button>
-              </div>
-            </div>
-            <div>
-              <div class="control-label">Camera</div>
-              <div class="controls" id="ptz-controls"></div>
-            </div>
-          </div>
-          <p class="meta" id="broadcast-details">Loading broadcast state.</p>
-        </div>
-
         <div class="panel" id="source-panel">
-          <h2>Input Source</h2>
-          <form id="source-form" class="source-form">
-            <label>
-              Source type
-              <select id="source-type" name="type">
-                <option value="ndi">NDI camera stream</option>
-                <option value="network">Network encoder</option>
-              </select>
-            </label>
-
-            <div class="source-fields" data-source-fields="ndi">
-              <label>
-                NDI source
-                <select id="ndi-source-name"></select>
-              </label>
-              <label>
-                Discovery server
-                <input id="ndi-discovery-server" placeholder="Optional IP or hostname">
-              </label>
-              <button class="button" id="refresh-ndi-sources" type="button">Refresh Sources</button>
+          <div class="panel-heading">
+            <h2>Input Source</h2>
+          </div>
+          <div class="source-current" id="source-current"></div>
+          <div class="source-toolbar">
+            <div>
+              <div class="control-label">Available Sources</div>
+              <div class="meta" id="source-discovery-status">Checking sources.</div>
             </div>
+            <button class="button compact" id="open-manual-source" type="button">Add Manual Source</button>
+          </div>
+          <div class="source-list" id="source-list"></div>
 
-            <div class="source-fields" data-source-fields="network">
-              <label>
-                Protocol
-                <select id="network-protocol">
-                  <option value="rtsp">RTSP</option>
-                  <option value="srt">SRT</option>
-                </select>
-              </label>
-              <label>
-                Source URI
-                <input id="network-uri" placeholder="rtsp://encoder.local/stream">
-              </label>
-            </div>
-
-            <label>
-              Notes
-              <textarea id="source-notes" rows="3" placeholder="Setup notes for this location"></textarea>
-            </label>
-
-            <button class="button primary" type="submit">Save Source</button>
-          </form>
           <p class="meta" id="source-help"></p>
         </div>
 
@@ -97,12 +47,7 @@
           <div class="meta" id="health">Checking health.</div>
         </div>
 
-        <div class="panel">
-          <h2>Recent Activity</h2>
-          <div class="list" id="audit-log"></div>
-        </div>
-
-        <div class="panel" id="obs-credentials-panel">
+        <div class="panel" id="obs-credentials-panel" hidden>
           <h2>OBS Control Credentials</h2>
           <form id="obs-credential-form" class="source-form">
             <label>Unit name<input id="obs-unit-name" required></label>
@@ -114,6 +59,58 @@
         </div>
       </section>
     </main>
+    <div class="modal-backdrop" id="manual-source-modal" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="manual-source-title">
+        <div class="modal-header">
+          <h2 id="manual-source-title">Add Manual Source</h2>
+          <button class="button compact" id="cancel-manual-source-x" type="button">Cancel</button>
+        </div>
+        <form id="source-form" class="source-form">
+          <label>
+            Source type
+            <select id="source-type" name="type">
+              <option value="ndi">NDI camera stream</option>
+              <option value="network">Network encoder</option>
+            </select>
+          </label>
+
+          <div class="source-fields" data-source-fields="ndi">
+            <label>
+              NDI source name
+              <input id="add-ndi-source-name" placeholder="HOST (Source name)">
+            </label>
+            <label>
+              Direct address
+              <input id="add-ndi-url-address" placeholder="Optional host:port">
+            </label>
+          </div>
+
+          <div class="source-fields" data-source-fields="network">
+            <label>
+              Protocol
+              <select id="network-protocol">
+                <option value="rtsp">RTSP</option>
+                <option value="srt">SRT</option>
+              </select>
+            </label>
+            <label>
+              Source URI
+              <input id="network-uri" placeholder="rtsp://encoder.local/stream">
+            </label>
+          </div>
+
+          <label>
+            Notes
+            <textarea id="source-notes" rows="3" placeholder="Setup notes for this location"></textarea>
+          </label>
+
+          <div class="modal-actions">
+            <button class="button" id="cancel-manual-source" type="button">Cancel</button>
+            <button class="button primary" type="submit">Save Manual Source</button>
+          </div>
+        </form>
+      </div>
+    </div>
     <script src="/vendor/hls.light.min.js"></script>
     <script src="/assets/player.js"></script>
     <script src="/assets/admin.js"></script>

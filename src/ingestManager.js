@@ -41,7 +41,7 @@ export class IngestManager extends EventEmitter {
   async startForState(state) {
     this.lastRequestedState = structuredClone(state);
     let source = state.source;
-    const mode = state.broadcast?.mode === "sacrament" ? "sacrament" : "chapel";
+    const mode = this.config.sceneControls === false ? "chapel" : state.broadcast?.mode === "sacrament" ? "sacrament" : "chapel";
 
     if (!this.config.autoStart) {
       this.engine.setState({ status: "disabled", message: "Ingest autostart is disabled." });

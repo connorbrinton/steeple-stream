@@ -1,14 +1,13 @@
 # Cloudflare Tunnel Deployment
 
-This is the recommended first public deployment shape for Steeple Stream on
-`brintonium.com`.
+This is the recommended first public deployment shape for Steeple Stream.
 
 ## Recommendation
 
 Use a named Cloudflare Tunnel with a dedicated hostname:
 
 ```text
-https://broadcasts.brintonium.com
+https://broadcasts.example.org
 ```
 
 That hostname should point at the local Steeple Stream HTTP service:
@@ -31,7 +30,7 @@ still depends on ICE connectivity to MediaMTX.
 For the initial hosted version, set:
 
 ```bash
-STEEPLE_PUBLIC_BASE_URL=https://broadcasts.brintonium.com
+STEEPLE_PUBLIC_BASE_URL=https://broadcasts.example.org
 STEEPLE_PUBLIC_WEBRTC=0
 ```
 
@@ -52,8 +51,8 @@ create a named tunnel, and route DNS:
 
 ```bash
 nix run .#cloudflared -- tunnel login
-nix run .#cloudflared -- tunnel create steeple-stream-brintonium
-nix run .#cloudflared -- tunnel route dns steeple-stream-brintonium broadcasts.brintonium.com
+nix run .#cloudflared -- tunnel create steeple-stream-example
+nix run .#cloudflared -- tunnel route dns steeple-stream-example broadcasts.example.org
 ```
 
 This creates a tunnel credentials JSON file. Keep that file out of Git and copy
@@ -78,8 +77,8 @@ service through Nixpkgs' native `services.cloudflared` module:
     enable = true;
     cloudflareTunnel = {
       enable = true;
-      tunnelName = "steeple-stream-brintonium";
-      hostname = "broadcasts.brintonium.com";
+      tunnelName = "steeple-stream-example";
+      hostname = "broadcasts.example.org";
       credentialsFile = "/var/lib/cloudflared/<tunnel-id>.json";
     };
     environmentFile = "/run/secrets/steeple-stream.env";
@@ -106,14 +105,14 @@ deploy/cloudflared-config.example.yml
 Then run:
 
 ```bash
-nix run .#cloudflared -- tunnel --config /path/to/config.yml run steeple-stream-brintonium
+nix run .#cloudflared -- tunnel --config /path/to/config.yml run steeple-stream-example
 ```
 
 Validate the ingress file before installing it as a service:
 
 ```bash
 nix run .#cloudflared -- tunnel ingress validate --config /path/to/config.yml
-nix run .#cloudflared -- tunnel ingress rule --config /path/to/config.yml https://broadcasts.brintonium.com/broadcasts/stakecenter
+nix run .#cloudflared -- tunnel ingress rule --config /path/to/config.yml https://broadcasts.example.org/broadcasts/stakecenter
 ```
 
 ## Steeple Stream Environment
@@ -123,7 +122,7 @@ Minimal production-like environment:
 ```bash
 STEEPLE_HOST=127.0.0.1
 STEEPLE_PORT=8080
-STEEPLE_PUBLIC_BASE_URL=https://broadcasts.brintonium.com
+STEEPLE_PUBLIC_BASE_URL=https://broadcasts.example.org
 STEEPLE_PUBLIC_WEBRTC=0
 STEEPLE_GOOGLE_CLIENT_ID=...
 STEEPLE_GOOGLE_CLIENT_SECRET=...
@@ -135,7 +134,7 @@ STEEPLE_SESSION_SECRET=...
 Register this Google OAuth redirect URI:
 
 ```text
-https://broadcasts.brintonium.com/auth/google/callback
+https://broadcasts.example.org/auth/google/callback
 ```
 
 ## Later WebRTC Options

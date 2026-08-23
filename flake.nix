@@ -125,7 +125,7 @@
             publicBaseUrl = lib.mkOption {
               type = lib.types.nullOr lib.types.str;
               default = null;
-              example = "https://broadcasts.brintonium.com";
+              example = "https://broadcasts.example.org";
               description = "Externally visible base URL used for OAuth redirects and generated links.";
             };
             publicWebRtc = lib.mkOption {
@@ -138,13 +138,13 @@
               tunnelName = lib.mkOption {
                 type = lib.types.str;
                 default = "steeple-stream";
-                example = "steeple-stream-brintonium";
+                example = "steeple-stream-example";
                 description = "Cloudflare Tunnel name or UUID.";
               };
               hostname = lib.mkOption {
                 type = lib.types.nullOr lib.types.str;
                 default = null;
-                example = "broadcasts.brintonium.com";
+                example = "broadcasts.example.org";
                 description = "Public hostname routed through Cloudflare Tunnel.";
               };
               credentialsFile = lib.mkOption {

@@ -25,7 +25,8 @@ scripts/nix-run-local.sh
 Then open:
 
 - Viewer: http://localhost:8080/broadcasts/stakecenter
-- Operator console: http://localhost:8080/broadcasts/stakecenter/admin
+- Broadcaster console: http://localhost:8080/broadcasts/stakecenter/broadcaster
+- Admin setup: http://localhost:8080/broadcasts/stakecenter/admin
 - Health: http://localhost:8080/api/health
 
 State, OAuth sessions, OBS credentials, and playback metrics are stored in
@@ -44,13 +45,38 @@ GStreamer, the GStreamer plugin set, `gst-plugin-ndi`, and the proprietary NDI
 runtime library, then launches the app with the right `PATH`, `GST_PLUGIN_PATH`,
 and `LD_LIBRARY_PATH`.
 
+## Rollout Profiles
+
+Steeple Stream supports two local deployment profiles:
+
+```bash
+STEEPLE_PROFILE=camera-control
+STEEPLE_PROFILE=broadcast
+```
+
+`camera-control` is the phase-one rollout profile. It enables admin setup,
+NDI source discovery, the broadcaster console, live WebRTC preview, and camera
+preset recall. It disables broadcast start/end controls, Chapel/Sacrament scene
+controls, public viewer routes, OBS control endpoints, HLS scrubbing, playback,
+and recording.
+
+`broadcast` is the full phase-two profile and remains the default. It enables
+the public viewer, broadcast controls, scene switching, WebRTC live playback,
+HLS scrubbing during live broadcasts, recording, replay, retention cleanup, and
+OBS-compatible control endpoints.
+
+Admin and broadcaster previews are live-only until a broadcast is started.
+During a live broadcast, the preview uses the hybrid WebRTC/HLS player so
+operators can scrub back within the live timeline.
+
 ## Media Backend
 
 The default backend adapter targets MediaMTX. Steeple Stream writes a generated
-MediaMTX config to `data/mediamtx.yml`. It accepts RTMP, RTSP, SRT, WebRTC, HLS,
-and records live broadcasts to `data/recordings`. Offline preview remains
-available to authenticated operators without recording. Recording starts with
-the broadcast and expires 24 hours after the broadcast start time.
+MediaMTX config to `data/mediamtx.yml`. In the full broadcast profile it accepts
+RTMP, RTSP, SRT, WebRTC, and HLS, and records live broadcasts to
+`data/recordings`. In the camera-control profile, MediaMTX is used only for
+live WebRTC preview and does not enable HLS, playback, or recording. Recording
+starts with the broadcast and expires 24 hours after the broadcast start time.
 
 In the normal flake runtime, Steeple Stream starts `mediamtx` from `PATH`.
 Fallback runtime modes are retained for development and debugging.
@@ -70,7 +96,7 @@ Useful environment variables:
 ## Ingest and Playback
 
 NDI is one supported ingest adapter, not a requirement of the media core.
-RTSP and SRT network sources can also be selected in the admin interface.
+RTSP and SRT network sources can also be selected in the admin setup interface.
 MediaMTX does not ingest NDI directly, so Steeple Stream starts a managed
 GStreamer adapter when the saved source is an NDI stream.
 
@@ -120,7 +146,7 @@ Useful environment variables:
 For manual debugging, the same bridge can be run with:
 
 ```bash
-bash scripts/ndi-to-mediamtx.sh "CHAPEL CAMERA (Chapel Camera, 192.168.110.145)"
+bash scripts/ndi-to-mediamtx.sh "CHAPEL CAMERA (Chapel Camera, 192.0.2.10)"
 ```
 
 To create a synthetic NDI source with moving video and stereo audio:
@@ -156,7 +182,8 @@ GST_PLUGIN_PATH=$(readlink -f result)/lib/gstreamer-1.0 \
 Implemented:
 
 - Viewer page with first-visit name prompt.
-- Location-scoped operator console for start, chapel, sacrament, end, source configuration, PTZ preset recall, and retention cleanup.
+- Admin setup page for stream source, camera-control source, and manual source configuration.
+- Location-scoped broadcaster console for start, chapel, sacrament, end, and PTZ preset recall.
 - Structured media-engine boundary between the Node control plane and the
   managed GStreamer compositor.
 - NDI source selection model with audio and video always paired.
@@ -164,7 +191,7 @@ Implemented:
 - Unit-specific authenticated OBS WebSocket v5 endpoints on separate ports.
 - MediaMTX-oriented backend interface and default configuration.
 - Live-only recording, recorded MP4 replay, physical 24-hour retention, and audit log.
-- NDI camera preset recall with last app-recalled preset highlighting.
+- NDI camera preset recall without app-side selected-state highlighting.
 
 ## PTZ Control
 
@@ -183,6 +210,9 @@ The NDI preset mapping is:
 - Piano: NDI preset 13
 - Pulpit Wide: NDI preset 16
 
+These are the camera/web UI `Call` numbers. Steeple Stream converts them to
+the NDI SDK's zero-based preset indexes when sending recall commands.
+
 Steeple Stream does not store or overwrite NDI presets. Those presets are
 treated as camera-owned configuration that should remain as installed by the AV
 company.
@@ -194,11 +224,11 @@ STEEPLE_PTZ_TRANSPORT=visca-udp
 ```
 
 By default, it infers the camera host from the selected NDI source name if it
-contains an IP address, such as `CHAPEL CAMERA (..., 192.168.110.145)`. To set
+contains an IP address, such as `CHAPEL CAMERA (..., 192.0.2.10)`. To set
 the host explicitly:
 
 ```bash
-STEEPLE_PTZ_HOST=192.168.110.145
+STEEPLE_PTZ_HOST=192.0.2.10
 STEEPLE_PTZ_PORT=52381
 ```
 
@@ -240,12 +270,31 @@ location to the loopback-bound application. The NixOS module is available as
 For the first Cloudflare Tunnel deployment, use HLS for public viewers:
 
 ```bash
-STEEPLE_PUBLIC_BASE_URL=https://broadcasts.brintonium.com
+STEEPLE_PUBLIC_BASE_URL=https://broadcasts.example.org
 STEEPLE_PUBLIC_WEBRTC=0
 ```
 
 See [docs/cloudflare-tunnel.md](docs/cloudflare-tunnel.md) for the recommended
-`brintonium.com` tunnel shape and deployment checklist. The flake exposes
+Cloudflare Tunnel deployment checklist. The flake exposes
 `cloudflared` as `nix run .#cloudflared -- ...`, and the NixOS module can
 manage the Cloudflare Tunnel service with
 `services.steeple-stream.cloudflareTunnel`.
+
+## Rollout Authentication Plan
+
+Phase one is camera control only. Expose the broadcaster console through
+Cloudflare Tunnel and protect it with Cloudflare Access. The Access policy
+should allow only approved operator email addresses, using Google sign-in or
+Cloudflare one-time PIN email login. Keep the admin setup route restricted to
+administrator email addresses. In this phase, the public viewer routes remain
+disabled by `STEEPLE_PROFILE=camera-control`, so unauthenticated viewers do not
+receive media endpoints.
+
+Long term, keep admin and operator routes behind Cloudflare Access. Public
+viewers should not need account sign-in, but should enter a name before viewing.
+After name entry, Steeple Stream should issue a short-lived playback session
+token and require that token on WebRTC, HLS, and recording endpoints before
+proxying to MediaMTX. Tokens should expire quickly, apply to one broadcast or
+recording window, and be recorded with viewer/session metrics. Cloudflare WAF
+rate limiting is intentionally deferred until there is real abuse or traffic
+pressure that justifies adding another operational control.

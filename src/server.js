@@ -13,6 +13,7 @@ import { SourceDiscoveryService } from "./sourceDiscoveryService.js";
 import { LocationCommandCoordinator } from "./commandCoordinator.js";
 import { AuthService } from "./authService.js";
 import { ObsEndpointManager } from "./obsEndpointManager.js";
+import { buildSourceCatalog } from "./sourceCatalog.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.resolve(__dirname, "..", "public");
@@ -47,14 +48,15 @@ const server = http.createServer(async (req, res) => {
 });
 
 await auth.initialize();
-await obsEndpoints.reload();
+if (config.capabilities.obsControl) await obsEndpoints.reload();
 await mediamtxManager.start();
 await sourceDiscovery.start({ waitForInitial: true });
 await ingestManager.startForState(await service.summary());
 
 server.listen(config.port, config.host, () => {
   console.log(`Steeple Stream listening on http://${config.host}:${config.port}`);
-  console.log(`OBS WebSocket unit endpoints active: ${store.listObsCredentials().length}`);
+  console.log(`Profile: ${config.profile}`);
+  if (config.capabilities.obsControl) console.log(`OBS WebSocket unit endpoints active: ${store.listObsCredentials().length}`);
 });
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
@@ -69,8 +71,12 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 }
 
 setInterval(() => {
-  service.cleanupExpired().catch((error) => console.error("retention cleanup failed", error));
-  try { store.aggregatePlaybackSessions(); } catch (error) { console.error("metrics aggregation failed", error); }
+  if (config.capabilities.recording) {
+    service.cleanupExpired().catch((error) => console.error("retention cleanup failed", error));
+  }
+  if (config.capabilities.publicViewer) {
+    try { store.aggregatePlaybackSessions(); } catch (error) { console.error("metrics aggregation failed", error); }
+  }
 }, 5 * 60 * 1000).unref();
 
 async function route(req, res) {
@@ -78,7 +84,7 @@ async function route(req, res) {
   const method = req.method || "GET";
 
   if (method === "GET" && url.pathname === "/auth/google") {
-    const target = await auth.begin(url.searchParams.get("returnTo") || `/broadcasts/${config.channelId}/admin`);
+    const target = await auth.begin(url.searchParams.get("returnTo") || `/broadcasts/${config.channelId}/broadcaster`);
     res.writeHead(302, { location: target.href });
     res.end();
     return;
@@ -147,18 +153,21 @@ async function route(req, res) {
   }
 
   if (method === "POST" && url.pathname === "/api/broadcast/start") {
+    requireCapability("broadcastControls");
     const actor = auth.authorize(req, "operator", { csrfRequired: true });
     sendJson(res, 200, await coordinator.start(actor));
     return;
   }
 
   if (method === "POST" && url.pathname === "/api/broadcast/end") {
+    requireCapability("broadcastControls");
     const actor = auth.authorize(req, "operator", { csrfRequired: true });
     sendJson(res, 200, await coordinator.end(actor));
     return;
   }
 
   if (method === "POST" && url.pathname === "/api/broadcast/mode") {
+    requireCapability("sceneControls");
     const actor = auth.authorize(req, "operator", { csrfRequired: true });
     const body = await parseJson(req);
     sendJson(res, 200, await coordinator.setMode(body.mode, actor));
@@ -172,15 +181,46 @@ async function route(req, res) {
     return;
   }
 
+  if (method === "PUT" && url.pathname === "/api/camera-control-source") {
+    const actor = auth.authorize(req, "administrator", { csrfRequired: true });
+    const body = await parseJson(req);
+    sendJson(res, 200, await coordinator.updateCameraControlSource(body, actor));
+    return;
+  }
+
+  if (method === "POST" && (url.pathname === "/api/sources/manual" || url.pathname === "/api/sources/configured")) {
+    const actor = auth.authorize(req, "administrator", { csrfRequired: true });
+    const body = await parseJson(req);
+    sendJson(res, 201, await coordinator.addManualSource(body, actor));
+    return;
+  }
+
+  if (method === "GET" && url.pathname === "/api/sources") {
+    auth.authorize(req, "administrator");
+    sourceDiscovery.triggerRefresh();
+    sendJson(res, 200, await sourceCatalogSummary({ refreshBackend: false }));
+    return;
+  }
+
   if (method === "GET" && url.pathname === "/api/sources/ndi") {
     auth.authorize(req, "administrator");
-    const state = await service.summary();
     sourceDiscovery.triggerRefresh();
-    sendJson(res, 200, { sources: sourceDiscovery.listNdiSources(state.source), discovery: sourceDiscovery.status() });
+    const catalog = await sourceCatalogSummary({ refreshBackend: false });
+    sendJson(res, 200, {
+      sources: catalog.sources.filter((source) => source.type === "ndi").map((source) => ({
+        name: source.source.ndi.sourceName,
+        urlAddress: source.source.ndi.urlAddress,
+        source: source.discoveryMethod || source.origin,
+        configured: source.configured,
+        available: source.available
+      })),
+      discovery: catalog.discovery
+    });
     return;
   }
 
   if (method === "POST" && url.pathname === "/api/viewers") {
+    requireCapability("publicViewer");
     const body = await parseJson(req);
     sendJson(res, 200, await service.registerViewer({
       name: body.name,
@@ -192,6 +232,7 @@ async function route(req, res) {
   }
 
   if (method === "POST" && url.pathname === "/api/playback-sessions") {
+    requireCapability("publicViewer");
     const body = await parseJson(req);
     if (!body.id || !body.viewerId || !String(body.viewerName || "").trim()) {
       sendJson(res, 400, { error: "Playback session id, viewer id, and viewer name are required" });
@@ -223,18 +264,21 @@ async function route(req, res) {
   }
 
   if (method === "POST" && url.pathname === "/api/retention/cleanup") {
+    requireCapability("recording");
     auth.authorize(req, "administrator", { csrfRequired: true });
     sendJson(res, 200, await service.cleanupExpired());
     return;
   }
 
   if (method === "GET" && url.pathname === "/api/obs-credentials") {
+    requireCapability("obsControl");
     auth.authorize(req, "administrator");
     sendJson(res, 200, { credentials: store.listObsCredentials().map(({ secret, salt, ...entry }) => entry) });
     return;
   }
 
   if (method === "POST" && url.pathname === "/api/obs-credentials") {
+    requireCapability("obsControl");
     auth.authorize(req, "administrator", { csrfRequired: true });
     const body = await parseJson(req);
     if (!String(body.unitName || "").trim() || !Number.isInteger(Number(body.port)) || Number(body.port) < 1024 || Number(body.port) > 65535) {
@@ -253,9 +297,21 @@ async function route(req, res) {
     return;
   }
 
+  if ((method === "GET" || method === "HEAD") && url.pathname === "/broadcaster") {
+    res.writeHead(302, { location: `/broadcasts/${config.channelId}/broadcaster` });
+    res.end();
+    return;
+  }
+
   if (method === "GET" && url.pathname === `/broadcasts/${config.channelId}/admin`) {
-    if (!auth.authenticate(req)) {
+    const principal = auth.authenticate(req);
+    if (!principal) {
       res.writeHead(302, { location: `/auth/google?returnTo=${encodeURIComponent(url.pathname)}` });
+      res.end();
+      return;
+    }
+    if (principal.role !== "administrator") {
+      res.writeHead(302, { location: `/broadcasts/${config.channelId}/broadcaster` });
       res.end();
       return;
     }
@@ -263,12 +319,24 @@ async function route(req, res) {
     return;
   }
 
+  if (method === "GET" && url.pathname === `/broadcasts/${config.channelId}/broadcaster`) {
+    if (!auth.authenticate(req)) {
+      res.writeHead(302, { location: `/auth/google?returnTo=${encodeURIComponent(url.pathname)}` });
+      res.end();
+      return;
+    }
+    await sendStatic(res, publicDir, "/broadcaster.html");
+    return;
+  }
+
   if (method === "GET" && url.pathname === `/broadcasts/${config.channelId}`) {
+    requireCapability("publicViewer");
     await sendStatic(res, publicDir, "/viewer.html");
     return;
   }
 
   if ((method === "GET" || method === "HEAD") && url.pathname.startsWith("/hls/")) {
+    requireCapability("hlsScrub");
     const state = await service.summary();
     if (state.broadcast.status !== "live" && !auth.authenticate(req)) {
       sendJson(res, 404, { error: "Broadcast is not live" });
@@ -289,6 +357,7 @@ async function route(req, res) {
   }
 
   if ((method === "GET" || method === "HEAD") && url.pathname.startsWith("/recordings/")) {
+    requireCapability("recording");
     const id = decodeURIComponent(url.pathname.slice("/recordings/".length));
     const state = await service.summary();
     const recording = state.recordings.find((entry) => entry.id === id && entry.status === "available");
@@ -313,12 +382,19 @@ async function route(req, res) {
   }
 
   if (method === "GET" && url.pathname === "/") {
-    res.writeHead(302, { location: `/broadcasts/${config.channelId}` });
+    res.writeHead(302, { location: config.capabilities.publicViewer ? `/broadcasts/${config.channelId}` : `/broadcasts/${config.channelId}/broadcaster` });
     res.end();
     return;
   }
 
   sendJson(res, 404, { error: "Not found" });
+}
+
+function requireCapability(name) {
+  if (config.capabilities[name]) return;
+  const error = new Error(`Capability is disabled in ${config.profile} profile: ${name}`);
+  error.status = 404;
+  throw error;
 }
 
 function applySecurityHeaders(res) {
@@ -342,4 +418,18 @@ async function healthSummary({ refreshBackend = true } = {}) {
     ingest: ingestManager.status(),
     discovery: sourceDiscovery.status()
   };
+}
+
+async function sourceCatalogSummary({ refreshBackend = true } = {}) {
+  const state = await service.summary();
+  const health = await healthSummary({ refreshBackend });
+  return buildSourceCatalog({
+    activeSource: state.source,
+    cameraControlSource: state.cameraControlSource,
+    manualSources: state.manualSources || state.configuredSources || [],
+    discoveredNdiSources: sourceDiscovery.listNdiSources(),
+    discoveryStatus: sourceDiscovery.status(),
+    ingestStatus: health.ingest,
+    backendHealth: health.backend
+  });
 }

@@ -1,38 +1,42 @@
 const statusDot = document.querySelector("#status-dot");
 const statusLabel = document.querySelector("#status-label");
-const details = document.querySelector("#broadcast-details");
-const auditLog = document.querySelector("#audit-log");
 const health = document.querySelector("#health");
-const ptzControls = document.querySelector("#ptz-controls");
 const sourceForm = document.querySelector("#source-form");
 const sourceType = document.querySelector("#source-type");
 const sourceHelp = document.querySelector("#source-help");
 const adminPreview = document.querySelector("#admin-preview");
-const ndiSourceName = document.querySelector("#ndi-source-name");
+const sourceCurrent = document.querySelector("#source-current");
+const sourceList = document.querySelector("#source-list");
+const sourceDiscoveryStatus = document.querySelector("#source-discovery-status");
+const sourceModal = document.querySelector("#manual-source-modal");
+const openManualSource = document.querySelector("#open-manual-source");
 const obsForm = document.querySelector("#obs-credential-form");
 
-let sourceDirty = false;
-let renderedSourceSignature = "";
 let latestHealth = null;
+let latestState = null;
+let latestPreviewSignature = "";
+let obsCredentialsLoaded = false;
+let sourceCatalog = null;
+let selectingSourceId = null;
+let selectingCameraControlSourceId = null;
 let csrfToken = "development";
 
-document.querySelector("#start").addEventListener("click", () => post("/api/broadcast/start"));
-document.querySelector("#chapel").addEventListener("click", () => post("/api/broadcast/mode", { mode: "chapel" }));
-document.querySelector("#sacrament").addEventListener("click", () => post("/api/broadcast/mode", { mode: "sacrament" }));
-document.querySelector("#end").addEventListener("click", () => post("/api/broadcast/end"));
-document.querySelector("#refresh-ndi-sources").addEventListener("click", () => loadNdiSources(readSourceForm().ndi.sourceName));
-sourceForm.addEventListener("input", () => {
-  sourceDirty = true;
+openManualSource.addEventListener("click", () => openManualSourceModal());
+document.querySelector("#cancel-manual-source").addEventListener("click", () => closeManualSourceModal());
+document.querySelector("#cancel-manual-source-x").addEventListener("click", () => closeManualSourceModal());
+sourceModal.addEventListener("click", (event) => {
+  if (event.target === sourceModal) closeManualSourceModal();
 });
-sourceForm.addEventListener("change", () => {
-  sourceDirty = true;
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !sourceModal.hidden) closeManualSourceModal();
 });
 sourceType.addEventListener("change", () => updateSourceFieldVisibility(sourceType.value));
 sourceForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const state = await post("/api/source", readSourceForm(), "PUT");
-  sourceDirty = false;
+  const state = await post("/api/sources/manual", readSourceForm());
+  closeManualSourceModal({ reset: true });
   renderState(state);
+  await loadSources();
 });
 obsForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -71,62 +75,35 @@ async function refresh() {
 }
 
 function renderState(state) {
+  latestState = state;
   const broadcast = state.broadcast;
+  const capabilities = state.capabilities || {};
+  document.querySelector("#obs-credentials-panel").hidden = window.steepleRole !== "administrator" || !capabilities.obsControl;
+  if (window.steepleRole === "administrator" && capabilities.obsControl && !obsCredentialsLoaded) {
+    obsCredentialsLoaded = true;
+    loadObsCredentials().catch(console.error);
+  }
   statusDot.className = `dot ${broadcast.status === "live" ? broadcast.mode : ""}`;
-  statusLabel.textContent = broadcast.status === "live" ? `${broadcast.mode} live` : broadcast.status;
-  details.textContent = `Status: ${broadcast.status}. Mode: ${broadcast.mode}. Started: ${format(broadcast.startedAt)}. Expires: ${format(broadcast.expiresAt)}.`;
-  document.querySelector("#chapel").classList.toggle("active", broadcast.mode === "chapel");
-  document.querySelector("#sacrament").classList.toggle("active", broadcast.mode === "sacrament");
+  statusLabel.textContent = capabilities.broadcastControls
+    ? broadcast.status === "live" ? `${broadcast.mode} live` : broadcast.status
+    : "camera control";
   renderPreview(state);
   renderSource(state.source);
-
-  ptzControls.innerHTML = "";
-  for (const preset of state.ptz.presets) {
-    const button = document.createElement("button");
-    button.className = "button";
-    button.classList.toggle("active", state.ptz.lastRecalledPresetId === preset.id);
-    button.textContent = preset.name;
-    button.addEventListener("click", () => post("/api/ptz/recall", { presetId: preset.id }));
-    ptzControls.append(button);
-    if (window.steepleRole === "administrator") {
-      const capture = document.createElement("button");
-      capture.className = "button";
-      capture.textContent = `Set ${preset.name}`;
-      capture.addEventListener("click", () => post("/api/ptz/capture", { presetId: preset.id }));
-      ptzControls.append(capture);
-    }
-  }
-
-  auditLog.innerHTML = "";
-  for (const entry of state.auditLog.slice().reverse().slice(0, 12)) {
-    const item = document.createElement("div");
-    item.className = "list-item";
-    item.textContent = `${new Date(entry.createdAt).toLocaleTimeString()} ${entry.event}`;
-    auditLog.append(item);
-  }
 }
 
 function renderSource(source) {
   if (!source) return;
-  const signature = JSON.stringify(source);
-  if (sourceDirty && signature !== renderedSourceSignature) return;
-  renderedSourceSignature = signature;
-  sourceType.value = source.type;
-  setNdiSelection(source.ndi?.sourceName || "", source.ndi?.urlAddress || "");
-  document.querySelector("#ndi-discovery-server").value = source.ndi?.discoveryServer || "";
-  document.querySelector("#network-protocol").value = source.network?.protocol || "rtsp";
-  document.querySelector("#network-uri").value = source.network?.uri || "";
-  document.querySelector("#source-notes").value = source.notes || "";
-  updateSourceFieldVisibility(source.type);
+  updateSourceFieldVisibility(sourceType.value);
+  renderSourceCatalog();
 }
 
 function readSourceForm() {
   return {
     type: sourceType.value,
     ndi: {
-      sourceName: ndiSourceName.value,
-      urlAddress: ndiSourceName.selectedOptions[0]?.dataset.urlAddress || "",
-      discoveryServer: document.querySelector("#ndi-discovery-server").value
+      sourceName: document.querySelector("#add-ndi-source-name").value,
+      urlAddress: document.querySelector("#add-ndi-url-address").value,
+      discoveryServer: ""
     },
     network: {
       protocol: document.querySelector("#network-protocol").value,
@@ -153,29 +130,23 @@ function helpForSource(type) {
   return "";
 }
 
-async function loadNdiSources(selectedName = "") {
-  const response = await fetch("/api/sources/ndi").then((result) => result.json());
-  const sources = response.sources || [];
-  ndiSourceName.innerHTML = "";
-  if (!sources.length) {
-    const option = document.createElement("option");
-    option.value = "";
-    option.textContent = "No NDI sources found";
-    ndiSourceName.append(option);
+async function loadSources({ silent = false } = {}) {
+  if (!silent) {
+    sourceDiscoveryStatus.textContent = "Refreshing...";
+  }
+  try {
+    sourceCatalog = await fetch("/api/sources").then((result) => result.json());
+  } catch (error) {
+    if (!silent) sourceDiscoveryStatus.textContent = `Refresh failed: ${error.message}`;
     return;
   }
-  for (const source of sources) {
-    const option = document.createElement("option");
-    option.value = source.name;
-    option.dataset.urlAddress = source.urlAddress || "";
-    option.textContent = source.available === false ? `${source.name} (saved)` : source.name;
-    ndiSourceName.append(option);
-  }
-  setNdiSelection(selectedName || sources[0].name);
+  renderSourceCatalog();
 }
 
 async function loadObsCredentials() {
-  const payload = await fetch("/api/obs-credentials").then((response) => response.json());
+  const response = await fetch("/api/obs-credentials");
+  if (response.status === 404) return;
+  const payload = await response.json();
   const list = document.querySelector("#obs-credentials");
   list.replaceChildren();
   for (const credential of payload.credentials || []) {
@@ -186,31 +157,235 @@ async function loadObsCredentials() {
   }
 }
 
-function setNdiSelection(name, urlAddress = "") {
-  if (name && ![...ndiSourceName.options].some((option) => option.value === name)) {
-    const option = document.createElement("option");
-    option.value = name;
-    option.dataset.urlAddress = urlAddress;
-    option.textContent = `${name} (saved)`;
-    ndiSourceName.append(option);
+function renderSourceCatalog() {
+  const catalog = sourceCatalog;
+  const sources = catalog?.sources || [];
+  const active = sources.find((source) => source.selected) || null;
+  const camera = sources.find((source) => source.cameraControl) || null;
+  renderCurrentSource(active);
+  renderCameraControlSource(camera);
+  renderSourceRows(sources);
+  renderSourceDiscoveryStatus(catalog?.discovery);
+}
+
+function renderCameraControlSource(source) {
+  const detail = document.createElement("div");
+  detail.className = "source-detail";
+  detail.textContent = source
+    ? `Camera control: ${source.name}${source.available ? "" : " (saved, not discovered)"}`
+    : "Camera control: not configured";
+  sourceCurrent.append(detail);
+}
+
+function renderCurrentSource(source) {
+  sourceCurrent.replaceChildren();
+  if (!source) {
+    sourceCurrent.className = "source-current warn";
+    sourceCurrent.textContent = "No input source is selected.";
+    return;
   }
-  ndiSourceName.value = name;
-  if (urlAddress && ndiSourceName.selectedOptions[0]) {
-    ndiSourceName.selectedOptions[0].dataset.urlAddress = urlAddress;
+  sourceCurrent.className = `source-current ${sourceHealthLevel(source)}`;
+  const title = document.createElement("div");
+  title.className = "source-current-title";
+  title.append(sourceBadge(source.type), textNode(source.name));
+  const detail = document.createElement("div");
+  detail.className = "source-detail";
+  detail.textContent = [source.health?.message, source.detail].filter(Boolean).join(" · ");
+  sourceCurrent.append(title, detail);
+}
+
+function renderSourceRows(sources) {
+  sourceList.replaceChildren();
+  if (!sources.length) {
+    const empty = document.createElement("div");
+    empty.className = "source-empty";
+    empty.textContent = "No discovered or manual sources are available yet.";
+    sourceList.append(empty);
+    return;
   }
+  for (const source of sources) {
+    const row = document.createElement("div");
+    row.className = `source-row ${source.selected ? "selected" : ""} ${source.cameraControl ? "camera-control" : ""} ${sourceHealthLevel(source)}`;
+
+    const main = document.createElement("div");
+    main.className = "source-row-main";
+    const title = document.createElement("div");
+    title.className = "source-row-title";
+    title.append(sourceBadge(source.type), textNode(source.name));
+    const detail = document.createElement("div");
+    detail.className = "source-detail";
+    detail.textContent = source.detail || source.origin;
+    main.append(title, detail);
+
+    const status = document.createElement("div");
+    status.className = "source-row-status";
+    status.append(sourceStatusPill(source));
+    const roles = sourceRolePills(source);
+    if (roles) status.append(roles);
+    const actions = sourceActions(source);
+    if (actions) status.append(actions);
+
+    row.append(main, status);
+    sourceList.append(row);
+  }
+}
+
+function sourceActions(source) {
+  const actions = document.createElement("div");
+  actions.className = "source-actions-inline";
+  if (!source.selected) actions.append(streamActionButton(source));
+  if (source.type === "ndi" && !source.cameraControl) actions.append(cameraControlActionButton(source));
+  return actions.childElementCount ? actions : null;
+}
+
+function streamActionButton(source) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "source-action-label";
+  button.disabled = source.id === selectingSourceId;
+  button.textContent = source.id === selectingSourceId ? "Selecting..." : "Use for Stream";
+  button.addEventListener("click", () => selectSource(source));
+  return button;
+}
+
+function cameraControlActionButton(source) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "source-action-label secondary";
+  button.disabled = source.id === selectingCameraControlSourceId;
+  button.textContent = source.id === selectingCameraControlSourceId ? "Saving..." : "Use for Camera";
+  button.addEventListener("click", () => selectCameraControlSource(source));
+  return button;
+}
+
+function sourceRolePills(source) {
+  const roles = document.createElement("div");
+  roles.className = "source-role-list";
+  if (source.selected) roles.append(sourceRolePill("Stream"));
+  if (source.cameraControl) roles.append(sourceRolePill("Camera"));
+  return roles.childElementCount ? roles : null;
+}
+
+function sourceRolePill(label) {
+  const pill = document.createElement("span");
+  pill.className = "source-role-pill";
+  pill.textContent = label;
+  return pill;
+}
+
+async function selectSource(source) {
+  selectingSourceId = source.id;
+  renderSourceCatalog();
+  try {
+    const state = await post("/api/source", source.source, "PUT");
+    renderState(state);
+    await loadSources({ silent: true });
+  } finally {
+    selectingSourceId = null;
+    renderSourceCatalog();
+  }
+}
+
+async function selectCameraControlSource(source) {
+  selectingCameraControlSourceId = source.id;
+  renderSourceCatalog();
+  try {
+    const state = await post("/api/camera-control-source", source.source, "PUT");
+    renderState(state);
+    await loadSources({ silent: true });
+  } finally {
+    selectingCameraControlSourceId = null;
+    renderSourceCatalog();
+  }
+}
+
+function renderSourceDiscoveryStatus(discovery) {
+  const ndi = discovery?.ndi;
+  if (!ndi) {
+    sourceDiscoveryStatus.textContent = "";
+    return;
+  }
+  if (ndi.lastError) {
+    sourceDiscoveryStatus.textContent = `Last refresh failed: ${ndi.lastError.message}`;
+    return;
+  }
+  const completed = ndi.lastCompletedAt ? new Date(ndi.lastCompletedAt).toLocaleTimeString() : "not yet";
+  sourceDiscoveryStatus.textContent = ndi.refreshing
+    ? `Refreshing, ${ndi.sourceCount} found`
+    : `Last refreshed ${completed}, ${ndi.sourceCount} found`;
+}
+
+function sourceBadge(type) {
+  const badge = document.createElement("span");
+  badge.className = "source-badge";
+  badge.textContent = type === "ndi" ? "NDI" : type.toUpperCase();
+  return badge;
+}
+
+function sourceStatusPill(source) {
+  const pill = document.createElement("span");
+  pill.className = `source-pill ${sourceHealthLevel(source)}`;
+  if (source.id === selectingSourceId) pill.textContent = "Selecting";
+  else if (source.id === selectingCameraControlSourceId) pill.textContent = "Saving";
+  else if (source.selected && source.health?.status === "healthy") pill.textContent = "Receiving";
+  else if (source.selected) pill.textContent = source.health?.error ? "Error" : "Connecting";
+  else if (source.available) pill.textContent = "Available";
+  else if (source.configured) pill.textContent = "Manual";
+  else pill.textContent = "Unavailable";
+  return pill;
+}
+
+function sourceHealthLevel(source) {
+  if (source.selected && source.health?.status === "healthy") return "ok";
+  if (source.selected) return source.health?.error ? "bad" : "warn";
+  if (source.available) return "ok";
+  return "warn";
+}
+
+function openManualSourceModal() {
+  sourceModal.hidden = false;
+  updateSourceFieldVisibility(sourceType.value);
+  setTimeout(() => sourceType.focus(), 0);
+}
+
+function closeManualSourceModal({ reset = false } = {}) {
+  sourceModal.hidden = true;
+  if (reset) sourceForm.reset();
+  updateSourceFieldVisibility(sourceType.value);
+}
+
+function textNode(value) {
+  return document.createTextNode(value || "");
 }
 
 function renderPreview(state) {
   const broadcast = state.broadcast;
+  const capabilities = state.capabilities || {};
   const playback = broadcast.playback || state.preview;
   const hlsUrl = playback?.hlsUrl;
   const webrtcUrl = playback?.webrtcUrl;
+  const streamKey = previewStreamKey(latestHealth?.ingest);
+  latestPreviewSignature = streamKey;
+  if (webrtcUrl && (!capabilities.hlsScrub || broadcast.status !== "live")) {
+    window.SteeplePlayer.renderWebRtc(adminPreview, webrtcUrl, {
+      muted: true,
+      autoplay: true,
+      controls: false,
+      timeoutMs: 4000,
+      streamKey,
+      retry: true
+    }).catch(() => {
+      window.SteeplePlayer.renderSlate(adminPreview, "Preview Waiting", "No playable stream is available yet.");
+    });
+    return;
+  }
   if (hlsUrl && webrtcUrl) {
     window.SteeplePlayer.renderHybridLive(adminPreview, playback, {
       muted: true,
       autoplay: true,
       timeoutMs: 4000,
-      timelineStartAt: broadcast.startedAt || latestHealth?.ingest?.startedAt
+      timelineStartAt: broadcast.startedAt || latestHealth?.ingest?.startedAt,
+      streamKey
     });
     return;
   }
@@ -219,11 +394,23 @@ function renderPreview(state) {
       muted: true,
       autoplay: true,
       controls: "live",
-      timelineStartAt: broadcast.startedAt || latestHealth?.ingest?.startedAt
+      timelineStartAt: broadcast.startedAt || latestHealth?.ingest?.startedAt,
+      streamKey
     });
     return;
   }
   window.SteeplePlayer.renderSlate(adminPreview, "Preview Unavailable", "No local preview URL is configured.");
+}
+
+function previewStreamKey(ingest) {
+  if (!ingest) return "ingest:unknown";
+  return JSON.stringify({
+    status: ingest.status || null,
+    ready: Boolean(ingest.ready),
+    startedAt: ingest.startedAt || null,
+    sourceName: ingest.sourceName || null,
+    error: ingest.lastError?.message || null
+  });
 }
 
 function renderHealth(payload) {
@@ -295,10 +482,6 @@ function sceneSummary(ingest) {
   return scene.transitioning ? `Transitioning to ${scene.requested}` : `${scene.requested || "none"}, ${observed}`;
 }
 
-function format(value) {
-  return value ? new Date(value).toLocaleString() : "not set";
-}
-
 async function initialize() {
   const response = await fetch("/api/session");
   if (!response.ok) {
@@ -308,20 +491,25 @@ async function initialize() {
   const principal = await response.json();
   window.steepleRole = principal.role;
   csrfToken = principal.csrfToken;
-  if (principal.role === "administrator") {
-    await loadNdiSources();
-    await loadObsCredentials();
-  } else {
-    document.querySelector("#source-panel").hidden = true;
-    document.querySelector("#obs-credentials-panel").hidden = true;
+  if (principal.role !== "administrator") {
+    location.href = `/broadcasts/${location.pathname.split("/")[2] || "stakecenter"}/broadcaster`;
+    return;
   }
+  await loadSources();
   await refresh();
   const events = new EventSource("/api/events");
   events.addEventListener("state", (event) => renderState(JSON.parse(event.data)));
   events.addEventListener("health", (event) => {
     latestHealth = JSON.parse(event.data);
     renderHealth(latestHealth);
+    if (latestState && previewStreamKey(latestHealth.ingest) !== latestPreviewSignature) {
+      renderPreview(latestState);
+    }
+    renderSourceCatalog();
   });
+  if (principal.role === "administrator") {
+    setInterval(() => loadSources({ silent: true }).catch(console.error), 7000);
+  }
 }
 
 initialize().catch(console.error);

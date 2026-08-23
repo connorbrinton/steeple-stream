@@ -66,14 +66,13 @@ function render(state) {
     if (frame.dataset.broadcastId !== broadcast.id) {
       frame.dataset.broadcastId = broadcast.id;
       const started = performance.now();
-      window.SteeplePlayer.renderWebRtc(frame, broadcast.playback.webrtcUrl, {
+      window.SteeplePlayer.renderHybridLive(frame, broadcast.playback, {
         autoplay: true,
+        timelineStartAt: broadcast.startedAt,
+        streamKey: broadcast.id,
         timeoutMs: 8000,
         onVideo: observeVideo,
-        onTransport: ({ transport, candidateType }) => updatePlayback({ transport, candidateType, startupMs: Math.round(performance.now() - started) })
-      }).catch((error) => {
-        updatePlayback({ transport: "hls", fallbackReason: error.message });
-        window.SteeplePlayer.renderHls(frame, broadcast.playback.hlsUrl, { autoplay: true, onVideo: observeVideo });
+        onTransport: ({ transport, candidateType, fallbackReason }) => updatePlayback({ transport, candidateType, fallbackReason, startupMs: Math.round(performance.now() - started) })
       });
     }
     return;
