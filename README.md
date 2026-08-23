@@ -4,6 +4,11 @@ Steeple Stream is a self-hosted ward/stake broadcast control plane. It keeps
 the church-specific workflow in this app and delegates media transport,
 recording, playback, and protocol handling to MediaMTX.
 
+## License
+
+Steeple Stream is licensed under the GNU Affero General Public License v3.0
+only. See [LICENSE](LICENSE).
+
 ## Run Locally
 
 ```bash
