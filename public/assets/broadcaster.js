@@ -1,7 +1,6 @@
 const statusDot = document.querySelector("#status-dot");
 const statusLabel = document.querySelector("#status-label");
 const details = document.querySelector("#broadcast-details");
-const health = document.querySelector("#health");
 const broadcastControlsGroup = document.querySelector("#broadcast-controls-group");
 const ptzControls = document.querySelector("#ptz-controls");
 const adminPreview = document.querySelector("#admin-preview");
@@ -39,7 +38,6 @@ async function refresh() {
   ]);
   latestHealth = healthState;
   renderState(state);
-  renderHealth(healthState);
 }
 
 function renderState(state) {
@@ -142,60 +140,6 @@ function previewStreamKey(ingest) {
   });
 }
 
-function renderHealth(payload) {
-  const backend = payload.backend;
-  const ingest = payload.ingest;
-  health.replaceChildren();
-  health.className = "health-grid";
-  health.append(
-    healthItem("MediaMTX", backend.ok && backend.ready ? "ok" : "warn", backend.ok ? `Ready, ${backend.readers} readers` : backend.message),
-    healthItem("Engine", statusLevel(ingest?.status), ingest ? `${ingest.status}: ${ingest.message}` : "No ingest status"),
-    healthItem("Scene", ingest?.scene?.transitioning ? "warn" : "ok", sceneSummary(ingest)),
-    healthItem("Input", inputLevel(ingest?.inputs?.video), inputSummary(ingest?.inputs?.video))
-  );
-  if (ingest?.lastError) {
-    health.append(healthItem("Last error", "bad", `${ingest.lastError.category}: ${ingest.lastError.message}`));
-  }
-}
-
-function healthItem(label, level, value) {
-  const item = document.createElement("div");
-  item.className = "health-item";
-  const dot = document.createElement("span");
-  dot.className = `health-dot ${level}`;
-  const name = document.createElement("span");
-  name.className = "health-name";
-  name.textContent = label;
-  const detail = document.createElement("span");
-  detail.className = "health-detail";
-  detail.textContent = value || "Unknown";
-  item.append(dot, name, detail);
-  return item;
-}
-
-function statusLevel(status) {
-  if (status === "running") return "ok";
-  if (["starting", "waiting", "disabled", "stopped"].includes(status)) return "warn";
-  return "bad";
-}
-
-function inputLevel(input) {
-  if (!input?.expected) return "warn";
-  return input.ready ? "ok" : "bad";
-}
-
-function inputSummary(input) {
-  if (!input?.expected) return "Not expected";
-  return input.ready ? "Ready" : "Waiting";
-}
-
-function sceneSummary(ingest) {
-  const scene = ingest?.scene;
-  if (!scene) return "Unknown";
-  const observed = scene.observed ? `observed ${scene.observed}` : "not observed";
-  return scene.transitioning ? `Transitioning to ${scene.requested}` : `${scene.requested || "none"}, ${observed}`;
-}
-
 function format(value) {
   return value ? new Date(value).toLocaleString() : "not set";
 }
@@ -213,7 +157,6 @@ async function initialize() {
   events.addEventListener("state", (event) => renderState(JSON.parse(event.data)));
   events.addEventListener("health", (event) => {
     latestHealth = JSON.parse(event.data);
-    renderHealth(latestHealth);
     if (latestState && previewStreamKey(latestHealth.ingest) !== latestPreviewSignature) {
       renderPreview(latestState);
     }

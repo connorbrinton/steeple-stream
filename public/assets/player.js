@@ -72,7 +72,6 @@ window.SteeplePlayer = {
       renderVideoFrame(container, video, "HLS");
     }
 
-    monitorPlayback(container, video, options);
     attachHls(container, video, hlsUrl, options);
     return video;
   },
@@ -366,13 +365,21 @@ async function attachWebRtc(container, video, whepUrl, options = {}) {
 }
 
 function attachHls(container, video, hlsUrl, options = {}) {
+  let retryPending = false;
   const fail = (data = {}) => {
     if (!container.contains(video)) return;
     const denied = [401, 403].includes(data.response?.code);
+    if (retryPending && !denied) return;
     showPlaybackStatus(container, denied ? "Access expired" : "Waiting for video",
       denied ? "Reload this page to sign in again." : "The video is temporarily unavailable. Retrying automatically.");
     clearTimeout(container.steepleRetryTimer);
-    if (denied || options.retry === false) return;
+    if (denied || options.retry === false) {
+      container.steepleMediaCleanup?.();
+      container.steepleMediaCleanup = null;
+      container.steepleHls?.stopLoad();
+      return;
+    }
+    retryPending = true;
     container.steepleRetryTimer = setTimeout(() => {
       if (!container.isConnected || !container.contains(video)) return;
       container.steepleHls?.destroy();
@@ -380,6 +387,16 @@ function attachHls(container, video, hlsUrl, options = {}) {
       attachHls(container, video, hlsUrl, options);
     }, options.retryDelayMs || 5000);
   };
+  container.steepleMediaCleanup?.();
+  monitorPlayback(container, video, {
+    ...options,
+    onStall: () => fail(),
+    onProgress: () => {
+      if (!retryPending) return;
+      clearTimeout(container.steepleRetryTimer);
+      retryPending = false;
+    }
+  });
   if (video.canPlayType("application/vnd.apple.mpegurl")) {
     video.onerror = () => fail();
     video.src = hlsUrl;
@@ -667,19 +684,34 @@ function showPlaybackStatus(container, title, message) {
 }
 
 function monitorPlayback(container, video, options) {
-  let timer;
+  let waitingSince = null;
+  let lastProgressAt = performance.now();
+  let lastTime = video.currentTime;
+  let hasPlayed = false;
+  let autoplayBlocked = false;
   if (!container.querySelector(".playback-status")) {
     showPlaybackStatus(container, options.recording ? "Loading recording" : "Connecting to video", "");
   }
   const playing = () => {
-    clearTimeout(timer);
+    hasPlayed = true;
+    autoplayBlocked = false;
+    waitingSince = null;
     container.querySelector(".playback-status")?.remove();
+  };
+  const progress = () => {
+    if (video.seeking || video.currentTime === lastTime) return false;
+    lastTime = video.currentTime;
+    lastProgressAt = performance.now();
+    options.onProgress?.();
+    playing();
+    return true;
   };
   const loaded = () => {
     if (!options.autoplay) return playing();
-    video.play().catch(() => {
+    video.play().catch((reason) => {
       if (!container.contains(video)) return;
-      clearTimeout(timer);
+      if (reason.name !== "NotAllowedError") return;
+      autoplayBlocked = true;
       showPlaybackStatus(container, "Ready to watch", "");
       const overlay = container.querySelector(".playback-status");
       if (overlay.querySelector("button")) return;
@@ -691,10 +723,7 @@ function monitorPlayback(container, video, options) {
     });
   };
   const waiting = () => {
-    clearTimeout(timer);
-    timer = setTimeout(() => {
-      if (container.contains(video)) showPlaybackStatus(container, "Video interrupted", "Waiting for the video connection to recover.");
-    }, 4000);
+    waitingSince ??= performance.now();
   };
   const error = () => {
     if (container.contains(video)) showPlaybackStatus(container, options.recording ? "Recording unavailable" : "Video interrupted",
@@ -705,16 +734,33 @@ function monitorPlayback(container, video, options) {
   video.addEventListener("waiting", waiting);
   video.addEventListener("stalled", waiting);
   video.addEventListener("error", error);
-  timer = setTimeout(() => {
-    const title = container.querySelector(".playback-status h2")?.textContent;
-    if (["Connecting to video", "Loading recording"].includes(title)) error();
-  }, 12000);
+  video.addEventListener("timeupdate", progress);
+  // A stalled event can occur while buffered video still plays, and a dead
+  // decoder need not emit a fatal error. Measure playback progress instead.
+  const timer = setInterval(() => {
+    if (!container.contains(video)) return;
+    const now = performance.now();
+    if (document.hidden || autoplayBlocked || video.ended || (video.paused && (hasPlayed || !options.autoplay))) {
+      lastProgressAt = now;
+      waitingSince = null;
+      return;
+    }
+    if (progress()) return;
+    if (waitingSince !== null && now - waitingSince >= 4000) error();
+    if (now - lastProgressAt >= 12000) {
+      lastProgressAt = now;
+      waitingSince = null;
+      if (options.onStall && options.retry !== false) options.onStall();
+      else error();
+    }
+  }, 1000);
   container.steepleMediaCleanup = () => {
-    clearTimeout(timer);
+    clearInterval(timer);
     video.removeEventListener("playing", playing);
     video.removeEventListener("loadeddata", loaded);
     video.removeEventListener("waiting", waiting);
     video.removeEventListener("stalled", waiting);
     video.removeEventListener("error", error);
+    video.removeEventListener("timeupdate", progress);
   };
 }
