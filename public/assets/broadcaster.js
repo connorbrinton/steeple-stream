@@ -9,17 +9,22 @@ let latestHealth = null;
 let latestState = null;
 let latestPreviewSignature = "";
 let csrfToken = "development";
+let presetSignature = "";
+let latestRecall = 0;
 
 document.querySelector("#start").addEventListener("click", () => post("/api/broadcast/start"));
 document.querySelector("#chapel").addEventListener("click", () => post("/api/broadcast/mode", { mode: "chapel" }));
 document.querySelector("#sacrament").addEventListener("click", () => post("/api/broadcast/mode", { mode: "sacrament" }));
 document.querySelector("#end").addEventListener("click", () => post("/api/broadcast/end"));
 
-async function post(url, body = {}, method = "POST") {
+async function post(url, body = {}, method = "POST", refreshAfter = true) {
   const response = await fetch(url, {
     method,
     headers: { "content-type": "application/json", "x-steeple-csrf": csrfToken },
     body: JSON.stringify(body)
+  }).catch((error) => {
+    alert("Could not send the request. Check your connection and try again.");
+    throw error;
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({ error: response.statusText }));
@@ -27,7 +32,7 @@ async function post(url, body = {}, method = "POST") {
     throw new Error(payload.error);
   }
   const payload = await response.json().catch(() => null);
-  if (method === "POST") await refresh();
+  if (method === "POST" && refreshAfter) await refresh();
   return payload;
 }
 
@@ -59,8 +64,12 @@ function renderState(state) {
 }
 
 function renderPtzControls(state) {
-  ptzControls.innerHTML = "";
   const cameraReady = Boolean(state.cameraControlSource?.ndi?.sourceName || state.source?.type === "ndi" && state.source?.ndi?.sourceName);
+  const signature = JSON.stringify([state.ptz.presets, cameraReady, state.cameraControlSource || state.source]);
+  if (signature === presetSignature) return;
+  presetSignature = signature;
+  latestRecall++;
+  ptzControls.innerHTML = "";
   const groups = new Map();
   for (const preset of state.ptz.presets) {
     const group = preset.group || "Other";
@@ -79,8 +88,35 @@ function renderPtzControls(state) {
     button.textContent = preset.name;
     button.disabled = !cameraReady;
     button.title = cameraReady ? `Camera preset ${preset.ndiPreset}` : "Camera control source is not configured";
-    button.addEventListener("click", () => post("/api/ptz/recall", { presetId: preset.id }));
+    button.addEventListener("click", () => recallPreset(button, preset.id));
+    button.addEventListener("animationend", (event) => {
+      if (event.target === button && event.animationName.startsWith("preset-recent")) button.classList.remove("preset-recent");
+    });
     groups.get(group).append(button);
+  }
+}
+
+async function recallPreset(button, presetId) {
+  const request = ++latestRecall;
+  for (const other of ptzControls.querySelectorAll("button")) {
+    other.classList.remove("preset-pending", "preset-recent");
+    other.removeAttribute("aria-busy");
+  }
+  button.classList.add("preset-pending");
+  button.setAttribute("aria-busy", "true");
+  try {
+    await post("/api/ptz/recall", { presetId }, "POST", false);
+    if (request !== latestRecall || !ptzControls.contains(button)) return;
+    button.classList.remove("preset-pending");
+    button.removeAttribute("aria-busy");
+    // Restart the recent-request animation even when the same preset is tapped again.
+    void button.offsetWidth;
+    button.classList.add("preset-recent");
+    refresh().catch(console.error);
+  } catch {
+    if (request !== latestRecall) return;
+    button.classList.remove("preset-pending");
+    button.removeAttribute("aria-busy");
   }
 }
 

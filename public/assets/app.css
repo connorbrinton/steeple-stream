@@ -528,9 +528,50 @@ video {
 }
 
 .ptz-groups .button {
+  position: relative;
   max-width: 100%;
-  padding: 8px 14px;
+  padding: 8px 32px 8px 14px;
   overflow-wrap: anywhere;
+}
+
+.ptz-groups .preset-pending {
+  border-color: var(--accent);
+  background: var(--quiet);
+}
+
+.preset-pending::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  top: calc(50% - 6px);
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: preset-pending-spin 0.8s linear infinite;
+}
+
+.preset-recent {
+  animation: preset-recent-fade 8s linear;
+}
+
+@keyframes preset-pending-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes preset-recent-fade {
+  from { background: var(--quiet); border-color: var(--accent); }
+  to { background: var(--panel); border-color: var(--line); }
+}
+
+@keyframes preset-recent-static {
+  from, to { background: var(--quiet); border-color: var(--accent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preset-pending::after { animation: none; }
+  .preset-recent { animation-name: preset-recent-static; }
 }
 
 .button {
