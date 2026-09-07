@@ -23,13 +23,9 @@ test("SQLite store imports legacy state and preserves a backup", async () => {
   assert.equal(state.broadcast.status, "live");
   assert.equal(state.source.type, "ndi");
   assert.deepEqual(state.ptz.presets.map((preset) => [preset.id, preset.ndiPreset]), [
-    ["full-stand", 1],
-    ["pulpit", 2],
-    ["music-director", 8],
-    ["choir", 12],
-    ["piano", 13],
-    ["pulpit-wide", 16],
-    ...Array.from({ length: 18 }, (_, index) => [`ndi-raw-${index + 1}`, index + 1])
+    ["pulpit", 18], ["first-row", 12], ["stand-congregation", 13], ["pulpit-wide", 2],
+    ["music-leader", 8], ["choir", 1], ["piano", 16], ["organ", 9],
+    ["chapel", 4], ["overflow", 6], ["cultural-hall", 7]
   ]);
   await fs.access(`${legacy}.pre-sqlite`);
 });

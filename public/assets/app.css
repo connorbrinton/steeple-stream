@@ -515,6 +515,24 @@ video {
   gap: 10px;
 }
 
+.ptz-groups {
+  display: grid;
+  gap: 18px;
+}
+
+.ptz-groups h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.ptz-groups .button {
+  max-width: 100%;
+  padding: 8px 14px;
+  overflow-wrap: anywhere;
+}
+
 .button {
   border: 1px solid var(--line);
   background: var(--panel);

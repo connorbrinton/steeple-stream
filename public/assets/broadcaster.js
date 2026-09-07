@@ -63,14 +63,26 @@ function renderState(state) {
 function renderPtzControls(state) {
   ptzControls.innerHTML = "";
   const cameraReady = Boolean(state.cameraControlSource?.ndi?.sourceName || state.source?.type === "ndi" && state.source?.ndi?.sourceName);
+  const groups = new Map();
   for (const preset of state.ptz.presets) {
+    const group = preset.group || "Other";
+    if (!groups.has(group)) {
+      const section = document.createElement("section");
+      const heading = document.createElement("h3");
+      heading.textContent = group;
+      const controls = document.createElement("div");
+      controls.className = "controls";
+      section.append(heading, controls);
+      ptzControls.append(section);
+      groups.set(group, controls);
+    }
     const button = document.createElement("button");
     button.className = "button";
     button.textContent = preset.name;
     button.disabled = !cameraReady;
-    button.title = cameraReady ? "" : "Camera control source is not configured";
+    button.title = cameraReady ? `Camera preset ${preset.ndiPreset}` : "Camera control source is not configured";
     button.addEventListener("click", () => post("/api/ptz/recall", { presetId: preset.id }));
-    ptzControls.append(button);
+    groups.get(group).append(button);
   }
 }
 

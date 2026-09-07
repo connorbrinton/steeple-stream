@@ -39,7 +39,7 @@ export class PtzController {
         error.status = 409;
         throw error;
       }
-      const cameraPresetNumber = Number(preset.ndiPreset ?? presetIndexes[preset.id]);
+      const cameraPresetNumber = Number(preset.ndiPreset);
       if (!Number.isInteger(cameraPresetNumber) || cameraPresetNumber < 1 || cameraPresetNumber > 100) {
         const error = new Error(`Preset ${preset.name} does not have a valid NDI camera preset number`);
         error.status = 400;
