@@ -55,7 +55,7 @@ STEEPLE_PROFILE=broadcast
 ```
 
 `camera-control` is the phase-one rollout profile. It enables admin setup,
-NDI source discovery, the broadcaster console, live WebRTC preview, and camera
+NDI source discovery, the broadcaster console, live WebRTC or HLS preview, and camera
 preset recall. It disables broadcast start/end controls, Chapel/Sacrament scene
 controls, public viewer routes, OBS control endpoints, HLS scrubbing, playback,
 and recording.
@@ -75,7 +75,7 @@ The default backend adapter targets MediaMTX. Steeple Stream writes a generated
 MediaMTX config to `data/mediamtx.yml`. In the full broadcast profile it accepts
 RTMP, RTSP, SRT, WebRTC, and HLS, and records live broadcasts to
 `data/recordings`. In the camera-control profile, MediaMTX is used only for
-live WebRTC preview and does not enable HLS, playback, or recording. Recording
+live preview with in-memory HLS available, without playback or recording. Recording
 starts with the broadcast and expires 24 hours after the broadcast start time.
 
 In the normal flake runtime, Steeple Stream starts `mediamtx` from `PATH`.
@@ -292,6 +292,28 @@ manage the Cloudflare Tunnel service with
 `services.steeple-stream.cloudflareTunnel`.
 
 ## Rollout Authentication Plan
+
+For a loopback origin protected by Cloudflare Access, set:
+
+```sh
+STEEPLE_AUTH_MODE=trusted-proxy
+STEEPLE_HOST=127.0.0.1
+STEEPLE_PUBLIC_BASE_URL=https://broadcasts.example.org
+STEEPLE_ADMIN_EMAILS=admin@example.org
+STEEPLE_PROFILE=camera-control
+STEEPLE_PUBLIC_WEBRTC=0
+```
+
+This explicit mode trusts `Cf-Access-Authenticated-User-Email` from loopback
+connections. Protect the entire hostname with Access, including API and media
+paths. Missing or unassigned identities are rejected. Administrators also have
+all broadcaster permissions; additional broadcasters can be listed in
+`STEEPLE_OPERATOR_EMAILS`. Google OAuth credentials and an Access audience tag
+are not required. Mutation requests still require the CSRF token from
+`/api/session`; restarting the app invalidates these tokens, so reload open pages.
+
+With WebRTC disabled, camera-control preview uses in-memory HLS through the
+tunnel, without recording or seek controls. This has more latency than WebRTC.
 
 Phase one is camera control only. Expose the broadcaster console through
 Cloudflare Tunnel and protect it with Cloudflare Access. The Access policy

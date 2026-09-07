@@ -38,6 +38,7 @@ export const config = {
   channelId,
   retentionHours: Number(process.env.STEEPLE_RETENTION_HOURS || 24),
   auth: {
+    mode: process.env.STEEPLE_AUTH_MODE || "google",
     clientId: process.env.STEEPLE_GOOGLE_CLIENT_ID || "",
     clientSecret: process.env.STEEPLE_GOOGLE_CLIENT_SECRET || "",
     redirectUri: process.env.STEEPLE_GOOGLE_REDIRECT_URI || `${publicBaseUrl}/auth/google/callback`,
@@ -82,7 +83,7 @@ export const config = {
   mediamtx: {
     channelId: process.env.STEEPLE_CHANNEL_ID || "stakecenter",
     autoStart: process.env.STEEPLE_MEDIAMTX_AUTO_START !== "0",
-    hls: capabilities.hlsScrub && process.env.STEEPLE_MEDIAMTX_HLS !== "0",
+    hls: process.env.STEEPLE_MEDIAMTX_HLS !== "0",
     playback: capabilities.recording && process.env.STEEPLE_MEDIAMTX_PLAYBACK !== "0",
     runtime: process.env.STEEPLE_MEDIAMTX_RUNTIME || "system",
     nixPackage: process.env.STEEPLE_MEDIAMTX_NIX_PACKAGE || "nixpkgs#mediamtx",

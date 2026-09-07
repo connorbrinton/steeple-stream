@@ -109,7 +109,7 @@ function renderPreview(state) {
     window.SteeplePlayer.renderHls(adminPreview, hlsUrl, {
       muted: true,
       autoplay: true,
-      controls: "live",
+      controls: capabilities.hlsScrub && broadcast.status === "live" ? "live" : false,
       timelineStartAt: broadcast.startedAt || latestHealth?.ingest?.startedAt,
       streamKey
     });
@@ -190,7 +190,7 @@ function format(value) {
 async function initialize() {
   const response = await fetch("/api/session");
   if (!response.ok) {
-    location.href = "/auth/google";
+    location.href = "/auth/login";
     return;
   }
   const principal = await response.json();

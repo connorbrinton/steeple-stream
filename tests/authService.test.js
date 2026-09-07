@@ -92,3 +92,41 @@ test("authorization requires a constant-time CSRF match for mutations", async ()
 function hash(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
+
+test("trusted proxy authenticates only assigned loopback identities and preserves role and CSRF checks", async () => {
+  const auth = await makeAuth({ mode: "trusted-proxy", publicBaseUrl: "https://broadcasts.example.org" });
+  await auth.initialize();
+  const request = (email, address = "127.0.0.1") => ({
+    socket: { remoteAddress: address },
+    headers: { "cf-access-authenticated-user-email": email }
+  });
+  const req = request(" ADMIN@EXAMPLE.ORG ");
+  assert.equal(auth.authorize(req).role, "administrator");
+  assert.equal(auth.authorize(req, "administrator").email, "admin@example.org");
+  assert.equal(auth.authenticate(request(undefined)), null);
+  assert.equal(auth.authenticate(request("unknown@example.org")), null);
+  assert.equal(auth.authenticate(request("admin@example.org", "192.168.1.2")), null);
+  assert.equal(auth.authenticate(request(["admin@example.org"])), null);
+  assert.equal(auth.authenticate(request("admin@example.org", "::ffff:127.0.0.1")).role, "administrator");
+  assert.throws(() => auth.authorize(request("operator@example.org"), "administrator"), /Administrator/);
+  assert.throws(() => auth.authorize(req, "operator", { csrfRequired: true }), /CSRF/);
+  req.headers["x-steeple-csrf"] = auth.authenticate(req).csrfToken;
+  assert.equal(auth.authorize(req, "operator", { csrfRequired: true }).role, "administrator");
+  const other = request("operator@example.org");
+  other.headers["x-steeple-csrf"] = req.headers["x-steeple-csrf"];
+  assert.throws(() => auth.authorize(other, "operator", { csrfRequired: true }), /CSRF/);
+  await assert.rejects(auth.begin(), /Google sign-in is not configured/);
+});
+
+test("trusted proxy requires explicit safe startup configuration even with production checks disabled", async () => {
+  for (const overrides of [
+    { host: "0.0.0.0" },
+    { adminEmails: new Set() },
+    { publicBaseUrl: "http://localhost:8080" }
+  ]) {
+    const auth = await makeAuth({ mode: "trusted-proxy", publicBaseUrl: "https://broadcasts.example.org", requireProductionConfig: false, ...overrides });
+    assert.throws(() => auth.validateStartupConfig(), /Trusted-proxy/);
+  }
+  const auth = await makeAuth({ mode: "typo" });
+  assert.throws(() => auth.validateStartupConfig(), /Unsupported/);
+});

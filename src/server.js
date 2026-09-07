@@ -83,7 +83,13 @@ async function route(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
   const method = req.method || "GET";
 
-  if (method === "GET" && url.pathname === "/auth/google") {
+  if (method === "GET" && ["/auth/login", "/auth/google"].includes(url.pathname)) {
+    if (config.auth.mode === "trusted-proxy") {
+      auth.authorize(req, "operator");
+      res.writeHead(302, { location: `/broadcasts/${config.channelId}/broadcaster` });
+      res.end();
+      return;
+    }
     await rateLimiter.authStartFor(req, config.auth);
     const target = await auth.begin(url.searchParams.get("returnTo") || `/broadcasts/${config.channelId}/broadcaster`);
     res.writeHead(302, { location: target.href });
@@ -109,7 +115,7 @@ async function route(req, res) {
 
   if (method === "GET" && url.pathname === "/api/session") {
     const principal = auth.authenticate(req);
-    sendJson(res, principal ? 200 : 401, principal || { error: "Authentication required", loginUrl: "/auth/google" });
+    sendJson(res, principal ? 200 : 401, principal || { error: "Authentication required", loginUrl: "/auth/login" });
     return;
   }
 
@@ -308,7 +314,7 @@ async function route(req, res) {
   if (method === "GET" && url.pathname === `/broadcasts/${config.channelId}/admin`) {
     const principal = auth.authenticate(req);
     if (!principal) {
-      res.writeHead(302, { location: `/auth/google?returnTo=${encodeURIComponent(url.pathname)}` });
+      res.writeHead(302, { location: `/auth/login?returnTo=${encodeURIComponent(url.pathname)}` });
       res.end();
       return;
     }
@@ -323,7 +329,7 @@ async function route(req, res) {
 
   if (method === "GET" && url.pathname === `/broadcasts/${config.channelId}/broadcaster`) {
     if (!auth.authenticate(req)) {
-      res.writeHead(302, { location: `/auth/google?returnTo=${encodeURIComponent(url.pathname)}` });
+      res.writeHead(302, { location: `/auth/login?returnTo=${encodeURIComponent(url.pathname)}` });
       res.end();
       return;
     }
@@ -338,7 +344,7 @@ async function route(req, res) {
   }
 
   if ((method === "GET" || method === "HEAD") && url.pathname.startsWith("/hls/")) {
-    requireCapability("hlsScrub");
+    if (!config.capabilities.publicViewer) auth.authorize(req, "operator");
     const state = await service.summary();
     if (state.broadcast.status !== "live" && !auth.authenticate(req)) {
       sendJson(res, 404, { error: "Broadcast is not live" });

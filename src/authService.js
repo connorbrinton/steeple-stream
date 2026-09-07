@@ -10,16 +10,17 @@ export class AuthService {
     this.store = store;
     this.config = config;
     this.oidc = null;
+    this.proxyCsrfSecret = crypto.randomBytes(32);
   }
 
   get enabled() {
-    return Boolean(this.config.clientId && this.config.clientSecret);
+    return this.config.mode === "trusted-proxy" || Boolean(this.config.clientId && this.config.clientSecret);
   }
 
   async initialize() {
     await this.store.load();
     this.validateStartupConfig();
-    if (!this.enabled) return;
+    if (!this.enabled || this.config.mode === "trusted-proxy") return;
     this.oidc = await oidc.discovery(
       new URL("https://accounts.google.com"),
       this.config.clientId,
@@ -28,7 +29,7 @@ export class AuthService {
   }
 
   async begin(returnTo = "/admin") {
-    if (!this.enabled) throw httpError(503, "Google sign-in is not configured");
+    if (!this.oidc) throw httpError(503, "Google sign-in is not configured");
     this.cleanupExpiredAuthRecords();
     const verifier = oidc.randomPKCECodeVerifier();
     const challenge = await oidc.calculatePKCECodeChallenge(verifier);
@@ -49,7 +50,7 @@ export class AuthService {
   }
 
   async complete(callbackUrl) {
-    if (!this.enabled) throw httpError(503, "Google sign-in is not configured");
+    if (!this.oidc) throw httpError(503, "Google sign-in is not configured");
     const url = new URL(callbackUrl);
     const state = url.searchParams.get("state") || "";
     const attempt = this.store.db.prepare("SELECT * FROM oauth_attempts WHERE state_hash=?").get(hash(state));
@@ -78,6 +79,15 @@ export class AuthService {
   }
 
   authenticate(req) {
+    if (this.config.mode === "trusted-proxy") {
+      if (!["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket?.remoteAddress)) return null;
+      const header = req.headers["cf-access-authenticated-user-email"];
+      if (typeof header !== "string") return null;
+      const email = header.trim().toLowerCase();
+      const role = this.roleFor(email);
+      if (!role) return null;
+      return { email, role, csrfToken: csrf(email, this.proxyCsrfSecret) };
+    }
     if (!this.enabled) {
       return { email: "development@localhost", role: "administrator", csrfToken: "development" };
     }
@@ -132,6 +142,15 @@ export class AuthService {
   }
 
   validateStartupConfig() {
+    if (![undefined, "google", "trusted-proxy"].includes(this.config.mode)) {
+      throw new Error("Unsupported STEEPLE_AUTH_MODE");
+    }
+    if (this.config.mode === "trusted-proxy") {
+      if (!isLoopbackHost(this.config.host)) throw new Error("Trusted-proxy authentication requires a loopback STEEPLE_HOST");
+      if (!this.config.adminEmails?.size) throw new Error("Trusted-proxy authentication requires STEEPLE_ADMIN_EMAILS");
+      if (new URL(this.config.publicBaseUrl).protocol !== "https:") throw new Error("Trusted-proxy authentication requires an HTTPS STEEPLE_PUBLIC_BASE_URL");
+      return;
+    }
     if (!this.config.requireProductionConfig || !isProductionAuthContext(this.config)) return;
     const missing = [];
     if (!this.config.clientId) missing.push("STEEPLE_GOOGLE_CLIENT_ID");

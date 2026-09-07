@@ -53,7 +53,7 @@ window.SteeplePlayer = {
     destroy(container);
     container.steepleSrc = sourceKey;
     const video = document.createElement("video");
-    video.controls = options.controls !== "live";
+    video.controls = options.controls !== false && options.controls !== "live";
     video.muted = Boolean(options.muted);
     video.autoplay = Boolean(options.autoplay);
     video.playsInline = true;

@@ -171,6 +171,7 @@ export class MediaMtxManager {
       "hlsAddress: 127.0.0.1:8888",
       `hlsAlwaysRemux: ${hlsEnabled ? "yes" : "no"}`,
       "hlsVariant: lowLatency",
+      "hlsDirectory: ''",
       "",
       "webrtc: yes",
       "webrtcAddress: 127.0.0.1:8889",
