@@ -1,4 +1,14 @@
 window.SteeplePlayer = {
+  renderPreviewStatus(container, source, audience = "broadcaster") {
+    const configured = source?.type === "ndi" ? Boolean(source.ndi?.sourceName)
+      : source?.type === "capture" ? Boolean(source.capture?.videoDevice && source.capture?.audioDevice)
+      : Boolean(source?.network?.uri);
+    if (configured) return false;
+    this.renderSlate(container, "Camera preview not configured", audience === "admin"
+      ? "No video source is selected."
+      : "An administrator needs to select a video source.");
+    return true;
+  },
   async renderWebRtc(container, whepUrl, options = {}) {
     const sourceKey = options.streamKey ? `webrtc:${whepUrl}:${options.streamKey}` : whepUrl;
     if (container.steepleSrc === sourceKey && container.querySelector("video")) return container.querySelector("video");
@@ -11,27 +21,24 @@ window.SteeplePlayer = {
     video.playsInline = true;
     options.onVideo?.(video);
     renderVideoFrame(container, video, "WebRTC");
-    const pc = new RTCPeerConnection();
-    container.steeplePeer = pc;
-    const stream = new MediaStream();
-    video.srcObject = stream;
-    pc.ontrack = (event) => stream.addTrack(event.track);
-    pc.addTransceiver("video", { direction: "recvonly" });
-    pc.addTransceiver("audio", { direction: "recvonly" });
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    await waitForIceGathering(pc, 3000);
-    const response = await fetch(whepUrl, {
-      method: "POST",
-      headers: { "content-type": "application/sdp" },
-      body: pc.localDescription.sdp
-    });
-    if (!response.ok) throw new Error(`WHEP returned HTTP ${response.status}`);
-    container.steepleWhepResource = response.headers.get("location");
-    await pc.setRemoteDescription({ type: "answer", sdp: await response.text() });
-    await waitForPlaying(video, options.timeoutMs || 8000);
-    const candidateType = await selectedCandidateType(pc);
-    options.onTransport?.({ transport: `webrtc-${candidateType}`, candidateType });
+    monitorPlayback(container, video, options);
+    const connect = async () => {
+      try {
+        await attachWebRtc(container, video, whepUrl, options);
+      } catch {
+        if (!container.contains(video)) return;
+        showPlaybackStatus(container, "Waiting for video", "The video is temporarily unavailable. Retrying automatically.");
+        container.steeplePeer?.close();
+        if (container.steepleWhepResource) {
+          fetch(container.steepleWhepResource, { method: "DELETE" }).catch(() => {});
+          container.steepleWhepResource = null;
+        }
+        if (options.retry !== false) container.steepleRetryTimer = setTimeout(() => {
+          if (container.isConnected && container.contains(video)) connect();
+        }, options.retryDelayMs || 5000);
+      }
+    };
+    await connect();
     return video;
   },
   renderRecording(container, url, options = {}) {
@@ -45,6 +52,7 @@ window.SteeplePlayer = {
     options.onVideo?.(video);
     video.src = url;
     renderVideoFrame(container, video, "Replay");
+    monitorPlayback(container, video, { ...options, recording: true });
     return video;
   },
   renderHls(container, hlsUrl, options = {}) {
@@ -64,37 +72,9 @@ window.SteeplePlayer = {
       renderVideoFrame(container, video, "HLS");
     }
 
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = hlsUrl;
-      return video;
-    }
-
-    if (window.Hls?.isSupported()) {
-      const hls = new window.Hls({
-        lowLatencyMode: true,
-        backBufferLength: 30
-      });
-      container.steepleHls = hls;
-      hls.loadSource(hlsUrl);
-      hls.attachMedia(video);
-      hls.on(window.Hls.Events.ERROR, (_event, data) => {
-        if (data.fatal) {
-          destroy(container);
-          renderMessage(container, "Preview Waiting", "No playable stream is available yet.");
-          if (options.retry !== false) {
-            setTimeout(() => {
-              if (container.isConnected && container.steepleSrc === sourceKey && !container.querySelector("video")) {
-                window.SteeplePlayer.renderHls(container, hlsUrl, options);
-              }
-            }, options.retryDelayMs || 1500);
-          }
-        }
-      });
-      return video;
-    }
-
-    renderMessage(container, "Unsupported Browser", "This browser cannot play the local HLS stream.");
-    return null;
+    monitorPlayback(container, video, options);
+    attachHls(container, video, hlsUrl, options);
+    return video;
   },
 
   renderHybridLive(container, playback, options = {}) {
@@ -124,6 +104,9 @@ window.SteeplePlayer = {
 };
 
 function destroy(container) {
+  clearTimeout(container.steepleRetryTimer);
+  container.steepleMediaCleanup?.();
+  container.steepleMediaCleanup = null;
   if (container.steeplePeer) {
     container.steeplePeer.close();
     container.steeplePeer = null;
@@ -184,7 +167,6 @@ function renderHybridPlayer(container, playback, options = {}) {
   let timer = null;
   let hideTimer = null;
   let hlsSwitch = null;
-  const playerKey = container.steepleSrc;
   const rangeUnits = 1000;
   const timelineStart = Date.parse(options.timelineStartAt || "") || Date.now();
 
@@ -210,6 +192,7 @@ function renderHybridPlayer(container, playback, options = {}) {
     options.onVideo?.(video);
     chip.textContent = transportLabel;
     wrapper.insertBefore(video, chip);
+    monitorPlayback(container, video, options);
     return video;
   };
 
@@ -240,21 +223,7 @@ function renderHybridPlayer(container, playback, options = {}) {
       mode = "hls";
       options.onTransport?.({ transport: "hls", fallbackReason });
       const video = replaceVideo(document.createElement("video"), "HLS");
-      attachHls(container, video, playback.hlsUrl, {
-        onFatalError: () => {
-          removeCurrentMedia(container, activeVideo);
-          activeVideo = null;
-          mode = null;
-          renderMessage(container, "Preview Waiting", "No playable stream is available yet.");
-          if (options.retry !== false) {
-            setTimeout(() => {
-              if (container.isConnected && container.steepleSrc === playerKey && !container.querySelector("video")) {
-                showHls(targetBehind);
-              }
-            }, options.retryDelayMs || 1500);
-          }
-        }
-      });
+      attachHls(container, video, playback.hlsUrl, options);
       video.addEventListener("loadedmetadata", () => seekHlsToBehind(behind), { once: true });
       video.addEventListener("playing", update);
       video.addEventListener("waiting", update);
@@ -397,7 +366,22 @@ async function attachWebRtc(container, video, whepUrl, options = {}) {
 }
 
 function attachHls(container, video, hlsUrl, options = {}) {
+  const fail = (data = {}) => {
+    if (!container.contains(video)) return;
+    const denied = [401, 403].includes(data.response?.code);
+    showPlaybackStatus(container, denied ? "Access expired" : "Waiting for video",
+      denied ? "Reload this page to sign in again." : "The video is temporarily unavailable. Retrying automatically.");
+    clearTimeout(container.steepleRetryTimer);
+    if (denied || options.retry === false) return;
+    container.steepleRetryTimer = setTimeout(() => {
+      if (!container.isConnected || !container.contains(video)) return;
+      container.steepleHls?.destroy();
+      container.steepleHls = null;
+      attachHls(container, video, hlsUrl, options);
+    }, options.retryDelayMs || 5000);
+  };
   if (video.canPlayType("application/vnd.apple.mpegurl")) {
+    video.onerror = () => fail();
     video.src = hlsUrl;
     return video;
   }
@@ -411,15 +395,19 @@ function attachHls(container, video, hlsUrl, options = {}) {
     hls.loadSource(hlsUrl);
     hls.attachMedia(video);
     hls.on(window.Hls.Events.ERROR, (_event, data) => {
-      if (data.fatal) options.onFatalError?.(data);
+      if (data.fatal) fail(data);
     });
     return video;
   }
 
-  throw new Error("This browser cannot play the local HLS stream.");
+  showPlaybackStatus(container, "Video unavailable in this browser", "Try another browser to watch this video.");
+  return null;
 }
 
 function removeCurrentMedia(container, video) {
+  clearTimeout(container.steepleRetryTimer);
+  container.steepleMediaCleanup?.();
+  container.steepleMediaCleanup = null;
   if (container.steeplePeer) {
     container.steeplePeer.close();
     container.steeplePeer = null;
@@ -652,12 +640,81 @@ function renderMessage(container, title, message) {
   container.replaceChildren();
   const slate = document.createElement("div");
   slate.className = "slate";
+  slate.setAttribute("role", "status");
   const wrapper = document.createElement("div");
-  const heading = document.createElement("h1");
+  const heading = document.createElement("h2");
   const paragraph = document.createElement("p");
   heading.textContent = title;
   paragraph.textContent = message;
   wrapper.append(heading, paragraph);
   slate.append(wrapper);
   container.append(slate);
+}
+
+function showPlaybackStatus(container, title, message) {
+  let overlay = container.querySelector(".playback-status");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.className = "slate playback-status";
+    overlay.setAttribute("role", "status");
+    const content = document.createElement("div");
+    content.append(document.createElement("h2"), document.createElement("p"));
+    overlay.append(content);
+    container.append(overlay);
+  }
+  if (overlay.querySelector("h2").textContent !== title) overlay.querySelector("h2").textContent = title;
+  if (overlay.querySelector("p").textContent !== message) overlay.querySelector("p").textContent = message;
+}
+
+function monitorPlayback(container, video, options) {
+  let timer;
+  if (!container.querySelector(".playback-status")) {
+    showPlaybackStatus(container, options.recording ? "Loading recording" : "Connecting to video", "");
+  }
+  const playing = () => {
+    clearTimeout(timer);
+    container.querySelector(".playback-status")?.remove();
+  };
+  const loaded = () => {
+    if (!options.autoplay) return playing();
+    video.play().catch(() => {
+      if (!container.contains(video)) return;
+      clearTimeout(timer);
+      showPlaybackStatus(container, "Ready to watch", "");
+      const overlay = container.querySelector(".playback-status");
+      if (overlay.querySelector("button")) return;
+      const button = document.createElement("button");
+      button.className = "button";
+      button.textContent = "Play video";
+      button.addEventListener("click", () => video.play().catch(error));
+      overlay.firstElementChild.append(button);
+    });
+  };
+  const waiting = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      if (container.contains(video)) showPlaybackStatus(container, "Video interrupted", "Waiting for the video connection to recover.");
+    }, 4000);
+  };
+  const error = () => {
+    if (container.contains(video)) showPlaybackStatus(container, options.recording ? "Recording unavailable" : "Video interrupted",
+      options.recording ? "This recording may have expired or could not be loaded." : "Waiting for the video connection to recover.");
+  };
+  video.addEventListener("playing", playing);
+  video.addEventListener("loadeddata", loaded);
+  video.addEventListener("waiting", waiting);
+  video.addEventListener("stalled", waiting);
+  video.addEventListener("error", error);
+  timer = setTimeout(() => {
+    const title = container.querySelector(".playback-status h2")?.textContent;
+    if (["Connecting to video", "Loading recording"].includes(title)) error();
+  }, 12000);
+  container.steepleMediaCleanup = () => {
+    clearTimeout(timer);
+    video.removeEventListener("playing", playing);
+    video.removeEventListener("loadeddata", loaded);
+    video.removeEventListener("waiting", waiting);
+    video.removeEventListener("stalled", waiting);
+    video.removeEventListener("error", error);
+  };
 }

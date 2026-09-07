@@ -75,6 +75,7 @@ function renderPtzControls(state) {
 }
 
 function renderPreview(state) {
+  if (window.SteeplePlayer.renderPreviewStatus(adminPreview, state.source)) return;
   const broadcast = state.broadcast;
   const capabilities = state.capabilities || {};
   const playback = broadcast.playback || state.preview;

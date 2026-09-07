@@ -88,6 +88,7 @@ textarea {
 }
 
 .video-frame {
+  position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
   background: #11181d;
@@ -115,15 +116,29 @@ video {
     url("/assets/chapel.svg") center/cover;
 }
 
-.slate h1 {
+.slate h1, .slate h2 {
   margin: 0;
-  font-size: clamp(26px, 5vw, 56px);
+  font-size: 24px;
   font-weight: 760;
 }
 
 .slate p {
   margin: 12px 0 0;
-  font-size: clamp(16px, 2vw, 22px);
+  font-size: 16px;
+}
+
+.playback-status {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: #11181d;
+}
+
+.slate > div { max-width: 36rem; min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .slate { padding: 16px; }
+  .slate h2 { font-size: 20px; }
+  .slate p { font-size: 14px; }
 }
 
 .panel {

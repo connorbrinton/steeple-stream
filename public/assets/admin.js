@@ -359,6 +359,7 @@ function textNode(value) {
 }
 
 function renderPreview(state) {
+  if (window.SteeplePlayer.renderPreviewStatus(adminPreview, state.source, "admin")) return;
   const broadcast = state.broadcast;
   const capabilities = state.capabilities || {};
   const playback = broadcast.playback || state.preview;

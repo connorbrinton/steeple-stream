@@ -39,8 +39,18 @@ async function registerViewer(name) {
 }
 
 async function refresh() {
-  const state = await fetch("/api/public-state").then((response) => response.json());
-  render(state);
+  try {
+    const response = await fetch("/api/public-state");
+    if (!response.ok) throw new Error(`Broadcast status returned ${response.status}`);
+    render(await response.json());
+  } catch (error) {
+    statusLabel.textContent = "Connection interrupted";
+    details.textContent = "Reconnecting to the broadcast service.";
+    if (!frame.querySelector("video")) {
+      window.SteeplePlayer.renderSlate(frame, "Unable to connect", "The broadcast service is temporarily unavailable. Retrying automatically.");
+    }
+    console.error(error);
+  }
 }
 
 function render(state) {
@@ -63,7 +73,7 @@ function render(state) {
 
   if (broadcast.status === "live" && broadcast.playback?.hlsUrl) {
     startPlaybackSession(broadcast);
-    if (frame.dataset.broadcastId !== broadcast.id) {
+    if (frame.dataset.broadcastId !== broadcast.id || !frame.querySelector("video")) {
       frame.dataset.broadcastId = broadcast.id;
       const started = performance.now();
       window.SteeplePlayer.renderHybridLive(frame, broadcast.playback, {
