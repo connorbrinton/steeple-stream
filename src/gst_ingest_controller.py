@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import argparse
 import json
-import shlex
 import sys
 import threading
 import time
@@ -14,7 +13,7 @@ from gi.repository import GLib, Gst
 
 
 def q(value):
-    return shlex.quote(str(value))
+    return Gst.value_serialize(str(value))
 
 
 def build_pipeline(args):

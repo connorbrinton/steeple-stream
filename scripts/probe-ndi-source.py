@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import argparse
 import json
-import shlex
+import os
+import tempfile
 
 import gi
 
@@ -19,12 +20,18 @@ def main():
     parser.add_argument("source")
     parser.add_argument("--url-address")
     parser.add_argument("--seconds", type=int, default=10)
+    parser.add_argument("--tcp-only", action="store_true")
     args = parser.parse_args()
 
+    config_dir = tempfile.TemporaryDirectory(prefix="steeple-ndi-probe-")
+    if args.tcp_only:
+        with open(os.path.join(config_dir.name, "ndi-config.v1.json"), "w") as config:
+            json.dump({"ndi": {name: {"recv": {"enable": False}} for name in ("rudp", "tcp", "unicast", "multicast")}}, config)
+        os.environ["NDI_CONFIG_DIR"] = config_dir.name
     Gst.init(None)
-    source = shlex.quote(args.source)
+    source = Gst.value_serialize(args.source)
     address = (
-        f" url-address={shlex.quote(args.url_address)}" if args.url_address else ""
+        f" url-address={Gst.value_serialize(args.url_address)}" if args.url_address else ""
     )
     pipeline = Gst.parse_launch(
         " ".join(
@@ -75,6 +82,7 @@ def main():
         loop.run()
     finally:
         pipeline.set_state(Gst.State.NULL)
+        config_dir.cleanup()
 
     raise SystemExit(0 if seen == {"audio", "video"} else 1)
 
