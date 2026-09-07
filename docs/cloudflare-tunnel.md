@@ -2,6 +2,21 @@
 
 This is the recommended first public deployment shape for Steeple Stream.
 
+## Frontend Caching
+
+HTML pages reference scripts and stylesheets with a version derived from the
+frontend contents. A normal reload after deployment requests the new URLs.
+HTML, static frontend files, and JSON responses send `Cache-Control: private,
+no-store` and `CDN-Cache-Control: no-store`. Proxied media retains MediaMTX's
+cache policy; this does not disable caching for video segments.
+
+Keep Cloudflare configured to respect origin cache headers. Do not apply a
+Cache Rule that forces an Edge TTL or ignores query strings on frontend asset
+URLs. Such rules can override the application's policy; see
+[Cloudflare's cache documentation](https://developers.cloudflare.com/cache/concepts/cache-control/).
+Already-open tabs still need a reload to run new JavaScript; deployments do not
+interrupt a viewer or operator by forcing a reload mid-meeting.
+
 ## Recommendation
 
 Use a named Cloudflare Tunnel with a dedicated hostname:

@@ -1,6 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
+import { createHash } from "node:crypto";
+
+const uncachedHeaders = {
+  "cache-control": "private, no-store",
+  "cdn-cache-control": "no-store"
+};
 
 export async function parseJson(req) {
   const limit = 1024 * 1024;
@@ -24,6 +30,7 @@ export function sendJson(res, status, payload, extraHeaders = {}) {
   res.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
     "content-length": Buffer.byteLength(body),
+    ...uncachedHeaders,
     ...extraHeaders
   });
   res.end(body);
@@ -33,21 +40,44 @@ export async function sendStatic(res, publicDir, filePath) {
   const safePath = filePath === "/" ? "/index.html" : filePath;
   const absolute = path.join(publicDir, path.normalize(safePath).replace(/^(\.\.[/\\])+/, ""));
   try {
-    const body = await fs.readFile(absolute);
+    let body = await fs.readFile(absolute);
+    if (absolute.endsWith(".html")) {
+      const version = await frontendVersion(publicDir);
+      body = Buffer.from(body.toString("utf8").replaceAll("__ASSET_VERSION__", version));
+    }
     res.writeHead(200, {
       "content-type": contentType(absolute),
       "content-length": body.length,
-      "cache-control": "no-cache"
+      ...uncachedHeaders
     });
     res.end(body);
   } catch (error) {
     if (error.code === "ENOENT") {
-      res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+      res.writeHead(404, { "content-type": "text/plain; charset=utf-8", ...uncachedHeaders });
       res.end("Not found");
       return;
     }
     throw error;
   }
+}
+
+async function frontendVersion(publicDir) {
+  const hash = createHash("sha256");
+  // Read current contents so local development and packaged deployments agree.
+  async function visit(relativeDir) {
+    const entries = await fs.readdir(path.join(publicDir, relativeDir), { withFileTypes: true });
+    entries.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+    for (const entry of entries) {
+      const relative = path.join(relativeDir, entry.name);
+      if (entry.isDirectory()) await visit(relative);
+      else if (entry.isFile()) {
+        hash.update(relative).update("\0");
+        hash.update(createHash("sha256").update(await fs.readFile(path.join(publicDir, relative))).digest());
+      }
+    }
+  }
+  await visit("");
+  return hash.digest("hex").slice(0, 20);
 }
 
 export async function proxyHttp(req, res, baseUrl, targetPath, { locationPrefix = "" } = {}) {
