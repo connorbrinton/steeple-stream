@@ -10,6 +10,7 @@ window.SteepleComponent = {
     video.slot = 'media';
     video.before(controller);
     controller.append(video);
+    const listeners = new AbortController();
     const bar = document.createElement('media-control-bar');
     bar.innerHTML = '<media-play-button></media-play-button><media-mute-button></media-mute-button><media-volume-range></media-volume-range><span class="control-spacer"></span><media-pip-button></media-pip-button><media-fullscreen-button></media-fullscreen-button>';
     // Firefox interprets step="any" as a whole-unit keyboard increment on
@@ -17,10 +18,15 @@ window.SteepleComponent = {
     bar.querySelector('media-volume-range').range.step = '0.05';
     if (video.getAttribute('src') && !wrapper.querySelector('.live-controls')) {
       const timeline = document.createElement('media-time-range');
+      const updateStep = () => {
+        if (Number.isFinite(video.duration) && video.duration > 0) timeline.range.step = String(Math.min(1, 5 / video.duration));
+      };
+      video.addEventListener('durationchange', updateStep, { signal: listeners.signal });
+      updateStep();
       timeline.slot = 'top-chrome';
       controller.append(timeline);
     }
     controller.append(bar);
-    return () => controller.remove();
+    return () => { listeners.abort(); controller.remove(); };
   }
 };
