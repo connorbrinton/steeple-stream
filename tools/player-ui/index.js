@@ -5,7 +5,6 @@ window.SteepleComponent = {
   mount(wrapper, video, preference) {
     const controller = document.createElement('media-controller');
     controller.className = 'component-player';
-    controller.setAttribute('default-volume', String(preference.volume));
     video.controls = false;
     video.slot = 'media';
     video.before(controller);
@@ -23,8 +22,7 @@ window.SteepleComponent = {
       };
       video.addEventListener('durationchange', updateStep, { signal: listeners.signal });
       updateStep();
-      timeline.slot = 'top-chrome';
-      controller.append(timeline);
+      bar.querySelector('.control-spacer').replaceWith(timeline);
     }
     controller.append(bar);
     return () => { listeners.abort(); controller.remove(); };
