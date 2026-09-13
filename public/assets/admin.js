@@ -369,7 +369,6 @@ function renderPreview(state) {
   latestPreviewSignature = streamKey;
   if (webrtcUrl && (!capabilities.hlsScrub || broadcast.status !== "live")) {
     window.SteeplePlayer.renderWebRtc(adminPreview, webrtcUrl, {
-      muted: true,
       autoplay: true,
       controls: false,
       timeoutMs: 4000,
@@ -382,7 +381,6 @@ function renderPreview(state) {
   }
   if (hlsUrl && webrtcUrl) {
     window.SteeplePlayer.renderHybridLive(adminPreview, playback, {
-      muted: true,
       autoplay: true,
       timeoutMs: 4000,
       timelineStartAt: broadcast.startedAt || latestHealth?.ingest?.startedAt,
@@ -392,7 +390,6 @@ function renderPreview(state) {
   }
   if (hlsUrl) {
     window.SteeplePlayer.renderHls(adminPreview, hlsUrl, {
-      muted: true,
       autoplay: true,
       controls: capabilities.hlsScrub && broadcast.status === "live" ? "live" : false,
       timelineStartAt: broadcast.startedAt || latestHealth?.ingest?.startedAt,
