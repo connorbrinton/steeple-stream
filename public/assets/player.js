@@ -116,6 +116,7 @@ function destroy(container) {
     container.steepleHls.destroy();
     container.steepleHls = null;
   }
+  container.querySelector("video")?.steepleUiCleanup?.();
   if (container.steepleControlsCleanup) {
     container.steepleControlsCleanup();
     container.steepleControlsCleanup = null;
@@ -450,6 +451,7 @@ function removeCurrentMedia(container, video) {
     container.steepleHls = null;
   }
   if (video) {
+    video.steepleUiCleanup?.();
     video.pause();
     video.removeAttribute("src");
     video.srcObject = null;
@@ -646,51 +648,20 @@ function readAudioPreference() {
 }
 
 function attachVolumeControls(wrapper, video) {
-  wrapper.querySelector(".volume-controls")?.remove();
   const preference = readAudioPreference();
   video.volume = preference.volume;
   video.muted = preference.muted;
-
-  const controls = document.createElement("div");
-  controls.className = "volume-controls";
-  const mute = document.createElement("button");
-  mute.type = "button";
-  const volume = document.createElement("input");
-  volume.type = "range";
-  volume.min = "0";
-  volume.max = "100";
-  volume.step = "1";
-  volume.setAttribute("aria-label", "Volume");
-  const update = () => {
-    const silent = video.muted || video.volume === 0;
-    mute.textContent = silent ? "Unmute" : "Mute";
-    mute.setAttribute("aria-label", silent ? "Unmute audio" : "Mute audio");
-    mute.setAttribute("aria-pressed", String(silent));
-    volume.value = String(Math.round(video.volume * 100));
-    volume.setAttribute("aria-valuetext", `${volume.value}%${video.muted ? " (muted)" : ""}`);
-    volume.title = `Volume: ${volume.value}%`;
-  };
   const save = () => {
     audioPreference = { volume: video.volume, muted: video.muted };
     try { localStorage.setItem(volumeStorageKey, JSON.stringify(audioPreference)); } catch { /* Optional storage. */ }
-    update();
   };
-  mute.addEventListener("click", () => {
-    const silent = video.muted || video.volume === 0;
-    if (silent && video.volume === 0) video.volume = 1;
-    video.muted = !silent;
-    save();
-  });
-  volume.addEventListener("input", () => {
-    video.volume = Number(volume.value) / 100;
-    video.muted = false;
-    save();
-  });
-  // Also remember changes made through native browser media controls.
+  const dispose = window.SteepleComponent.mount(wrapper, video, preference);
   video.addEventListener("volumechange", save);
-  update();
-  controls.append(mute, volume);
-  wrapper.append(controls);
+  video.steepleUiCleanup = () => {
+    video.removeEventListener("volumechange", save);
+    dispose?.();
+    video.steepleUiCleanup = null;
+  };
 }
 
 function createTransportChip(label) {

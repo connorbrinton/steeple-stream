@@ -4,92 +4,54 @@ import test from "node:test";
 import vm from "node:vm";
 
 const source = await fs.readFile(new URL("../public/assets/player.js", import.meta.url), "utf8");
-
-class Element extends EventTarget {
-  children = [];
-  attributes = {};
-  append(...children) { this.children.push(...children); }
-  querySelector(selector) { return this.children.find(child => `.${child.className}` === selector); }
-  setAttribute(name, value) { this.attributes[name] = value; }
-  remove() {}
-}
-
+class Element extends EventTarget {}
 function harness(storage = new Map()) {
   const context = vm.createContext({
-    window: {},
-    document: { createElement: () => new Element() },
+    window: { SteepleComponent: { mount() {} } },
     localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
     setTimeout, clearTimeout
   });
   vm.runInContext(source, context);
   const mount = () => {
-    const wrapper = new Element();
     const video = new Element();
-    context.attachVolumeControls(wrapper, video);
-    const [mute, volume] = wrapper.children[0].children;
-    return {
-      video, mute, volume,
-      setVolume(value) { volume.value = String(value); volume.dispatchEvent(new Event("input")); },
-      toggleMute() { mute.dispatchEvent(new Event("click")); }
-    };
+    context.attachVolumeControls({}, video);
+    return video;
   };
   return { mount, context };
 }
-
-test("first playback is audible at full volume; slider and mute survive new streams and reloads", () => {
-  const storage = new Map();
-  const h = harness(storage);
-  const first = h.mount();
-  assert.equal(first.video.volume, 1);
-  assert.equal(first.video.muted, false);
-  first.setVolume(37);
-  first.toggleMute();
+function change(video, volume, muted) {
+  video.volume = volume;
+  video.muted = muted;
+  video.dispatchEvent(new Event("volumechange"));
+}
+test("first playback defaults to full volume and unmuted", () => {
+  const video = harness().mount();
+  assert.equal(video.volume, 1);
+  assert.equal(video.muted, false);
+});
+test("volume and mute persist across new media and reloads", () => {
+  const storage = new Map(), h = harness(storage);
+  change(h.mount(), 0.37, true);
   for (const next of [h.mount(), harness(storage).mount()]) {
-    assert.equal(next.video.volume, 0.37);
-    assert.equal(next.video.muted, true);
-    assert.equal(next.mute.textContent, "Unmute");
-    next.toggleMute();
-    assert.equal(next.video.volume, 0.37);
-    assert.equal(next.video.muted, false);
+    assert.equal(next.volume, 0.37);
+    assert.equal(next.muted, true);
   }
 });
-
-test("zero volume is persisted and Unmute restores an audible level", () => {
+test("zero volume remains a valid saved preference", () => {
   const h = harness();
-  h.mount().setVolume(0);
-  const next = h.mount();
-  assert.equal(next.video.volume, 0);
-  assert.equal(next.mute.textContent, "Unmute");
-  next.toggleMute();
-  assert.equal(next.video.volume, 1);
-  assert.equal(next.video.muted, false);
-  next.toggleMute();
-  next.setVolume(25);
-  assert.equal(next.video.muted, false);
-  assert.equal(next.video.volume, 0.25);
+  change(h.mount(), 0, false);
+  assert.equal(h.mount().volume, 0);
 });
-
-test("native volume changes update controls and the saved preference", () => {
-  const h = harness();
-  const first = h.mount();
-  first.video.volume = 0.6;
-  first.video.muted = true;
-  first.video.dispatchEvent(new Event("volumechange"));
-  assert.equal(first.volume.value, "60");
-  assert.equal(first.volume.attributes["aria-valuetext"], "60% (muted)");
-  assert.equal(h.mount().video.volume, 0.6);
-  assert.equal(h.mount().video.muted, true);
-});
-
-test("malformed storage defaults safely and unavailable storage retains in-page preferences", () => {
+test("malformed storage defaults safely; blocked storage retains in-page preferences", () => {
   for (const saved of ["invalid", "null", '{"volume":2,"muted":false}', '{"volume":"0.5","muted":false}']) {
-    const h = harness(new Map([["steeple-stream:audio", saved]]));
-    assert.equal(h.mount().video.volume, 1);
-    assert.equal(h.mount().video.muted, false);
+    const video = harness(new Map([["steeple-stream:audio", saved]])).mount();
+    assert.equal(video.volume, 1);
+    assert.equal(video.muted, false);
   }
   const h = harness({ get() { throw new Error("blocked"); }, set() { throw new Error("blocked"); } });
-  h.mount().setVolume(42);
-  assert.equal(h.mount().video.volume, 0.42);
+  change(h.mount(), 0.42, true);
+  assert.equal(h.mount().volume, 0.42);
+  assert.equal(h.mount().muted, true);
 });
 
 test("autoplay denial does not turn a working WebRTC connection into a timeout", async () => {

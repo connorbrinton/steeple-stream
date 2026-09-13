@@ -412,42 +412,6 @@ video {
   display: block;
 }
 
-.volume-controls {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  border-radius: 8px;
-  color: white;
-  background: rgba(0, 0, 0, 0.75);
-}
-
-.volume-controls button {
-  min-width: 64px;
-  min-height: 36px;
-  border: 0;
-  border-radius: 4px;
-  color: inherit;
-  background: transparent;
-  cursor: pointer;
-}
-
-.volume-controls input {
-  width: clamp(64px, 12vw, 110px);
-  min-height: 36px;
-  margin: 0;
-  padding: 0;
-  accent-color: white;
-}
-
-.volume-controls :focus-visible {
-  outline: 2px solid white;
-  outline-offset: 2px;
-}
-
 .transport-chip {
   position: absolute;
   top: 10px;
@@ -872,3 +836,9 @@ video {
     grid-row: 1;
   }
 }
+
+/* The component owns standard controls; this bar switches WebRTC/HLS DVR. */
+.component-player { width: 100%; height: 100%; display: block; position: relative; }
+.live-controls { bottom: 46px; z-index: 3; }
+.transport-chip { z-index: 3; pointer-events: none; }
+.playback-status { z-index: 5; }

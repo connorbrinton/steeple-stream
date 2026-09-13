@@ -5,20 +5,20 @@ test('recordings play with audio enabled at full volume', async ({ page }) => {
   await page.goto('/');
   await startPlayback(page);
   await expectAudio(page, 1, false);
-  await expect(page.getByRole('slider', { name: 'Volume', exact: true })).toBeVisible();
+  await expect(page.getByRole('slider', { name: /volume/i })).toBeVisible();
 });
 
 test('keyboard volume and mute persist across reloads and future streams', async ({ page }) => {
   await page.goto('/');
   await startPlayback(page);
   const volume = await setLowVolume(page);
-  await page.getByRole('button', { name: 'Mute audio', exact: true }).click();
+  await page.getByRole('button', { name: /^mute(?: audio)?$/i }).click();
   await expectAudio(page, volume, true);
   await page.reload();
   await expectAudio(page, volume, true);
   await page.getByRole('button', { name: 'Next stream', exact: true }).click();
   await expectAudio(page, volume, true);
-  await page.getByRole('button', { name: 'Unmute audio', exact: true }).click();
+  await page.getByRole('button', { name: /^unmute(?: audio)?$/i }).click();
   await expectAudio(page, volume, false);
 });
 
@@ -53,20 +53,20 @@ test('autoplay is requested; rejection leaves a working user-initiated Play butt
     };
   });
   await page.goto('/');
-  await expect(page.getByRole('button', { name: /play video/i })).toBeVisible();
+  await expect(page.locator('.playback-status').getByRole('button', { name: /play video/i })).toBeVisible();
   expect(await page.evaluate(() => window.playAttempts)).toBeGreaterThan(0);
   await expectAudio(page, 1, false);
-  await page.getByRole('button', { name: /play video/i }).click();
+  await page.locator('.playback-status').getByRole('button', { name: /play video/i }).click();
   await expectProgress(page);
-  await expect(page.getByRole('button', { name: /play video/i })).toBeHidden();
+  await expect(page.locator('.playback-status').getByRole('button', { name: /play video/i })).toBeHidden();
 });
 
 for (const width of [390, 1280]) test(`player controls are usable at ${width}px`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width, height: 800 });
   await page.goto('/');
   await startPlayback(page);
-  const slider = page.getByRole('slider', { name: 'Volume', exact: true });
-  const mute = page.getByRole('button', { name: 'Mute audio', exact: true });
+  const slider = page.getByRole('slider', { name: /volume/i });
+  const mute = page.getByRole('button', { name: /^mute(?: audio)?$/i });
   await expect(slider).toBeVisible();
   await expect(mute).toBeVisible();
   const bounds = await slider.boundingBox();

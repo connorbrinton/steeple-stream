@@ -1,0 +1,12 @@
+{
+  "name": "steeple-vidstack-experiment",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "devDependencies": {
+    "vidstack": "1.15.6",
+    "esbuild": "0.28.2"
+  }
+}
