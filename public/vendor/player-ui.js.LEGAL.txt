@@ -1,0 +1,23 @@
+Bundled license information:
+
+@videojs/xhr/lib/index.js:
+  /**
+   * @license
+   * slighly modified parse-headers 2.0.2 <https://github.com/kesla/parse-headers/>
+   * Copyright (c) 2014 David Björklund
+   * Available under the MIT license
+   * <https://github.com/kesla/parse-headers/blob/master/LICENCE>
+   */
+
+video.js/core.js:
+  /**
+   * @license
+   * Video.js 8.24.0 <http://videojs.com/>
+   * Copyright 2010-present Video.js contributors
+   * Available under Apache License Version 2.0
+   * <https://github.com/videojs/video.js/blob/main/LICENSE>
+   *
+   * Includes vtt.js <https://github.com/mozilla/vtt.js>
+   * Available under Apache License Version 2.0
+   * <https://github.com/mozilla/vtt.js/blob/main/LICENSE>
+   */

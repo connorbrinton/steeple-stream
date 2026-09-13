@@ -1,0 +1,12 @@
+{
+  "name": "steeple-videojs-experiment",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "devDependencies": {
+    "video.js": "8.24.0",
+    "esbuild": "0.28.2"
+  }
+}
