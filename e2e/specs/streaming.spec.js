@@ -51,10 +51,10 @@ test('HLS recovers after a network interruption without resetting audio preferen
   const volume = await setLowVolume(page);
   interrupted = true;
   await expect.poll(() => blocked).toBeGreaterThan(0);
-  await expect(page.getByRole('status')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('.playback-status')).toBeVisible({ timeout: 30_000 });
   interrupted = false;
   await expectProgress(page);
-  await expect(page.getByRole('status')).toBeHidden();
+  await expect(page.locator('.playback-status')).toBeHidden();
   await expectAudio(page, volume, false);
 });
 

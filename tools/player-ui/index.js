@@ -1,4 +1,5 @@
 import 'vidstack/player';
+import 'vidstack/player/ui';
 import 'vidstack/player/layouts/default';
 import { MediaProviderElement } from 'vidstack/elements';
 import { VideoProviderLoader } from 'vidstack';
@@ -11,7 +12,7 @@ import './style.css';
 class SteepleProviderElement extends MediaProviderElement {
   onConnect() { this.load(this.querySelector('video')); }
 }
-customElements.define('steeple-media-provider', SteepleProviderElement);
+customElements.define('media-steeple-provider', SteepleProviderElement);
 
 window.SteepleComponent = {
   mount(wrapper, video, preference) {
@@ -24,8 +25,11 @@ window.SteepleComponent = {
     player.volume = preference.volume;
     player.muted = preference.muted;
     player.storage = null;
+    video.steepleUiReady = new Promise(resolve => {
+      player.addEventListener('provider-setup', resolve, { once: true });
+    });
     player.src = { src: 'steeple:external', type: 'video/steeple' };
-    const provider = document.createElement('steeple-media-provider');
+    const provider = document.createElement('media-steeple-provider');
     const loader = new VideoProviderLoader();
     loader.canPlay = src => src.type === 'video/steeple';
     const load = loader.load.bind(loader);

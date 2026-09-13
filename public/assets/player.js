@@ -23,6 +23,8 @@ window.SteeplePlayer = {
     monitorPlayback(container, video, options);
     const connect = async () => {
       try {
+        await video.steepleUiReady;
+        if (!container.contains(video)) return;
         await attachWebRtc(container, video, whepUrl, options);
       } catch {
         if (!container.contains(video)) return;
@@ -49,9 +51,9 @@ window.SteeplePlayer = {
     video.autoplay = Boolean(options.autoplay);
     video.playsInline = true;
     options.onVideo?.(video);
-    video.src = url;
     renderVideoFrame(container, video, "Replay");
     monitorPlayback(container, video, { ...options, recording: true });
+    video.steepleUiReady.then(() => { if (container.contains(video)) video.src = url; });
     return video;
   },
   renderHls(container, hlsUrl, options = {}) {
@@ -70,7 +72,7 @@ window.SteeplePlayer = {
       renderVideoFrame(container, video, "HLS");
     }
 
-    attachHls(container, video, hlsUrl, options);
+    video.steepleUiReady.then(() => { if (container.contains(video)) attachHls(container, video, hlsUrl, options); });
     return video;
   },
 
@@ -203,6 +205,8 @@ function renderHybridPlayer(container, playback, options = {}) {
     targetBehind = 0;
     const video = replaceVideo(document.createElement("video"), "WebRTC");
     try {
+      await video.steepleUiReady;
+      if (!container.contains(video)) return null;
       await attachWebRtc(container, video, playback.webrtcUrl, options);
       return video;
     } catch (error) {
@@ -222,6 +226,8 @@ function renderHybridPlayer(container, playback, options = {}) {
       mode = "hls";
       options.onTransport?.({ transport: "hls", fallbackReason });
       const video = replaceVideo(document.createElement("video"), "HLS");
+      await video.steepleUiReady;
+      if (!container.contains(video)) return null;
       attachHls(container, video, playback.hlsUrl, options);
       video.addEventListener("loadedmetadata", () => seekHlsToBehind(behind), { once: true });
       video.addEventListener("playing", update);
