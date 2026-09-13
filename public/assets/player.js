@@ -141,6 +141,7 @@ function renderHybridPlayer(container, playback, options = {}) {
   liveText.textContent = "Live";
   timeText.className = "live-time";
   range.className = "live-range";
+  range.setAttribute("aria-label", "Seek");
   range.type = "range";
   range.min = "0";
   range.max = "1000";
@@ -473,6 +474,7 @@ function renderLivePlayer(container, video, options = {}) {
   liveText.textContent = "Live";
   timeText.className = "live-time";
   range.className = "live-range";
+  range.setAttribute("aria-label", "Seek");
   range.type = "range";
   range.min = "0";
   range.max = "1000";
