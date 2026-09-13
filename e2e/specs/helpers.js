@@ -11,8 +11,10 @@ export async function startPlayback(page) {
     await page.locator('.playback-status').getByRole('button', { name: /play video/i }).click();
   }
   await expectProgress(page);
+  await page.locator('#player').hover();
 }
 export async function setLowVolume(page) {
+  await page.locator('#player').hover();
   const slider = page.getByRole('slider', { name: /volume/i });
   await slider.focus();
   await slider.press('ArrowLeft');

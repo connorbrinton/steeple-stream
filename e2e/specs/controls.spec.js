@@ -8,6 +8,20 @@ test('recordings play with audio enabled at full volume', async ({ page }) => {
   await expect(page.getByRole('slider', { name: /volume/i })).toBeVisible();
 });
 
+test('component controls pause, seek, and resume a recording', async ({ page }) => {
+  await page.goto('/');
+  await startPlayback(page);
+  await page.getByRole('button', { name: /^pause(?: video)?$/i }).click();
+  await expect.poll(() => video(page).evaluate(element => element.paused)).toBe(true);
+  const initial = await video(page).evaluate(element => element.currentTime);
+  const seek = page.getByRole('slider', { name: /^(seek|progress bar)$/i });
+  await seek.focus();
+  await seek.press('ArrowRight');
+  await expect.poll(() => video(page).evaluate(element => element.currentTime)).toBeGreaterThan(initial + 1);
+  await page.getByRole('button', { name: /^play(?: video)?$/i }).click();
+  await expectProgress(page);
+});
+
 test('keyboard volume and mute persist across reloads and future streams', async ({ page }) => {
   await page.goto('/');
   await startPlayback(page);
@@ -74,5 +88,5 @@ for (const width of [390, 1280]) test(`player controls are usable at ${width}px`
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
   await mute.click();
   await expectAudio(page, 1, true);
-  await testInfo.attach(`player-${width}`, { body: await page.screenshot(), contentType: 'image/png' });
+  await testInfo.attach(`player-${width}`, { body: await page.screenshot({ animations: 'disabled' }), contentType: 'image/png' });
 });
