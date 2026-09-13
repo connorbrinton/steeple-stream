@@ -59,7 +59,6 @@ test('HLS recovers after a network interruption without resetting audio preferen
 });
 
 test('rewind switches to HLS and Live returns to WebRTC with the same volume', async ({ page }) => {
-  page.on('console', message => console.log(message.text()));
   await page.goto('/?mode=hybrid');
   await startPlayback(page);
   await expectWebRtcMedia(page);
@@ -72,7 +71,6 @@ test('rewind switches to HLS and Live returns to WebRTC with the same volume', a
   await expectProgress(page);
   await expect.poll(() => video(page).evaluate(element => {
     const ranges = element.seekable;
-    console.log('rewind media', JSON.stringify({ currentTime: element.currentTime, duration: element.duration, src: element.currentSrc, hls: Boolean(document.querySelector('#player').steepleHls), seekable: Array.from({ length: ranges.length }, (_, i) => [ranges.start(i), ranges.end(i)]) }));
     return ranges.length ? ranges.end(ranges.length - 1) - element.currentTime : 0;
   })).toBeGreaterThan(2);
   await expectAudio(page, volume, false);
