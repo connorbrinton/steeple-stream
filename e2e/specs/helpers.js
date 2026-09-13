@@ -16,8 +16,9 @@ export async function setLowVolume(page) {
   const slider = page.getByRole('slider', { name: /volume/i });
   await slider.focus();
   await slider.press('Home');
+  await expect.poll(() => video(page).evaluate(element => element.volume)).toBe(0);
   await slider.press('ArrowRight');
-  await expect.poll(() => video(page).evaluate(element => element.volume)).toBeGreaterThan(0);
+  await expect.poll(() => video(page).evaluate(element => element.volume > 0 && element.volume < 1)).toBe(true);
   const volume = await video(page).evaluate(element => element.volume);
   expect(volume).toBeLessThan(1);
   return volume;

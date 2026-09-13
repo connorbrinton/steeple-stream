@@ -48,7 +48,7 @@ test("all page templates version their scripts and stylesheets", async t => {
     const body = await (await fetch(`${url}/${name}.html`)).text();
     assert.ok(!body.includes("__ASSET_VERSION__"));
     const urls = [...body.matchAll(/(?:src|href)="((?:\/assets\/|\/vendor\/)[^"]+\.(?:js|css)[^"]*)"/g)].map(match => match[1]);
-    assert.equal(urls.length, 4);
+    assert.equal(urls.length, 6);
     for (const asset of urls) assert.match(asset, /\?v=[a-f0-9]{20}$/);
   }
 });
