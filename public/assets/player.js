@@ -16,7 +16,6 @@ window.SteeplePlayer = {
     container.steepleSrc = sourceKey;
     const video = document.createElement("video");
     video.controls = options.controls !== false;
-    video.muted = Boolean(options.muted);
     video.autoplay = Boolean(options.autoplay);
     video.playsInline = true;
     options.onVideo?.(video);
@@ -62,7 +61,6 @@ window.SteeplePlayer = {
     container.steepleSrc = sourceKey;
     const video = document.createElement("video");
     video.controls = options.controls !== false && options.controls !== "live";
-    video.muted = Boolean(options.muted);
     video.autoplay = Boolean(options.autoplay);
     video.playsInline = true;
     options.onVideo?.(video);
@@ -184,13 +182,13 @@ function renderHybridPlayer(container, playback, options = {}) {
   const replaceVideo = (video, transportLabel) => {
     removeCurrentMedia(container, activeVideo);
     activeVideo = video;
-    video.muted = Boolean(options.muted);
     video.autoplay = Boolean(options.autoplay);
     video.playsInline = true;
     video.controls = false;
     options.onVideo?.(video);
     chip.textContent = transportLabel;
     wrapper.insertBefore(video, chip);
+    attachVolumeControls(wrapper, video);
     monitorPlayback(container, video, options);
     return video;
   };
@@ -323,9 +321,20 @@ function waitForIceGathering(pc, timeoutMs) {
 function waitForPlaying(video, timeoutMs) {
   if (video.readyState >= 3) return video.play().catch(() => {});
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("WebRTC playback timed out")), timeoutMs);
-    video.addEventListener("playing", () => { clearTimeout(timeout); resolve(); }, { once: true });
-    video.play().catch(() => {});
+    const finish = (error) => {
+      clearTimeout(timeout);
+      video.removeEventListener("playing", playing);
+      if (error) reject(error);
+      else resolve();
+    };
+    const playing = () => finish();
+    const timeout = setTimeout(() => finish(new Error("WebRTC playback timed out")), timeoutMs);
+    video.addEventListener("playing", playing, { once: true });
+    // The playback monitor offers a Play button. Browser autoplay policy is
+    // not a transport failure and must not trigger a reconnect/HLS fallback.
+    video.play().catch((error) => {
+      if (error.name === "NotAllowedError") finish();
+    });
   });
 }
 
@@ -476,6 +485,7 @@ function renderLivePlayer(container, video, options = {}) {
   left.append(liveDot, liveText, timeText);
   controls.append(left, range, liveButton);
   wrapper.append(video, chip, controls);
+  attachVolumeControls(wrapper, video);
   container.replaceChildren(wrapper);
 
   let dragging = false;
@@ -591,6 +601,7 @@ function renderVideoFrame(container, video, transportLabel) {
   const chip = createTransportChip(transportLabel);
   wrapper.className = "live-player";
   wrapper.append(video);
+  attachVolumeControls(wrapper, video);
   if (chip) wrapper.append(chip);
   container.replaceChildren(wrapper);
 
@@ -614,6 +625,68 @@ function renderVideoFrame(container, video, transportLabel) {
     wrapper.removeEventListener("focusin", showChip);
     wrapper.removeEventListener("touchstart", showChip);
   };
+}
+
+const volumeStorageKey = "steeple-stream:audio";
+let audioPreference = { volume: 1, muted: false };
+
+function readAudioPreference() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(volumeStorageKey));
+    if (saved && typeof saved.volume === "number" && Number.isFinite(saved.volume)
+        && saved.volume >= 0 && saved.volume <= 1 && typeof saved.muted === "boolean") {
+      audioPreference = { volume: saved.volume, muted: saved.muted };
+    }
+  } catch { /* Storage can be unavailable; retain the preference for this page. */ }
+  return audioPreference;
+}
+
+function attachVolumeControls(wrapper, video) {
+  wrapper.querySelector(".volume-controls")?.remove();
+  const preference = readAudioPreference();
+  video.volume = preference.volume;
+  video.muted = preference.muted;
+
+  const controls = document.createElement("div");
+  controls.className = "volume-controls";
+  const mute = document.createElement("button");
+  mute.type = "button";
+  const volume = document.createElement("input");
+  volume.type = "range";
+  volume.min = "0";
+  volume.max = "100";
+  volume.step = "1";
+  volume.setAttribute("aria-label", "Volume");
+  const update = () => {
+    const silent = video.muted || video.volume === 0;
+    mute.textContent = silent ? "Unmute" : "Mute";
+    mute.setAttribute("aria-label", silent ? "Unmute audio" : "Mute audio");
+    mute.setAttribute("aria-pressed", String(silent));
+    volume.value = String(Math.round(video.volume * 100));
+    volume.setAttribute("aria-valuetext", `${volume.value}%${video.muted ? " (muted)" : ""}`);
+    volume.title = `Volume: ${volume.value}%`;
+  };
+  const save = () => {
+    audioPreference = { volume: video.volume, muted: video.muted };
+    try { localStorage.setItem(volumeStorageKey, JSON.stringify(audioPreference)); } catch { /* Optional storage. */ }
+    update();
+  };
+  mute.addEventListener("click", () => {
+    const silent = video.muted || video.volume === 0;
+    if (silent && video.volume === 0) video.volume = 1;
+    video.muted = !silent;
+    save();
+  });
+  volume.addEventListener("input", () => {
+    video.volume = Number(volume.value) / 100;
+    video.muted = false;
+    save();
+  });
+  // Also remember changes made through native browser media controls.
+  video.addEventListener("volumechange", save);
+  update();
+  controls.append(mute, volume);
+  wrapper.append(controls);
 }
 
 function createTransportChip(label) {
