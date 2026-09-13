@@ -117,17 +117,20 @@ function reportPlayback(beacon = false) {
 }
 
 function observeVideo(video) {
+  const listeners = new AbortController();
+  const options = { signal: listeners.signal };
   let waitingAt = null;
   video.addEventListener("waiting", () => {
     waitingAt = performance.now();
     if (playback) playback.bufferingCount += 1;
-  });
+  }, options);
   video.addEventListener("playing", () => {
     if (waitingAt !== null && playback) playback.bufferingMs += performance.now() - waitingAt;
     waitingAt = null;
-  });
-  video.addEventListener("stalled", () => { if (playback) playback.reconnectCount += 1; });
-  video.addEventListener("error", () => updatePlayback({ terminalError: video.error?.message || "Media playback error" }));
+  }, options);
+  video.addEventListener("stalled", () => { if (playback) playback.reconnectCount += 1; }, options);
+  video.addEventListener("error", () => updatePlayback({ terminalError: video.error?.message || "Media playback error" }), options);
+  return () => listeners.abort();
 }
 
 function labelFor(broadcast) {

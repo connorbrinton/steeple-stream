@@ -14,18 +14,19 @@ window.SteeplePlayer = {
     if (container.steepleSrc === sourceKey && container.querySelector("video")) return container.querySelector("video");
     destroy(container);
     container.steepleSrc = sourceKey;
-    const video = document.createElement("video");
+    const video = getVideo(container);
+    const generation = container.steepleGeneration;
     video.controls = options.controls !== false;
     video.autoplay = Boolean(options.autoplay);
     video.playsInline = true;
-    options.onVideo?.(video);
+    video.steepleObserverCleanup = options.onVideo?.(video);
     renderVideoFrame(container, video, "WebRTC");
     monitorPlayback(container, video, options);
     const connect = async () => {
       try {
         await attachWebRtc(container, video, whepUrl, options);
       } catch {
-        if (!container.contains(video)) return;
+        if (container.steepleGeneration !== generation) return;
         showPlaybackStatus(container, "Waiting for video", "The video is temporarily unavailable. Retrying automatically.");
         container.steeplePeer?.close();
         if (container.steepleWhepResource) {
@@ -33,7 +34,7 @@ window.SteeplePlayer = {
           container.steepleWhepResource = null;
         }
         if (options.retry !== false) container.steepleRetryTimer = setTimeout(() => {
-          if (container.isConnected && container.contains(video)) connect();
+          if (container.isConnected && container.steepleGeneration === generation) connect();
         }, options.retryDelayMs || 5000);
       }
     };
@@ -44,11 +45,11 @@ window.SteeplePlayer = {
     if (container.steepleSrc === url && container.querySelector("video")) return container.querySelector("video");
     destroy(container);
     container.steepleSrc = url;
-    const video = document.createElement("video");
+    const video = getVideo(container);
     video.controls = true;
     video.autoplay = Boolean(options.autoplay);
     video.playsInline = true;
-    options.onVideo?.(video);
+    video.steepleObserverCleanup = options.onVideo?.(video);
     video.src = url;
     renderVideoFrame(container, video, "Replay");
     monitorPlayback(container, video, { ...options, recording: true });
@@ -59,11 +60,11 @@ window.SteeplePlayer = {
     if (container.steepleSrc === sourceKey && container.querySelector("video")) return container.querySelector("video");
     destroy(container);
     container.steepleSrc = sourceKey;
-    const video = document.createElement("video");
+    const video = getVideo(container);
     video.controls = options.controls !== false && options.controls !== "live";
     video.autoplay = Boolean(options.autoplay);
     video.playsInline = true;
-    options.onVideo?.(video);
+    video.steepleObserverCleanup = options.onVideo?.(video);
     if (options.controls === "live") {
       renderLivePlayer(container, video, { ...options, transportLabel: "HLS" });
     } else {
@@ -80,6 +81,8 @@ window.SteeplePlayer = {
     const key = `hybrid:${webrtcUrl || ""}:${hlsUrl || ""}:${options.timelineStartAt || ""}:${options.streamKey || ""}`;
     if (container.steepleSrc === key && container.querySelector("video")) return container.querySelector("video");
     if (!hlsUrl && !webrtcUrl) {
+      destroy(container);
+      container.steepleSrc = null;
       renderMessage(container, "Preview Unavailable", "No local preview URL is configured.");
       return null;
     }
@@ -101,27 +104,20 @@ window.SteeplePlayer = {
 };
 
 function destroy(container) {
-  clearTimeout(container.steepleRetryTimer);
-  container.steepleMediaCleanup?.();
-  container.steepleMediaCleanup = null;
-  if (container.steeplePeer) {
-    container.steeplePeer.close();
-    container.steeplePeer = null;
-  }
-  if (container.steepleWhepResource) {
-    fetch(container.steepleWhepResource, { method: "DELETE", keepalive: true }).catch(() => {});
-    container.steepleWhepResource = null;
-  }
-  if (container.steepleHls) {
-    container.steepleHls.destroy();
-    container.steepleHls = null;
-  }
-  container.querySelector("video")?.steepleUiCleanup?.();
   if (container.steepleControlsCleanup) {
     container.steepleControlsCleanup();
     container.steepleControlsCleanup = null;
   }
+  const video = container.steepleVideo;
+  removeCurrentMedia(container, video);
+  video?.steepleUiCleanup?.();
   container.steepleSlate = null;
+}
+
+// Keep the element (and its browser playback permission) for this container,
+// including across offline slates. Transports and controls have shorter lives.
+function getVideo(container) {
+  return container.steepleVideo ||= document.createElement("video");
 }
 
 function renderHybridPlayer(container, playback, options = {}) {
@@ -181,16 +177,19 @@ function renderHybridPlayer(container, playback, options = {}) {
     }, 2400);
   };
 
-  const replaceVideo = (video, transportLabel) => {
+  const replaceVideo = (transportLabel) => {
     removeCurrentMedia(container, activeVideo);
+    const video = getVideo(container);
     activeVideo = video;
     video.autoplay = Boolean(options.autoplay);
     video.playsInline = true;
     video.controls = false;
-    options.onVideo?.(video);
+    video.steepleObserverCleanup = options.onVideo?.(video);
     chip.textContent = transportLabel;
-    wrapper.insertBefore(video, chip);
-    attachVolumeControls(wrapper, video);
+    if (!wrapper.contains(video)) {
+      wrapper.insertBefore(video, chip);
+      attachVolumeControls(wrapper, video);
+    }
     monitorPlayback(container, video, options);
     return video;
   };
@@ -201,12 +200,13 @@ function renderHybridPlayer(container, playback, options = {}) {
     mode = "webrtc";
     followingLive = true;
     targetBehind = 0;
-    const video = replaceVideo(document.createElement("video"), "WebRTC");
+    const video = replaceVideo("WebRTC");
+    const generation = container.steepleGeneration;
     try {
       await attachWebRtc(container, video, playback.webrtcUrl, options);
       return video;
     } catch (error) {
-      if (mode === "webrtc") {
+      if (container.steepleGeneration === generation && mode === "webrtc") {
         mode = null;
         await showHls(0, error.message);
       }
@@ -221,7 +221,9 @@ function renderHybridPlayer(container, playback, options = {}) {
     if (mode !== "hls") {
       mode = "hls";
       options.onTransport?.({ transport: "hls", fallbackReason });
-      const video = replaceVideo(document.createElement("video"), "HLS");
+      const video = replaceVideo("HLS");
+      const listeners = new AbortController();
+      container.steepleTransportCleanup = () => listeners.abort();
       attachHls(container, video, playback.hlsUrl, options);
       // HLS metadata can arrive before the live seekable window exists.
       // Retain the requested rewind until that window becomes available.
@@ -231,9 +233,9 @@ function renderHybridPlayer(container, playback, options = {}) {
         seekHlsToBehind(behind);
         for (const event of seekEvents) video.removeEventListener(event, applyInitialSeek);
       };
-      for (const event of seekEvents) video.addEventListener(event, applyInitialSeek);
-      video.addEventListener("playing", update);
-      video.addEventListener("waiting", update);
+      for (const event of seekEvents) video.addEventListener(event, applyInitialSeek, { signal: listeners.signal });
+      video.addEventListener("playing", update, { signal: listeners.signal });
+      video.addEventListener("waiting", update, { signal: listeners.signal });
       video.play().catch(() => {});
       hlsSwitch = video;
     }
@@ -328,18 +330,21 @@ function waitForIceGathering(pc, timeoutMs) {
   });
 }
 
-function waitForPlaying(video, timeoutMs) {
+function waitForPlaying(video, timeoutMs, signal) {
   if (video.readyState >= 3) return video.play().catch(() => {});
   return new Promise((resolve, reject) => {
     const finish = (error) => {
       clearTimeout(timeout);
       video.removeEventListener("playing", playing);
+      signal?.removeEventListener("abort", aborted);
       if (error) reject(error);
       else resolve();
     };
     const playing = () => finish();
+    const aborted = () => finish(new Error("WebRTC source changed"));
     const timeout = setTimeout(() => finish(new Error("WebRTC playback timed out")), timeoutMs);
     video.addEventListener("playing", playing, { once: true });
+    signal?.addEventListener("abort", aborted, { once: true });
     // The playback monitor offers a Play button. Browser autoplay policy is
     // not a transport failure and must not trigger a reconnect/HLS fallback.
     video.play().catch((error) => {
@@ -362,31 +367,51 @@ async function selectedCandidateType(pc) {
 async function attachWebRtc(container, video, whepUrl, options = {}) {
   const pc = new RTCPeerConnection();
   container.steeplePeer = pc;
+  const pending = new AbortController();
+  container.steepleTransportCleanup = () => pending.abort();
+  const isCurrent = () => container.steeplePeer === pc;
+  const checkCurrent = () => {
+    if (!isCurrent()) throw new Error("WebRTC source changed");
+  };
   const stream = new MediaStream();
   video.srcObject = stream;
   pc.ontrack = (event) => stream.addTrack(event.track);
   pc.addTransceiver("video", { direction: "recvonly" });
   pc.addTransceiver("audio", { direction: "recvonly" });
   const offer = await pc.createOffer();
+  checkCurrent();
   await pc.setLocalDescription(offer);
   await waitForIceGathering(pc, 3000);
+  checkCurrent();
   const response = await fetch(whepUrl, {
     method: "POST",
     headers: { "content-type": "application/sdp" },
     body: pc.localDescription.sdp
   });
+  const location = response.headers.get("location");
+  const resource = location ? new URL(location, new URL(whepUrl, window.location.href)).href : null;
+  if (!isCurrent()) {
+    if (resource) fetch(resource, { method: "DELETE", keepalive: true }).catch(() => {});
+    checkCurrent();
+  }
   if (!response.ok) throw new Error(`WHEP returned HTTP ${response.status}`);
-  container.steepleWhepResource = response.headers.get("location");
-  await pc.setRemoteDescription({ type: "answer", sdp: await response.text() });
-  await waitForPlaying(video, options.timeoutMs || 4000);
+  container.steepleWhepResource = resource;
+  const sdp = await response.text();
+  checkCurrent();
+  await pc.setRemoteDescription({ type: "answer", sdp });
+  checkCurrent();
+  await waitForPlaying(video, options.timeoutMs || 4000, pending.signal);
+  checkCurrent();
   const candidateType = await selectedCandidateType(pc);
+  checkCurrent();
   options.onTransport?.({ transport: `webrtc-${candidateType}`, candidateType });
 }
 
 function attachHls(container, video, hlsUrl, options = {}) {
+  const generation = container.steepleGeneration;
   let retryPending = false;
   const fail = (data = {}) => {
-    if (!container.contains(video)) return;
+    if (container.steepleGeneration !== generation || !container.contains(video)) return;
     const denied = [401, 403].includes(data.response?.code);
     if (retryPending && !denied) return;
     showPlaybackStatus(container, denied ? "Access expired" : "Waiting for video",
@@ -400,7 +425,7 @@ function attachHls(container, video, hlsUrl, options = {}) {
     }
     retryPending = true;
     container.steepleRetryTimer = setTimeout(() => {
-      if (!container.isConnected || !container.contains(video)) return;
+      if (!container.isConnected || container.steepleGeneration !== generation) return;
       container.steepleHls?.destroy();
       container.steepleHls = null;
       attachHls(container, video, hlsUrl, options);
@@ -443,10 +468,14 @@ function attachHls(container, video, hlsUrl, options = {}) {
 }
 
 function removeCurrentMedia(container, video) {
+  container.steepleGeneration = (container.steepleGeneration || 0) + 1;
+  container.steepleTransportCleanup?.();
+  container.steepleTransportCleanup = null;
   clearTimeout(container.steepleRetryTimer);
   container.steepleMediaCleanup?.();
   container.steepleMediaCleanup = null;
   if (container.steeplePeer) {
+    container.steeplePeer.ontrack = null;
     container.steeplePeer.close();
     container.steeplePeer = null;
   }
@@ -459,13 +488,15 @@ function removeCurrentMedia(container, video) {
     container.steepleHls = null;
   }
   if (video) {
-    video.steepleUiCleanup?.();
+    video.steepleObserverCleanup?.();
+    video.steepleObserverCleanup = null;
+    video.onerror = null;
     video.pause();
     video.removeAttribute("src");
     video.srcObject = null;
     video.load?.();
-    video.remove();
   }
+  container.querySelector(".playback-status")?.remove();
 }
 
 function renderLivePlayer(container, video, options = {}) {
@@ -740,6 +771,7 @@ function showPlaybackStatus(container, title, message) {
 }
 
 function monitorPlayback(container, video, options) {
+  let disposed = false;
   let waitingSince = null;
   let lastProgressAt = performance.now();
   let lastTime = video.currentTime;
@@ -765,7 +797,7 @@ function monitorPlayback(container, video, options) {
   const loaded = () => {
     if (!options.autoplay) return playing();
     video.play().catch((reason) => {
-      if (!container.contains(video)) return;
+      if (disposed || !container.contains(video)) return;
       if (reason.name !== "NotAllowedError") return;
       autoplayBlocked = true;
       showPlaybackStatus(container, "Ready to watch", "");
@@ -811,6 +843,7 @@ function monitorPlayback(container, video, options) {
     }
   }, 1000);
   container.steepleMediaCleanup = () => {
+    disposed = true;
     clearInterval(timer);
     video.removeEventListener("playing", playing);
     video.removeEventListener("loadeddata", loaded);
