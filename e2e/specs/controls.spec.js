@@ -36,6 +36,14 @@ test('unavailable local storage does not break playback or volume controls', asy
 test('autoplay is requested; rejection leaves a working user-initiated Play button', async ({ page }) => {
   await page.addInitScript(() => {
     window.playAttempts = 0;
+    // Native attribute autoplay bypasses the JS play() method. Disable that
+    // path too so this test consistently models a browser denying autoplay.
+    const autoplay = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'autoplay');
+    Object.defineProperty(HTMLMediaElement.prototype, 'autoplay', {
+      configurable: true,
+      get: autoplay.get,
+      set() { autoplay.set.call(this, false); },
+    });
     let interacted = false;
     document.addEventListener('click', event => { if (event.isTrusted) interacted = true; }, true);
     const play = HTMLMediaElement.prototype.play;
