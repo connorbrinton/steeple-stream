@@ -229,11 +229,14 @@ function renderHybridPlayer(container, playback, options = {}) {
       await video.steepleUiReady;
       if (!container.contains(video)) return null;
       attachHls(container, video, playback.hlsUrl, options);
-      // HLS metadata can arrive before the live seekable window exists.
-      // Retain the requested rewind until that window becomes available.
-      const seekEvents = ["loadedmetadata", "progress", "canplay"];
-      const applyInitialSeek = () => {
-        if (activeVideo !== video || !getLiveWindow(video)) return;
+      // Vidstack initializes its live position on the first playing event.
+      // Apply Steeple's requested rewind after that initialization, once
+      // the HLS seekable window is available.
+      const seekEvents = ["playing", "progress"];
+      let playbackStarted = false;
+      const applyInitialSeek = (event) => {
+        if (event.type === "playing") playbackStarted = true;
+        if (!playbackStarted || activeVideo !== video || !getLiveWindow(video)) return;
         seekHlsToBehind(behind);
         for (const event of seekEvents) video.removeEventListener(event, applyInitialSeek);
       };
