@@ -229,7 +229,15 @@ function renderHybridPlayer(container, playback, options = {}) {
       await video.steepleUiReady;
       if (!container.contains(video)) return null;
       attachHls(container, video, playback.hlsUrl, options);
-      video.addEventListener("loadedmetadata", () => seekHlsToBehind(behind), { once: true });
+      // HLS metadata can arrive before the live seekable window exists.
+      // Retain the requested rewind until that window becomes available.
+      const seekEvents = ["loadedmetadata", "progress", "canplay"];
+      const applyInitialSeek = () => {
+        if (activeVideo !== video || !getLiveWindow(video)) return;
+        seekHlsToBehind(behind);
+        for (const event of seekEvents) video.removeEventListener(event, applyInitialSeek);
+      };
+      for (const event of seekEvents) video.addEventListener(event, applyInitialSeek);
       video.addEventListener("playing", update);
       video.addEventListener("waiting", update);
       video.play().catch(() => {});

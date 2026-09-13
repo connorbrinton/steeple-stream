@@ -22,8 +22,8 @@ window.SteepleComponent = {
     player.setAttribute('view-type', 'video');
     player.setAttribute('load', 'eager');
     player.setAttribute('playsinline', '');
-    player.volume = preference.volume;
-    player.muted = preference.muted;
+    player.setAttribute('volume', String(preference.volume));
+    if (preference.muted) player.setAttribute('muted', '');
     player.storage = null;
     video.steepleUiReady = new Promise(resolve => {
       player.addEventListener('provider-setup', resolve, { once: true });

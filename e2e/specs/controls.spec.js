@@ -11,14 +11,15 @@ test('recordings play with audio enabled at full volume', async ({ page }) => {
 test('component controls pause, seek, and resume a recording', async ({ page }) => {
   await page.goto('/');
   await startPlayback(page);
-  await page.getByRole('button', { name: /^pause(?: video)?$/i }).click();
+  // Vidstack uses a Play toggle with aria-pressed for both play and pause.
+  await page.locator('media-play-button').click();
   await expect.poll(() => video(page).evaluate(element => element.paused)).toBe(true);
   const initial = await video(page).evaluate(element => element.currentTime);
   const seek = page.getByRole('slider', { name: /^(seek|progress bar)$/i });
   await seek.focus();
   await seek.press('ArrowRight');
   await expect.poll(() => video(page).evaluate(element => element.currentTime)).toBeGreaterThan(initial + 1);
-  await page.getByRole('button', { name: /^play(?: video)?$/i }).click();
+  await page.locator('media-play-button').click();
   await expectProgress(page);
 });
 

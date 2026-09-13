@@ -12,9 +12,11 @@ export async function startPlayback(page) {
   }
   await expectProgress(page);
   await page.locator('#player').hover();
+  await page.getByRole('button', { name: /^mute(?: audio)?$/i }).hover();
 }
 export async function setLowVolume(page) {
   await page.locator('#player').hover();
+  await page.getByRole('button', { name: /^mute(?: audio)?$/i }).hover();
   const slider = page.getByRole('slider', { name: /volume/i });
   await slider.focus();
   await slider.press('ArrowLeft');
