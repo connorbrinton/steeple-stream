@@ -33,7 +33,7 @@ test('keyboard volume and mute persist across reloads and future streams', async
   await expectAudio(page, volume, true);
   await page.getByRole('button', { name: 'Next stream', exact: true }).click();
   await expectAudio(page, volume, true);
-  await page.getByRole('button', { name: /^unmute(?: audio)?$/i }).click();
+  await page.locator('media-mute-button').click();
   await expectAudio(page, volume, false);
 });
 
