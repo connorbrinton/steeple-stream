@@ -141,6 +141,7 @@ function renderHybridPlayer(container, playback, options = {}) {
   liveText.textContent = "Live";
   timeText.className = "live-time";
   range.className = "live-range";
+  range.setAttribute("aria-label", "Seek");
   range.type = "range";
   range.min = "0";
   range.max = "1000";
@@ -406,12 +407,8 @@ function attachHls(container, video, hlsUrl, options = {}) {
       retryPending = false;
     }
   });
-  if (video.canPlayType("application/vnd.apple.mpegurl")) {
-    video.onerror = () => fail();
-    video.src = hlsUrl;
-    return video;
-  }
-
+  // Native HLS support does not guarantee a seekable live window (Chromium
+  // can play this stream while reporting no ranges). Prefer HLS.js for DVR.
   if (window.Hls?.isSupported()) {
     const hls = new window.Hls({
       lowLatencyMode: true,
@@ -423,6 +420,12 @@ function attachHls(container, video, hlsUrl, options = {}) {
     hls.on(window.Hls.Events.ERROR, (_event, data) => {
       if (data.fatal) fail(data);
     });
+    return video;
+  }
+
+  if (video.canPlayType("application/vnd.apple.mpegurl")) {
+    video.onerror = () => fail();
+    video.src = hlsUrl;
     return video;
   }
 
@@ -473,6 +476,7 @@ function renderLivePlayer(container, video, options = {}) {
   liveText.textContent = "Live";
   timeText.className = "live-time";
   range.className = "live-range";
+  range.setAttribute("aria-label", "Seek");
   range.type = "range";
   range.min = "0";
   range.max = "1000";

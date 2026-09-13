@@ -1,0 +1,27 @@
+logLevel: info
+api: yes
+apiAddress: 127.0.0.1:9997
+rtsp: yes
+rtspAddress: 127.0.0.1:8554
+rtspTransports: [tcp]
+rtmp: yes
+rtmpAddress: 127.0.0.1:1935
+srt: no
+moq: no
+hls: yes
+hlsAddress: 127.0.0.1:8888
+hlsAlwaysRemux: yes
+hlsVariant: lowLatency
+hlsSegmentCount: 30
+hlsSegmentDuration: 1s
+hlsPartDuration: 200ms
+webrtc: yes
+webrtcAddress: 127.0.0.1:8889
+webrtcLocalUDPAddress: 127.0.0.1:8189
+webrtcIPsFromInterfaces: no
+webrtcAdditionalHosts: [127.0.0.1]
+paths:
+  live:
+    source: publisher
+  live-webrtc:
+    source: publisher

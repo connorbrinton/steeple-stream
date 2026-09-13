@@ -5,7 +5,7 @@ import vm from "node:vm";
 
 const source = await fs.readFile(new URL("../public/assets/player.js", import.meta.url), "utf8");
 
-function harness({ native = false, autoplay = true } = {}) {
+function harness({ native = false, mse = !native, autoplay = true } = {}) {
   let now = 0;
   let nextId = 0;
   let overlay = null;
@@ -29,7 +29,7 @@ function harness({ native = false, autoplay = true } = {}) {
   };
   const instances = [];
   class Hls {
-    static isSupported() { return true; }
+    static isSupported() { return mse; }
     static Events = { ERROR: "error" };
     constructor() { instances.push(this); }
     loadSource() {}
@@ -116,6 +116,13 @@ test("native HLS silent stalls reload the source", () => {
   h.emit("playing");
   h.advance(17000);
   assert.equal(h.video.reloads, 2);
+});
+
+test("HLS.js is preferred when both native HLS and MSE are supported", () => {
+  const h = harness({ native: true, mse: true });
+  assert.equal(h.instances.length, 1);
+  assert.equal(h.instances[0].media, h.video);
+  assert.equal(h.video.reloads, 0);
 });
 
 test("spontaneous recovery cancels a pending reconnect", () => {
