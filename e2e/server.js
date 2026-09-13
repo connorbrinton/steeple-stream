@@ -89,8 +89,24 @@ server = http.createServer(async (req, res) => {
       return;
     }
     if (url.pathname === '/recording.mp4') {
+      const data = await fs.readFile(recording);
       res.setHeader('content-type', 'video/mp4');
-      res.end(await fs.readFile(recording));
+      res.setHeader('accept-ranges', 'bytes');
+      const range = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range || '');
+      if (range) {
+        const start = Number(range[1]);
+        const end = range[2] ? Math.min(Number(range[2]), data.length - 1) : data.length - 1;
+        if (start > end || start >= data.length) {
+          res.writeHead(416, { 'content-range': `bytes */${data.length}` });
+          res.end();
+          return;
+        }
+        res.writeHead(206, { 'content-range': `bytes ${start}-${end}/${data.length}`, 'content-length': end - start + 1 });
+        res.end(data.subarray(start, end + 1));
+      } else {
+        res.setHeader('content-length', data.length);
+        res.end(data);
+      }
       return;
     }
     if (url.pathname === '/' || url.pathname === '/fixture.js') {

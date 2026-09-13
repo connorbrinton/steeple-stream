@@ -28,6 +28,11 @@ jobs:
           cache: npm
       - uses: cachix/install-nix-action@v27
       - run: npm ci
+      - name: Verify bundled player component
+        run: |
+          npm ci --prefix tools/player-ui
+          npm run build --prefix tools/player-ui
+          git diff --exit-code -- public/vendor/player-ui*
       - run: npm test
 
   browser:

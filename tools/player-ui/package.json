@@ -1,0 +1,12 @@
+{
+  "name": "steeple-media-chrome-experiment",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "devDependencies": {
+    "media-chrome": "4.19.2",
+    "esbuild": "0.28.2"
+  }
+}

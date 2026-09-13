@@ -8,16 +8,17 @@ export async function expectProgress(page) {
 export async function startPlayback(page) {
   await expect.poll(() => video(page).evaluate(element => element.readyState)).toBeGreaterThanOrEqual(2);
   if (await video(page).evaluate(element => element.paused)) {
-    await page.getByRole('button', { name: /play video/i }).click();
+    await page.locator('.playback-status').getByRole('button', { name: /play video/i }).click();
   }
   await expectProgress(page);
+  await page.locator('#player').hover();
 }
 export async function setLowVolume(page) {
-  const slider = page.getByRole('slider', { name: 'Volume', exact: true });
+  await page.locator('#player').hover();
+  const slider = page.getByRole('slider', { name: /volume/i });
   await slider.focus();
-  await slider.press('Home');
-  await slider.press('ArrowRight');
-  await expect.poll(() => video(page).evaluate(element => element.volume)).toBeGreaterThan(0);
+  await slider.press('ArrowLeft');
+  await expect.poll(() => video(page).evaluate(element => element.volume > 0 && element.volume < 1)).toBe(true);
   const volume = await video(page).evaluate(element => element.volume);
   expect(volume).toBeLessThan(1);
   return volume;
