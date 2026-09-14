@@ -9,7 +9,7 @@ window.SteeplePlayer = {
       : "An administrator needs to select a video source.");
     return true;
   },
-  async renderWebRtc(container, whepUrl, options = {}) {
+  async renderWebRtc(container, whepUrl, options: any = {}) {
     const sourceKey = options.streamKey ? `webrtc:${whepUrl}:${options.streamKey}` : whepUrl;
     if (container.steepleSrc === sourceKey && container.querySelector("video")) return container.querySelector("video");
     destroy(container);
@@ -41,7 +41,7 @@ window.SteeplePlayer = {
     await connect();
     return video;
   },
-  renderRecording(container, url, options = {}) {
+  renderRecording(container, url, options: any = {}) {
     if (container.steepleSrc === url && container.querySelector("video")) return container.querySelector("video");
     destroy(container);
     container.steepleSrc = url;
@@ -55,7 +55,7 @@ window.SteeplePlayer = {
     monitorPlayback(container, video, { ...options, recording: true });
     return video;
   },
-  renderHls(container, hlsUrl, options = {}) {
+  renderHls(container, hlsUrl, options: any = {}) {
     if (options.controls === "live") return this.renderHybridLive(container, { hlsUrl }, options);
     const sourceKey = options.streamKey ? `hls:${hlsUrl}:${options.streamKey}` : hlsUrl;
     if (container.steepleSrc === sourceKey && container.querySelector("video")) return container.querySelector("video");
@@ -72,7 +72,7 @@ window.SteeplePlayer = {
     return video;
   },
 
-  renderHybridLive(container, playback, options = {}) {
+  renderHybridLive(container, playback, options: any = {}) {
     const hlsUrl = playback?.hlsUrl;
     const webrtcUrl = playback?.webrtcUrl;
     const timelineEnabled = options.timeline !== false;
@@ -119,7 +119,7 @@ function getVideo(container) {
   return container.steepleVideo ||= document.createElement("video");
 }
 
-function renderHybridPlayer(container, playback, options = {}) {
+function renderHybridPlayer(container, playback, options: any = {}) {
   const wrapper = document.createElement("div");
   wrapper.className = "live-player";
   const video = getVideo(container);
@@ -130,7 +130,7 @@ function renderHybridPlayer(container, playback, options = {}) {
   let advertised = null;
   let refreshTimer;
   let request;
-  const subscribers = new Set();
+  const subscribers = new Set<() => void>();
   const startedAt = Date.parse(options.timelineStartAt || "") || Date.now();
   const elapsed = () => Math.max(0, (Date.now() - startedAt) / 1000);
   const notify = () => { for (const callback of subscribers) callback(); };
@@ -306,7 +306,7 @@ function hlsPlaylistWindow(text) {
 
 function waitForIceGathering(pc, timeoutMs) {
   if (pc.iceGatheringState === "complete") return Promise.resolve();
-  return new Promise((resolve) => {
+  return new Promise<void>((resolve) => {
     const timeout = setTimeout(resolve, timeoutMs);
     pc.addEventListener("icegatheringstatechange", function handler() {
       if (pc.iceGatheringState !== "complete") return;
@@ -319,8 +319,8 @@ function waitForIceGathering(pc, timeoutMs) {
 
 function waitForPlaying(video, timeoutMs, signal) {
   if (video.readyState >= 3) return video.play().catch(() => {});
-  return new Promise((resolve, reject) => {
-    const finish = (error) => {
+  return new Promise<void>((resolve, reject) => {
+    const finish = (error = null) => {
       clearTimeout(timeout);
       video.removeEventListener("playing", playing);
       signal?.removeEventListener("abort", aborted);
@@ -351,7 +351,7 @@ async function selectedCandidateType(pc) {
   return remote?.candidateType || "unknown";
 }
 
-async function attachWebRtc(container, video, whepUrl, options = {}) {
+async function attachWebRtc(container, video, whepUrl, options: any = {}) {
   const pc = new RTCPeerConnection();
   container.steeplePeer = pc;
   const pending = new AbortController();
@@ -394,10 +394,10 @@ async function attachWebRtc(container, video, whepUrl, options = {}) {
   options.onTransport?.({ transport: `webrtc-${candidateType}`, candidateType });
 }
 
-function attachHls(container, video, hlsUrl, options = {}) {
+function attachHls(container, video, hlsUrl, options: any = {}) {
   const generation = container.steepleGeneration;
   let retryPending = false;
-  const fail = (data = {}) => {
+  const fail = (data: any = {}) => {
     if (container.steepleGeneration !== generation || !container.contains(video)) return;
     const denied = [401, 403].includes(data.response?.code);
     if (retryPending && !denied) return;

@@ -6,10 +6,11 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
+    "build": "npm run build --prefix tools/player-ui",
     "start": "node src/server.js",
     "ndi:synthetic": "bash scripts/synthetic-ndi-source.sh",
     "ndi:probe": "python3 scripts/probe-ndi-source.py",
-    "test": "node --test"
+    "test": "npm run build:server --prefix tools/player-ui && npm run build:test-sources --prefix tools/player-ui && node --test"
   },
   "engines": {
     "node": ">=22.5"

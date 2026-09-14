@@ -9,7 +9,7 @@ const timeLabel = seconds => {
 };
 
 window.SteepleComponent = {
-  mount(wrapper, video) {
+  mount(wrapper: HTMLElement, video: HTMLVideoElement) {
     const timeline = video.steepleTimeline, live = video.steepleIsLive;
     const controller = document.createElement('media-controller');
     controller.className = 'component-player';
@@ -20,7 +20,7 @@ window.SteepleComponent = {
     video.before(controller);
     controller.append(video);
     const listeners = new AbortController();
-    const listen = (element, type, callback, options = {}) => element.addEventListener(type, callback, { ...options, signal: listeners.signal });
+    const listen = (element: any, type: string, callback: any, options: any = {}) => element.addEventListener(type, callback, { ...options, signal: listeners.signal });
     const bar = document.createElement('media-control-bar');
     bar.className = 'player-bar';
     bar.innerHTML = '<media-play-button class="desktop-play"></media-play-button><div class="player-volume"><media-mute-button></media-mute-button><media-volume-range></media-volume-range></div><span class="player-time"></span><media-time-range aria-label="Seek"></media-time-range><button class="player-live" type="button">Live</button><div class="player-actions"><media-captions-button></media-captions-button><media-pip-button></media-pip-button><media-fullscreen-button></media-fullscreen-button></div>';
@@ -42,7 +42,7 @@ window.SteepleComponent = {
     let dragging = false, pendingSeek = null, touch = matchMedia('(pointer: coarse)').matches, hideTimer;
     const nativeStore = createMediaStore({ media: video, fullscreenElement: wrapper, documentElement: document,
       options: { noAutoSeekToLive: true, noVolumePref: true, noMutedPref: true } });
-    const subscribers = new Set();
+    const subscribers = new Set<(state: any) => void>();
     const project = () => {
       const native = nativeStore.getState();
       if (!timeline) return native;

@@ -37,8 +37,16 @@ For development:
 
 ```bash
 nix develop
+npm ci
+npm ci --prefix tools/player-ui
+npm run build
 npm start
 ```
+
+Application source is TypeScript. The build type-checks and compiles the Node
+service to colocated JavaScript, then uses Vite to compile the browser entry
+points into `public/build`. Generated JavaScript is committed and verified by
+CI so production deployments do not require development dependencies.
 
 The flake is the authoritative runtime definition. It provides Node, MediaMTX,
 GStreamer, the GStreamer plugin set, `gst-plugin-ndi`, and the proprietary NDI
@@ -65,9 +73,8 @@ the public viewer, broadcast controls, scene switching, WebRTC live playback,
 HLS scrubbing during live broadcasts, recording, replay, retention cleanup, and
 OBS-compatible control endpoints.
 
-Admin and broadcaster previews are live-only until a broadcast is started.
-During a live broadcast, the preview uses the hybrid WebRTC/HLS player so
-operators can scrub back within the live timeline.
+Admin and broadcaster players are always live previews without a seek bar.
+Viewer players provide the live timeline and recorded replays.
 
 ## Media Backend
 
