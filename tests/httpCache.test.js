@@ -47,8 +47,12 @@ test("all page templates version their scripts and stylesheets", async t => {
   for (const name of ["admin", "broadcaster", "viewer"]) {
     const body = await (await fetch(`${url}/${name}.html`)).text();
     assert.ok(!body.includes("__ASSET_VERSION__"));
-    const urls = [...body.matchAll(/(?:src|href)="((?:\/assets\/|\/vendor\/)[^"]+\.(?:js|css)[^"]*)"/g)].map(match => match[1]);
-    assert.equal(urls.length, 6);
+    const urls = [...body.matchAll(/(?:src|href)="((?:\/assets\/|\/build\/|\/vendor\/)[^"]+\.(?:js|css)[^"]*)"/g)].map(match => match[1]);
+    assert.deepEqual(urls.map(asset => asset.replace(/\?v=.*/, "")), [
+      "/build/app.css",
+      "/vendor/hls.min.js",
+      `/build/${name}.js`
+    ]);
     for (const asset of urls) assert.match(asset, /\?v=[a-f0-9]{20}$/);
   }
 });

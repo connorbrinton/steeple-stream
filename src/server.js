@@ -384,7 +384,7 @@ async function route(req, res) {
     return;
   }
 
-  if (method === "GET" && (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/vendor/"))) {
+  if (method === "GET" && (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/build/") || url.pathname.startsWith("/vendor/"))) {
     await sendStatic(res, publicDir, url.pathname);
     return;
   }

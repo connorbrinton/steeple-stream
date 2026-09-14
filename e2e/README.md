@@ -7,7 +7,7 @@ Chromium, Firefox and WebKit check recording playback, keyboard volume controls,
 mute/volume persistence, denied autoplay, unavailable storage, and narrow/wide
 layouts. WebKit here is the Linux port, not a substitute for iPhone testing.
 
-The fixture imports the production `public/assets/player.js`, CSS, HLS bundle,
+The fixture imports the production Vite player bundle, CSS, HLS bundle,
 and HTTP media proxy. It does not start the production app or contact cameras,
 Google, Cloudflare, or any deployed host. FFmpeg generates a moving test pattern
 and 440 Hz tone; MediaMTX publishes AAC/HLS and Opus/WebRTC like the app.
