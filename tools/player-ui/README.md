@@ -16,6 +16,10 @@ available rewind window. Seeking switches playback to HLS; Back to live returns
 to WebRTC when available. The same video element and control surface remain in
 place through the switch.
 
+Viewer players always include this timeline. Broadcaster and administrator
+players are live previews, so they explicitly disable it; their WebRTC-to-HLS
+fallback does not add a seek bar.
+
 ## Build
 
 `npm ci --prefix tools/player-ui`

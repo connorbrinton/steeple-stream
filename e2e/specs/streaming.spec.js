@@ -39,6 +39,14 @@ test('a failed WHEP request falls back to playable HLS', async ({ page }) => {
   await expectAudio(page, 1, false);
 });
 
+test('a broadcaster or admin hybrid preview has no seek bar', async ({ page }) => {
+  await page.goto('/?mode=hybrid&timeline=false');
+  await startPlayback(page);
+  await expectWebRtcMedia(page);
+  await expect(page.getByRole('slider', { name: /^seek$/i })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /live/i })).toHaveCount(0);
+});
+
 test('HLS recovers after a network interruption without resetting audio preferences', async ({ page }) => {
   let interrupted = false;
   let blocked = 0;

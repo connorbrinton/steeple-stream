@@ -34,7 +34,7 @@ window.SteepleComponent = {
     const liveButton = bar.querySelector('.player-live'), actions = bar.querySelector('.player-actions');
     bar.querySelector('media-volume-range').range.step = '0.05';
     range.hidden = live && !timeline;
-    liveButton.hidden = !live;
+    liveButton.hidden = !live || !timeline;
     liveButton.disabled = !timeline;
     listen(liveButton, 'click', () => timeline?.goLive());
     controller.append(top, center, bar);

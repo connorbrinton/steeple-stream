@@ -75,7 +75,8 @@ window.SteeplePlayer = {
   renderHybridLive(container, playback, options = {}) {
     const hlsUrl = playback?.hlsUrl;
     const webrtcUrl = playback?.webrtcUrl;
-    const key = `hybrid:${webrtcUrl || ""}:${hlsUrl || ""}:${options.timelineStartAt || ""}:${options.streamKey || ""}`;
+    const timelineEnabled = options.timeline !== false;
+    const key = `hybrid:${webrtcUrl || ""}:${hlsUrl || ""}:${timelineEnabled}:${options.timelineStartAt || ""}:${options.streamKey || ""}`;
     if (container.steepleSrc === key && container.querySelector("video")) return container.querySelector("video");
     if (!hlsUrl && !webrtcUrl) {
       destroy(container);
@@ -211,7 +212,7 @@ function renderHybridPlayer(container, playback, options = {}) {
     }
     notify();
   };
-  video.steepleTimeline = {
+  const timeline = {
     getState: state,
     subscribe(callback) { subscribers.add(callback); return () => subscribers.delete(callback); },
     seek(time) {
@@ -222,6 +223,7 @@ function renderHybridPlayer(container, playback, options = {}) {
     },
     goLive
   };
+  video.steepleTimeline = options.timeline === false ? null : timeline;
   video.steepleIsLive = true;
   video.autoplay = Boolean(options.autoplay);
   video.playsInline = true;
@@ -270,7 +272,7 @@ function renderHybridPlayer(container, playback, options = {}) {
     request?.abort();
     subscribers.clear();
   };
-  refreshWindow();
+  if (options.timeline !== false) refreshWindow();
   goLive();
 }
 
