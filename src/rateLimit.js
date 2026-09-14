@@ -48,7 +48,10 @@ async function consume(limiter, key) {
     catch (result) {
         const error = new Error("Too many requests");
         error.status = 429;
-        error.retryAfter = Math.max(1, Math.ceil((result.msBeforeNext || 1000) / 1000));
+        const retry = typeof result === "object" && result !== null && "msBeforeNext" in result
+            ? Number(result.msBeforeNext)
+            : 1000;
+        error.retryAfter = Math.max(1, Math.ceil((retry || 1000) / 1000));
         throw error;
     }
 }

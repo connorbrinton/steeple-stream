@@ -208,16 +208,26 @@ function renderHybridPlayer(container, playback, options: any = {}) {
     try {
       await attachWebRtc(container, video, playback.webrtcUrl, options);
     } catch (error) {
-      if (!stopped && generation === container.steepleGeneration) showHls(null, error.message);
+      if (!stopped && generation === container.steepleGeneration) {
+        showHls(null, error instanceof Error ? error.message : String(error));
+      }
     }
     notify();
   };
   const timeline = {
     getState: state,
-    subscribe(callback) { subscribers.add(callback); return () => subscribers.delete(callback); },
+    subscribe(callback) {
+      subscribers.add(callback);
+      return () => {
+        subscribers.delete(callback);
+      };
+    },
     seek(time) {
       const value = state();
-      if (time >= value.end - 1.5) return goLive();
+      if (time >= value.end - 1.5) {
+        goLive();
+        return;
+      }
       if (!value.available) return;
       showHls(clamp(time, value.start, Math.min(value.end, advertised.end) - 0.5));
     },

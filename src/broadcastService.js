@@ -112,7 +112,7 @@ export class BroadcastService {
             return { deleted: before - retained.length, state: this.publicState(state) };
         });
     }
-    async registerViewer({ name, sessionId, userAgent, ip }) {
+    async registerViewer({ name, sessionId }) {
         const viewerName = String(name || "").trim().slice(0, 80);
         if (!viewerName) {
             const error = new Error("Viewer name is required");

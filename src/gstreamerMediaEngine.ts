@@ -26,7 +26,16 @@ export const gstPluginPackages = [
 export const defaultNdiNixPackage = "nixpkgs#ndi";
 
 export class GStreamerMediaEngine extends EventEmitter {
-  [key: string]: any;
+  declare config: any;
+  declare cwd: string;
+  declare runner: any;
+  declare onExit: any;
+  declare process: any;
+  declare stopping: boolean;
+  declare currentMode: string | null;
+  declare stdoutBuffer: string;
+  declare state: ReturnType<typeof initialState>;
+
   constructor({ config, cwd = process.cwd(), runner = defaultRunner, onExit = null }) {
     super();
     this.config = config;

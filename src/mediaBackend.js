@@ -39,7 +39,8 @@ export class MediaMtxBackend {
             };
         }
         catch (error) {
-            return { ok: false, backend: "mediamtx", message: error.name === "AbortError" ? "MediaMTX API timed out" : error.message };
+            const message = error instanceof Error ? error.message : String(error);
+            return { ok: false, backend: "mediamtx", message: error instanceof Error && error.name === "AbortError" ? "MediaMTX API timed out" : message };
         }
         finally {
             clearTimeout(timeout);

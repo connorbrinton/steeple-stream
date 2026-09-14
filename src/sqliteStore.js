@@ -22,7 +22,7 @@ export class SqliteStore {
         return this.read();
     }
     migrate() {
-        const version = this.db.prepare("PRAGMA user_version").get().user_version;
+        const version = Number(this.db.prepare("PRAGMA user_version").get().user_version);
         if (version >= 1)
             return;
         this.db.exec(`
@@ -110,7 +110,7 @@ export class SqliteStore {
     async read() {
         if (!this.loaded)
             await this.load();
-        const state = migrateState(JSON.parse(this.db.prepare("SELECT document FROM app_state WHERE id=1").get().document));
+        const state = migrateState(JSON.parse(String(this.db.prepare("SELECT document FROM app_state WHERE id=1").get().document)));
         return structuredClone(state);
     }
     async update(mutator) {
@@ -118,7 +118,7 @@ export class SqliteStore {
             await this.load();
         this.db.exec("BEGIN IMMEDIATE");
         try {
-            const state = migrateState(JSON.parse(this.db.prepare("SELECT document FROM app_state WHERE id=1").get().document));
+            const state = migrateState(JSON.parse(String(this.db.prepare("SELECT document FROM app_state WHERE id=1").get().document)));
             const result = await mutator(state);
             this.db.prepare("UPDATE app_state SET document=?, updated_at=? WHERE id=1")
                 .run(JSON.stringify(state), new Date().toISOString());

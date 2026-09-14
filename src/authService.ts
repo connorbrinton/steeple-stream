@@ -6,7 +6,11 @@ const SESSION_COOKIE = "steeple_session";
 const MIN_SESSION_SECRET_BYTES = 32;
 
 export class AuthService {
-  [key: string]: any;
+  declare store: any;
+  declare config: any;
+  declare oidc: oidc.Configuration | null;
+  declare proxyCsrfSecret: Buffer;
+
   constructor({ store, config }) {
     this.store = store;
     this.config = config;

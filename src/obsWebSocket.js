@@ -66,7 +66,8 @@ export class ObsWebSocketServer {
                 await this.handleMessage(socket, payload);
             }
             catch (error) {
-                this.send(socket, { op: 7, d: { requestStatus: { result: false, code: 400, comment: error.message } } });
+                const message = error instanceof Error ? error.message : String(error);
+                this.send(socket, { op: 7, d: { requestStatus: { result: false, code: 400, comment: message } } });
             }
         }
     }

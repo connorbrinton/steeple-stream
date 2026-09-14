@@ -137,7 +137,7 @@ async function loadSources({ silent = false } = {}) {
   try {
     sourceCatalog = await fetch("/api/sources").then((result) => result.json());
   } catch (error) {
-    if (!silent) sourceDiscoveryStatus.textContent = `Refresh failed: ${error.message}`;
+    if (!silent) sourceDiscoveryStatus.textContent = `Refresh failed: ${error instanceof Error ? error.message : String(error)}`;
     return;
   }
   renderSourceCatalog();
