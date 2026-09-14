@@ -68,3 +68,13 @@ test("WebRTC still times out if playback genuinely never starts", async () => {
   const video = Object.assign(new Element(), { readyState: 0, play: () => new Promise(() => {}) });
   await assert.rejects(context.waitForPlaying(video, 10), /playback timed out/);
 });
+
+test("changing source cancels the old playback wait before the reused video plays", async () => {
+  const { context } = harness();
+  const video = Object.assign(new Element(), { readyState: 0, play: async () => {} });
+  const pending = new AbortController();
+  const result = context.waitForPlaying(video, 1000, pending.signal);
+  pending.abort();
+  video.dispatchEvent(new Event("playing"));
+  await assert.rejects(result, /source changed/);
+});

@@ -1,6 +1,24 @@
 import { test, expect } from '@playwright/test';
 import { video, startPlayback, setLowVolume, expectAudio, expectProgress } from './helpers.js';
 
+test('recording changes and offline slates retain the video and audio preferences', async ({ page }) => {
+  await page.goto('/');
+  await startPlayback(page);
+  const original = await video(page).elementHandle();
+  const volume = await setLowVolume(page);
+  await page.getByRole('button', { name: 'Next stream', exact: true }).click();
+  await startPlayback(page);
+  expect(await video(page).evaluate((element, first) => element === first, original)).toBe(true);
+  await page.evaluate(() => window.SteeplePlayer.renderSlate(document.querySelector('#player'), 'Offline', 'Waiting'));
+  await expect(video(page)).toHaveCount(0);
+  expect(await original.evaluate(element => element.paused && !element.getAttribute('src') && element.srcObject === null)).toBe(true);
+  await page.getByRole('button', { name: 'Next stream', exact: true }).click();
+  await startPlayback(page);
+  expect(await video(page).evaluate((element, first) => element === first, original)).toBe(true);
+  await expectAudio(page, volume, false);
+  await expect(page.locator('media-controller')).toHaveCount(1);
+});
+
 test('recordings play with audio enabled at full volume', async ({ page }) => {
   await page.goto('/');
   await startPlayback(page);
