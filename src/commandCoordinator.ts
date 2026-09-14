@@ -1,7 +1,10 @@
 import { EventEmitter } from "node:events";
 
 export class LocationCommandCoordinator extends EventEmitter {
-  [key: string]: any;
+  declare service: any;
+  declare ingestManager: any;
+  declare mediaManager: any;
+
   constructor({ service, ingestManager, mediaManager }) {
     super();
     this.service = service;

@@ -1,7 +1,10 @@
 import { RateLimiterMemory } from "rate-limiter-flexible";
 
 export class AppRateLimiter {
-  [key: string]: any;
+  declare authStart: RateLimiterMemory;
+  declare authCallback: RateLimiterMemory;
+  declare apiUnauthenticated: RateLimiterMemory;
+
   constructor({ authPoints = 12, callbackPoints = 20, apiUnauthPoints = 60 } = {}) {
     this.authStart = new RateLimiterMemory({
       keyPrefix: "auth-start",
@@ -52,7 +55,10 @@ async function consume(limiter, key) {
   } catch (result) {
     const error = new Error("Too many requests");
     error.status = 429;
-    error.retryAfter = Math.max(1, Math.ceil((result.msBeforeNext || 1000) / 1000));
+    const retry = typeof result === "object" && result !== null && "msBeforeNext" in result
+      ? Number(result.msBeforeNext)
+      : 1000;
+    error.retryAfter = Math.max(1, Math.ceil((retry || 1000) / 1000));
     throw error;
   }
 }

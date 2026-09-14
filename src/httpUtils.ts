@@ -52,7 +52,7 @@ export async function sendStatic(res, publicDir, filePath) {
     });
     res.end(body);
   } catch (error) {
-    if (error.code === "ENOENT") {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       res.writeHead(404, { "content-type": "text/plain; charset=utf-8", ...uncachedHeaders });
       res.end("Not found");
       return;

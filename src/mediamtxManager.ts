@@ -9,7 +9,12 @@ import { Readable } from "node:stream";
 const repo = "bluenviron/mediamtx";
 
 export class MediaMtxManager {
-  [key: string]: any;
+  declare options: any;
+  declare process: any;
+  declare stopping: boolean;
+  declare retryTimer: NodeJS.Timeout | null;
+  declare retryAttempt: number;
+
   constructor(options) {
     this.options = options;
     this.process = null;

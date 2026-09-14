@@ -4,7 +4,13 @@ const OPCODE_TEXT = 0x1;
 const OPCODE_CLOSE = 0x8;
 
 export class ObsWebSocketServer {
-  [key: string]: any;
+  declare server: any;
+  declare service: any;
+  declare coordinator: any;
+  declare credential: any;
+  declare actor: any;
+  declare clients: Set<any>;
+
   constructor({ server, service, coordinator = null, credential = null, actor = null }) {
     this.server = server;
     this.service = service;
@@ -68,7 +74,8 @@ export class ObsWebSocketServer {
         const payload = JSON.parse(frame.payload.toString("utf8"));
         await this.handleMessage(socket, payload);
       } catch (error) {
-        this.send(socket, { op: 7, d: { requestStatus: { result: false, code: 400, comment: error.message } } });
+        const message = error instanceof Error ? error.message : String(error);
+        this.send(socket, { op: 7, d: { requestStatus: { result: false, code: 400, comment: message } } });
       }
     }
   }

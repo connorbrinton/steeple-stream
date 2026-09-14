@@ -2,7 +2,12 @@ import http from "node:http";
 import { ObsWebSocketServer } from "./obsWebSocket.js";
 
 export class ObsEndpointManager {
-  [key: string]: any;
+  declare store: any;
+  declare service: any;
+  declare coordinator: any;
+  declare host: string;
+  declare servers: Map<string, http.Server>;
+
   constructor({ store, service, coordinator, host = "127.0.0.1" }) {
     this.store = store;
     this.service = service;

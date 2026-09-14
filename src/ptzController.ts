@@ -16,7 +16,10 @@ const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export class PtzController {
-  [key: string]: any;
+  declare config: any;
+  declare socketFactory: any;
+  declare runner: any;
+
   constructor({ config, socketFactory = defaultSocketFactory, runner = defaultRunner }) {
     this.config = config;
     this.socketFactory = socketFactory;

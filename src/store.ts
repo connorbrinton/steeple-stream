@@ -56,7 +56,11 @@ export const defaultState = {
 };
 
 export class JsonStore {
-  [key: string]: any;
+  declare filePath: string;
+  declare state: any;
+  declare loaded: boolean;
+  declare writeQueue: Promise<void>;
+
   constructor(filePath) {
     this.filePath = filePath;
     this.state = structuredClone(defaultState);
@@ -71,7 +75,7 @@ export class JsonStore {
       const raw = await fs.readFile(this.filePath, "utf8");
       this.state = migrateState(JSON.parse(raw));
     } catch (error) {
-      if (error.code !== "ENOENT") throw error;
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       await this.save();
     }
     this.loaded = true;

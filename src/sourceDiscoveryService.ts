@@ -2,7 +2,16 @@ import { EventEmitter } from "node:events";
 import { discoverNdiSources } from "./sourceDiscovery.js";
 
 export class SourceDiscoveryService extends EventEmitter {
-  [key: string]: any;
+  declare discover: (currentSource?: any) => Promise<any[]>;
+  declare intervalMs: number;
+  declare logger: Console;
+  declare sources: Map<string, any>;
+  declare timer: NodeJS.Timeout | null;
+  declare refreshPromise: Promise<any[]> | null;
+  declare lastStartedAt: string | null;
+  declare lastCompletedAt: string | null;
+  declare lastError: { message: string; at: string | null } | null;
+
   constructor({ discover = discoverNdiSources, intervalMs = 7000, logger = console } = {}) {
     super();
     this.discover = discover;

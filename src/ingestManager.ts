@@ -20,7 +20,15 @@ export {
 };
 
 export class IngestManager extends EventEmitter {
-  [key: string]: any;
+  declare config: any;
+  declare ndiDiscovery: typeof discoverNdiSources;
+  declare currentSourceKey: string | null;
+  declare currentConfiguredSourceKey: string | null;
+  declare retryTimer: NodeJS.Timeout | null;
+  declare retryAttempt: number;
+  declare lastRequestedState: any;
+  declare engine: GStreamerMediaEngine;
+
   constructor({ config, cwd = process.cwd(), runner, ndiDiscovery = discoverNdiSources }: any) {
     super();
     this.config = config;

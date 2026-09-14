@@ -2,7 +2,11 @@ import crypto from "node:crypto";
 import { sourceId } from "./sourceCatalog.js";
 
 export class BroadcastService {
-  [key: string]: any;
+  declare store: any;
+  declare mediaBackend: any;
+  declare config: any;
+  declare ptzController: any;
+
   constructor({ store, mediaBackend, config, ptzController = null }) {
     this.store = store;
     this.mediaBackend = mediaBackend;
@@ -120,7 +124,7 @@ export class BroadcastService {
     });
   }
 
-  async registerViewer({ name, sessionId, userAgent, ip }) {
+  async registerViewer({ name, sessionId }: { name: any; sessionId: any; userAgent?: unknown; ip?: unknown }) {
     const viewerName = String(name || "").trim().slice(0, 80);
     if (!viewerName) {
       const error = new Error("Viewer name is required");
