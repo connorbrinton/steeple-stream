@@ -6,11 +6,15 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
-    "build": "npm run build --prefix tools/player-ui",
+    "build": "npm run build:server && npm run build:frontend",
+    "build:frontend": "vite build --config tools/player-ui/vite.config.ts",
+    "build:server": "tsc --project tsconfig.json",
+    "build:test-sources": "tsc --project tsconfig.test-sources.json",
+    "typecheck": "tsc --project tsconfig.json --noEmit && tsc --project tsconfig.frontend.json",
     "start": "node src/server.js",
     "ndi:synthetic": "bash scripts/synthetic-ndi-source.sh",
     "ndi:probe": "python3 scripts/probe-ndi-source.py",
-    "test": "npm run build:server --prefix tools/player-ui && npm run build:test-sources --prefix tools/player-ui && node --test"
+    "test": "npm run build:server && npm run build:test-sources && node --test"
   },
   "engines": {
     "node": ">=22.5"
@@ -19,5 +23,11 @@
     "cookie": "^2.0.1",
     "openid-client": "^6.8.7",
     "rate-limiter-flexible": "^11.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.2",
+    "media-chrome": "4.19.2",
+    "typescript": "7.0.2",
+    "vite": "8.3.0"
   }
 }

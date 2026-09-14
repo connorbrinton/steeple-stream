@@ -60,9 +60,11 @@
                 let name = builtins.baseNameOf sourcePath;
                 in !builtins.elem name [ ".git" "data" "node_modules" "result" ];
             };
-            npmDepsHash = "sha256-KWoby0aPR7p5tb+VGqY/e8Qppt92Y9tzI7xOydj3txw=";
-            dontNpmBuild = true;
+            npmDepsHash = "sha256-JrlELdFD8t1yp908kOGOgfA0tN/uBIekXW/J7Ulie2U=";
             nativeBuildInputs = [ pkgs.makeWrapper ];
+            preInstall = ''
+              npm prune --omit=dev
+            '';
             installPhase = ''
               runHook preInstall
               mkdir -p $out/share/steeple-stream $out/bin

@@ -28,12 +28,12 @@ jobs:
           cache: npm
       - uses: cachix/install-nix-action@v27
       - run: npm ci
-      - name: Verify frontend bundle
+      - name: Typecheck and build
         run: |
-          npm ci --prefix tools/player-ui
-          npm run typecheck --prefix tools/player-ui
-          npm run build --prefix tools/player-ui
-          git diff --exit-code -- src public/assets public/build
+          npm run typecheck
+          npm run build
+      - name: Build Nix package
+        run: nix build .#steeple-stream
       - run: npm test
 
   browser:
@@ -52,7 +52,11 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: e2e/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            e2e/package-lock.json
+      - run: npm ci
+      - run: npm run build
       - run: npm ci --prefix e2e
       - name: Install browser and media fixtures
         run: |
