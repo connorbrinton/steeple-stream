@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Steeple Stream Broadcaster</title>
-    <link rel="stylesheet" href="/assets/app.css?v=__ASSET_VERSION__">
+    <link rel="stylesheet" href="/build/app.css?v=__ASSET_VERSION__">
   </head>
   <body>
     <main class="shell">
@@ -47,10 +47,7 @@
 
       </section>
     </main>
-    <link rel="stylesheet" href="/vendor/player-ui.css?v=__ASSET_VERSION__" />
-    <script src="/vendor/player-ui.js?v=__ASSET_VERSION__"></script>
     <script src="/vendor/hls.min.js?v=__ASSET_VERSION__"></script>
-    <script src="/assets/player.js?v=__ASSET_VERSION__"></script>
-    <script src="/assets/broadcaster.js?v=__ASSET_VERSION__"></script>
+    <script type="module" src="/build/broadcaster.js?v=__ASSET_VERSION__"></script>
   </body>
 </html>

@@ -1,4 +1,9 @@
-# Media Chrome player controls
+# Vite frontend build
+
+Vite builds separate browser entry points for the viewer, broadcaster, and
+administrator pages. Rollup extracts their shared player and Media Chrome code
+into shared chunks and emits one common stylesheet. The server-side application
+continues to run directly in Node.
 
 Media Chrome supplies the accessible player controls while Steeple owns WHEP,
 HLS.js, recovery, autoplay fallback, and saved volume/mute preferences.
@@ -25,9 +30,9 @@ fallback does not add a seek bar.
 `npm ci --prefix tools/player-ui`
 `npm run build --prefix tools/player-ui`
 
-Commit the generated `public/vendor/player-ui*` assets with source changes. CI
-rebuilds them and checks for drift. Dependencies remain isolated from the
-production npm lockfile and Nix dependency hash. No runtime CDN is required.
+Commit the generated public/build assets with source changes. CI rebuilds them
+and checks for drift. Dependencies remain isolated from the production npm
+lockfile and Nix dependency hash. No runtime CDN is required.
 
 ## Review
 

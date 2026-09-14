@@ -113,7 +113,7 @@ server = http.createServer(async (req, res) => {
       await sendStatic(res, dir, url.pathname === '/' ? '/fixture.html' : '/fixture.js');
       return;
     }
-    if (/^\/(assets|vendor)\/[a-zA-Z0-9_.\/-]+$/.test(url.pathname) && !url.pathname.includes('..')) {
+    if (/^\/(assets|build|vendor)\/[a-zA-Z0-9_.\/-]+$/.test(url.pathname) && !url.pathname.includes('..')) {
       await sendStatic(res, path.join(dir, '../public'), url.pathname);
       return;
     }
