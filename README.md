@@ -38,15 +38,14 @@ For development:
 ```bash
 nix develop
 npm ci
-npm ci --prefix tools/player-ui
 npm run build
 npm start
 ```
 
 Application source is TypeScript. The build type-checks and compiles the Node
 service to colocated JavaScript, then uses Vite to compile the browser entry
-points into `public/build`. Generated JavaScript is committed and verified by
-CI so production deployments do not require development dependencies.
+points into the ignored `public/build` directory. Colocated server JavaScript
+is ignored as well. Nix, Docker, and CI always compile both targets from source.
 
 The flake is the authoritative runtime definition. It provides Node, MediaMTX,
 GStreamer, the GStreamer plugin set, `gst-plugin-ndi`, and the proprietary NDI

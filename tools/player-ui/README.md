@@ -29,12 +29,12 @@ fallback does not add a seek bar.
 
 ## Build
 
-`npm ci --prefix tools/player-ui`
-`npm run build --prefix tools/player-ui`
+`npm ci`
+`npm run build`
 
-Commit the generated public/build assets with source changes. CI rebuilds them
-and checks for drift. Dependencies remain isolated from the production npm
-lockfile and Nix dependency hash. No runtime CDN is required.
+The generated `public/build` assets and server JavaScript are ignored. CI and
+deployment packages build them directly from TypeScript. No runtime CDN is
+required.
 
 ## Review
 
