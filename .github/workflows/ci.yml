@@ -52,7 +52,11 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: e2e/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            e2e/package-lock.json
+      - run: npm ci
+      - run: npm run build
       - run: npm ci --prefix e2e
       - name: Install browser and media fixtures
         run: |
