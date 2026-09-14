@@ -56,6 +56,7 @@ window.SteeplePlayer = {
     return video;
   },
   renderHls(container, hlsUrl, options = {}) {
+    if (options.controls === "live") return this.renderHybridLive(container, { hlsUrl }, options);
     const sourceKey = options.streamKey ? `hls:${hlsUrl}:${options.streamKey}` : hlsUrl;
     if (container.steepleSrc === sourceKey && container.querySelector("video")) return container.querySelector("video");
     destroy(container);
@@ -65,11 +66,7 @@ window.SteeplePlayer = {
     video.autoplay = Boolean(options.autoplay);
     video.playsInline = true;
     video.steepleObserverCleanup = options.onVideo?.(video);
-    if (options.controls === "live") {
-      renderLivePlayer(container, video, { ...options, transportLabel: "HLS" });
-    } else {
-      renderVideoFrame(container, video, "HLS");
-    }
+    renderVideoFrame(container, video, "HLS");
 
     attachHls(container, video, hlsUrl, options);
     return video;
@@ -111,6 +108,7 @@ function destroy(container) {
   const video = container.steepleVideo;
   removeCurrentMedia(container, video);
   video?.steepleUiCleanup?.();
+  if (video) video.steepleTimeline = null;
   container.steepleSlate = null;
 }
 
@@ -122,199 +120,186 @@ function getVideo(container) {
 
 function renderHybridPlayer(container, playback, options = {}) {
   const wrapper = document.createElement("div");
-  const controls = document.createElement("div");
-  const left = document.createElement("div");
-  const chip = createTransportChip("WebRTC");
-  const liveDot = document.createElement("span");
-  const liveText = document.createElement("span");
-  const timeText = document.createElement("span");
-  const range = document.createElement("input");
-  const liveButton = document.createElement("button");
-
   wrapper.className = "live-player";
-  controls.className = "live-controls";
-  left.className = "live-status";
-  liveDot.className = "live-dot at-live";
-  liveText.textContent = "Live";
-  timeText.className = "live-time";
-  range.className = "live-range";
-  range.setAttribute("aria-label", "Seek");
-  range.type = "range";
-  range.min = "0";
-  range.max = "1000";
-  range.step = "1";
-  range.value = "1000";
-  liveButton.className = "live-button";
-  liveButton.type = "button";
-  liveButton.textContent = "Live";
-  liveButton.disabled = true;
-
-  left.append(liveDot, liveText, timeText);
-  controls.append(left, range, liveButton);
-  wrapper.append(chip, controls);
-  container.replaceChildren(wrapper);
-
-  let activeVideo = null;
+  const video = getVideo(container);
   let mode = null;
-  let dragging = false;
+  let stopped = false;
+  let requestedTime = null;
   let followingLive = true;
-  let targetBehind = 0;
-  let timer = null;
-  let hideTimer = null;
-  let hlsSwitch = null;
-  const rangeUnits = 1000;
-  const timelineStart = Date.parse(options.timelineStartAt || "") || Date.now();
-
-  const showControls = () => {
-    controls.classList.add("visible");
-    chip?.classList.add("visible");
-    clearTimeout(hideTimer);
-    hideTimer = setTimeout(() => {
-      if (!dragging && document.activeElement !== range && document.activeElement !== liveButton) {
-        controls.classList.remove("visible");
-        chip?.classList.remove("visible");
-      }
-    }, 2400);
+  let advertised = null;
+  let refreshTimer;
+  let request;
+  const subscribers = new Set();
+  const startedAt = Date.parse(options.timelineStartAt || "") || Date.now();
+  const elapsed = () => Math.max(0, (Date.now() - startedAt) / 1000);
+  const notify = () => { for (const callback of subscribers) callback(); };
+  const hlsOffset = () => {
+    const hls = container.steepleHls;
+    const fragments = hls?.levels?.[hls.currentLevel]?.details?.fragments;
+    const anchor = fragments?.find(fragment => Number.isFinite(fragment.programDateTime));
+    if (anchor) return (anchor.programDateTime - startedAt) / 1000 - anchor.start;
+    const range = getLiveWindow(video);
+    return range && advertised ? advertised.end - range.end : null;
   };
-
-  const replaceVideo = (transportLabel) => {
-    removeCurrentMedia(container, activeVideo);
-    const video = getVideo(container);
-    activeVideo = video;
-    video.autoplay = Boolean(options.autoplay);
-    video.playsInline = true;
-    video.controls = false;
+  const state = () => {
+    const end = elapsed();
+    const offset = mode === "hls" ? hlsOffset() : null;
+    const current = requestedTime ?? (offset !== null ? video.currentTime + offset : end);
+    const available = advertised && Date.now() - advertised.updatedAt < 15000;
+    return {
+      start: available ? Math.max(0, advertised.start) : end,
+      end,
+      current: clamp(current, 0, end),
+      live: followingLive,
+      available: Boolean(available && advertised.end > Math.max(0, advertised.start) + 1),
+      busy: requestedTime !== null
+    };
+  };
+  const switchMedia = (transport) => {
+    removeCurrentMedia(container, video);
+    mode = transport;
     video.steepleObserverCleanup = options.onVideo?.(video);
-    chip.textContent = transportLabel;
-    if (!wrapper.contains(video)) {
-      wrapper.insertBefore(video, chip);
-      attachVolumeControls(wrapper, video);
-    }
     monitorPlayback(container, video, options);
-    return video;
   };
-
-  const showWebRtc = async () => {
-    if (!playback.webrtcUrl) return showHls(0);
-    if (mode === "webrtc") return activeVideo;
-    mode = "webrtc";
+  const seekHls = () => {
+    if (requestedTime === null || mode !== "hls") return;
+    const range = getLiveWindow(video);
+    const offset = hlsOffset();
+    if (!range || offset === null) return;
+    video.currentTime = clamp(requestedTime - offset, range.start, range.end - 0.5);
+    requestedTime = null;
+    video.play().catch(() => {});
+    notify();
+  };
+  const showHls = (time = null, fallbackReason = null) => {
+    if (!playback.hlsUrl || stopped) return;
+    requestedTime = time;
+    followingLive = time === null;
+    if (mode !== "hls") {
+      switchMedia("hls");
+      options.onTransport?.({ transport: "hls", fallbackReason });
+      const listeners = new AbortController();
+      container.steepleTransportCleanup = () => listeners.abort();
+      for (const event of ["loadedmetadata", "progress", "canplay"]) {
+        video.addEventListener(event, seekHls, { signal: listeners.signal });
+      }
+      attachHls(container, video, playback.hlsUrl, options);
+    }
+    seekHls();
+    if (time === null) {
+      const range = getLiveWindow(video);
+      if (range) video.currentTime = range.end - 0.5;
+      video.play().catch(() => {});
+    }
+    notify();
+  };
+  const goLive = async () => {
+    if (stopped) return;
+    requestedTime = null;
     followingLive = true;
-    targetBehind = 0;
-    const video = replaceVideo("WebRTC");
+    if (!playback.webrtcUrl) return showHls();
+    if (mode === "webrtc") {
+      video.play().catch(() => {});
+      return;
+    }
+    switchMedia("webrtc");
     const generation = container.steepleGeneration;
     try {
       await attachWebRtc(container, video, playback.webrtcUrl, options);
-      return video;
     } catch (error) {
-      if (container.steepleGeneration === generation && mode === "webrtc") {
-        mode = null;
-        await showHls(0, error.message);
+      if (!stopped && generation === container.steepleGeneration) showHls(null, error.message);
+    }
+    notify();
+  };
+  video.steepleTimeline = {
+    getState: state,
+    subscribe(callback) { subscribers.add(callback); return () => subscribers.delete(callback); },
+    seek(time) {
+      const value = state();
+      if (time >= value.end - 1.5) return goLive();
+      if (!value.available) return;
+      showHls(clamp(time, value.start, Math.min(value.end, advertised.end) - 0.5));
+    },
+    goLive
+  };
+  video.steepleIsLive = true;
+  video.autoplay = Boolean(options.autoplay);
+  video.playsInline = true;
+  wrapper.append(video);
+  container.replaceChildren(wrapper);
+  attachVolumeControls(wrapper, video);
+
+  // Read only the playlist, not a second video stream. Until it advertises
+  // dated segments, do not promise viewers a rewind range we cannot locate.
+  const refreshWindow = async () => {
+    if (!playback.hlsUrl || stopped) return;
+    request = new AbortController();
+    const timeout = setTimeout(() => request?.abort(), 8000);
+    try {
+      let url = new URL(playback.hlsUrl, window.location.href);
+      let response = await fetch(url, { signal: request.signal, cache: "no-store" });
+      if (!response.ok) throw new Error("HLS playlist unavailable");
+      let text = await response.text();
+      const variant = hlsVariant(text);
+      if (variant) {
+        url = new URL(variant, url);
+        response = await fetch(url, { signal: request.signal, cache: "no-store" });
+        if (!response.ok) throw new Error("HLS playlist unavailable");
+        text = await response.text();
       }
-      return null;
-    } finally {
-      update();
-    }
-  };
-
-  const showHls = async (behind, fallbackReason = null) => {
-    if (!playback.hlsUrl) return null;
-    if (mode !== "hls") {
-      mode = "hls";
-      options.onTransport?.({ transport: "hls", fallbackReason });
-      const video = replaceVideo("HLS");
-      const listeners = new AbortController();
-      container.steepleTransportCleanup = () => listeners.abort();
-      attachHls(container, video, playback.hlsUrl, options);
-      // HLS metadata can arrive before the live seekable window exists.
-      // Retain the requested rewind until that window becomes available.
-      const seekEvents = ["loadedmetadata", "progress", "canplay"];
-      const applyInitialSeek = () => {
-        if (activeVideo !== video || !getLiveWindow(video)) return;
-        seekHlsToBehind(behind);
-        for (const event of seekEvents) video.removeEventListener(event, applyInitialSeek);
+      if (stopped) return;
+      const range = hlsPlaylistWindow(text);
+      if (range) advertised = {
+        start: (range.start - startedAt) / 1000,
+        end: (range.end - startedAt) / 1000,
+        updatedAt: Date.now()
       };
-      for (const event of seekEvents) video.addEventListener(event, applyInitialSeek, { signal: listeners.signal });
-      video.addEventListener("playing", update, { signal: listeners.signal });
-      video.addEventListener("waiting", update, { signal: listeners.signal });
-      video.play().catch(() => {});
-      hlsSwitch = video;
+      seekHls();
+      notify();
+    } catch { /* Keep the last range briefly; then disable unavailable seeking. */ }
+    finally {
+      clearTimeout(timeout);
+      if (!stopped) refreshTimer = setTimeout(refreshWindow, 3000);
     }
-    targetBehind = Math.max(0, behind);
-    followingLive = targetBehind < 1.5;
-    seekHlsToBehind(targetBehind);
-    update();
-    return hlsSwitch;
   };
-
-  const seekHlsToBehind = (behind) => {
-    if (mode !== "hls" || !activeVideo) return;
-    const liveWindow = getLiveWindow(activeVideo);
-    if (!liveWindow) return;
-    activeVideo.currentTime = seekTargetForBehind(liveWindow, behind);
-    activeVideo.play().catch(() => {});
-  };
-
-  const maxTimelineBehind = () => Math.max(0, (Date.now() - timelineStart) / 1000);
-
-  const update = () => {
-    if (!followingLive) targetBehind = Math.min(targetBehind, maxTimelineBehind());
-    if (followingLive) targetBehind = 0;
-    const availableBehind = maxTimelineBehind();
-    range.disabled = availableBehind < 1;
-    liveButton.disabled = followingLive;
-    if (!dragging) {
-      const ratio = followingLive || availableBehind <= 0 ? 1 : clamp(1 - (targetBehind / availableBehind), 0, 1);
-      range.value = String(Math.round(ratio * rangeUnits));
-    }
-    liveDot.classList.toggle("at-live", followingLive);
-    timeText.textContent = followingLive ? "" : `${formatBehind(targetBehind)} behind`;
-  };
-
-  range.addEventListener("input", () => {
-    dragging = true;
-    const ratio = Number(range.value) / rangeUnits;
-    targetBehind = maxTimelineBehind() * (1 - ratio);
-    followingLive = targetBehind < 1.5;
-    if (followingLive) {
-      showWebRtc();
-    } else {
-      showHls(targetBehind);
-    }
-    update();
-  });
-  range.addEventListener("change", () => {
-    dragging = false;
-    const ratio = Number(range.value) / rangeUnits;
-    targetBehind = maxTimelineBehind() * (1 - ratio);
-    followingLive = targetBehind < 1.5;
-    if (followingLive) showWebRtc();
-    else showHls(targetBehind);
-    update();
-  });
-  liveButton.addEventListener("click", () => {
-    followingLive = true;
-    targetBehind = 0;
-    showWebRtc();
-    update();
-  });
-  wrapper.addEventListener("pointermove", showControls);
-  wrapper.addEventListener("pointerdown", showControls);
-  wrapper.addEventListener("focusin", showControls);
-  wrapper.addEventListener("touchstart", showControls, { passive: true });
-
-  timer = setInterval(update, 250);
-  update();
-  showControls();
-  showWebRtc();
-
+  const timer = setInterval(notify, 500);
   container.steepleControlsCleanup = () => {
+    stopped = true;
     clearInterval(timer);
-    clearTimeout(hideTimer);
-    wrapper.removeEventListener("pointermove", showControls);
-    wrapper.removeEventListener("pointerdown", showControls);
-    wrapper.removeEventListener("focusin", showControls);
-    wrapper.removeEventListener("touchstart", showControls);
+    clearTimeout(refreshTimer);
+    request?.abort();
+    subscribers.clear();
   };
+  refreshWindow();
+  goLive();
+}
+
+// Return the first advertised variant; media playlists have no variant tag.
+function hlsVariant(text) {
+  const lines = text.split(/\r?\n/).map(line => line.trim());
+  const index = lines.findIndex(line => line.startsWith("#EXT-X-STREAM-INF:"));
+  return index < 0 ? null : lines.slice(index + 1).find(line => line && !line.startsWith("#"));
+}
+
+function hlsPlaylistWindow(text) {
+  let date = null;
+  let duration = null;
+  let start = null;
+  let end = null;
+  for (const line of text.split(/\r?\n/).map(line => line.trim())) {
+    if (line.startsWith("#EXT-X-PROGRAM-DATE-TIME:")) {
+      const parsed = Date.parse(line.slice("#EXT-X-PROGRAM-DATE-TIME:".length));
+      date = Number.isFinite(parsed) ? parsed : null;
+    } else if (line.startsWith("#EXTINF:")) {
+      duration = Number.parseFloat(line.slice(8));
+    } else if (line && !line.startsWith("#") && date !== null && Number.isFinite(duration) && duration > 0) {
+      start ??= date;
+      date += duration * 1000;
+      end = date;
+      duration = null;
+    }
+  }
+  return start !== null && end > start ? { start, end } : null;
 }
 
 function waitForIceGathering(pc, timeoutMs) {
@@ -499,177 +484,14 @@ function removeCurrentMedia(container, video) {
   container.querySelector(".playback-status")?.remove();
 }
 
-function renderLivePlayer(container, video, options = {}) {
-  const wrapper = document.createElement("div");
-  const controls = document.createElement("div");
-  const left = document.createElement("div");
-  const chip = createTransportChip(options.transportLabel);
-  const liveDot = document.createElement("span");
-  const liveText = document.createElement("span");
-  const timeText = document.createElement("span");
-  const range = document.createElement("input");
-  const liveButton = document.createElement("button");
-
-  wrapper.className = "live-player";
-  controls.className = "live-controls";
-  left.className = "live-status";
-  liveDot.className = "live-dot";
-  liveText.textContent = "Live";
-  timeText.className = "live-time";
-  range.className = "live-range";
-  range.setAttribute("aria-label", "Seek");
-  range.type = "range";
-  range.min = "0";
-  range.max = "1000";
-  range.step = "1";
-  range.value = "1000";
-  liveButton.className = "live-button";
-  liveButton.type = "button";
-  liveButton.textContent = "Live";
-
-  left.append(liveDot, liveText, timeText);
-  controls.append(left, range, liveButton);
-  wrapper.append(video, chip, controls);
-  attachVolumeControls(wrapper, video);
-  container.replaceChildren(wrapper);
-
-  let dragging = false;
-  let followingLive = true;
-  let targetBehind = 0;
-  let timer = null;
-  let hideTimer = null;
-  const rangeUnits = 1000;
-
-  const showControls = () => {
-    controls.classList.add("visible");
-    chip?.classList.add("visible");
-    clearTimeout(hideTimer);
-    hideTimer = setTimeout(() => {
-      if (!dragging && document.activeElement !== range && document.activeElement !== liveButton) {
-        controls.classList.remove("visible");
-        chip?.classList.remove("visible");
-      }
-    }, 2400);
-  };
-
-  const update = () => {
-    const liveWindow = getLiveWindow(video);
-    if (!liveWindow) {
-      range.disabled = true;
-      liveButton.disabled = true;
-      timeText.textContent = "";
-      liveDot.classList.remove("at-live");
-      return;
-    }
-
-    if (!followingLive) {
-      targetBehind = Math.min(targetBehind, maxAvailableBehind(liveWindow));
-      if (targetBehind < 1.5) followingLive = true;
-    }
-    if (followingLive) targetBehind = 0;
-
-    range.disabled = false;
-    liveButton.disabled = followingLive;
-    if (!dragging) {
-      const availableBehind = maxAvailableBehind(liveWindow);
-      const ratio = followingLive || availableBehind <= 0 ? 1 : clamp(1 - (targetBehind / availableBehind), 0, 1);
-      range.value = String(Math.round(ratio * rangeUnits));
-    }
-    liveDot.classList.toggle("at-live", followingLive);
-    timeText.textContent = followingLive ? "" : `${formatBehind(targetBehind)} behind`;
-  };
-
-  range.addEventListener("input", () => {
-    dragging = true;
-    const liveWindow = getLiveWindow(video);
-    if (liveWindow) {
-      const ratio = Number(range.value) / rangeUnits;
-      targetBehind = maxAvailableBehind(liveWindow) * (1 - ratio);
-      followingLive = targetBehind < 1.5;
-      video.currentTime = seekTargetForBehind(liveWindow, targetBehind);
-    }
-    update();
-  });
-  range.addEventListener("change", () => {
-    const liveWindow = getLiveWindow(video);
-    if (liveWindow) {
-      const ratio = Number(range.value) / rangeUnits;
-      targetBehind = maxAvailableBehind(liveWindow) * (1 - ratio);
-      followingLive = targetBehind < 1.5;
-      video.currentTime = seekTargetForBehind(liveWindow, targetBehind);
-    }
-    dragging = false;
-    update();
-  });
-  const handlePlay = () => {
-    if (targetBehind < 1.5) followingLive = true;
-  };
-
-  liveButton.addEventListener("click", () => {
-    const liveWindow = getLiveWindow(video);
-    if (!liveWindow) return;
-    followingLive = true;
-    targetBehind = 0;
-    video.currentTime = seekTargetForBehind(liveWindow, 0);
-    video.play().catch(() => {});
-    update();
-  });
-  video.addEventListener("play", handlePlay);
-  wrapper.addEventListener("pointermove", showControls);
-  wrapper.addEventListener("pointerdown", showControls);
-  wrapper.addEventListener("focusin", showControls);
-  wrapper.addEventListener("touchstart", showControls, { passive: true });
-
-  timer = setInterval(update, 250);
-  for (const event of ["loadedmetadata", "playing", "waiting"]) {
-    video.addEventListener(event, update);
-  }
-  update();
-  showControls();
-
-  container.steepleControlsCleanup = () => {
-    clearInterval(timer);
-    clearTimeout(hideTimer);
-    for (const event of ["loadedmetadata", "playing", "waiting"]) {
-      video.removeEventListener(event, update);
-    }
-    video.removeEventListener("play", handlePlay);
-    wrapper.removeEventListener("pointermove", showControls);
-    wrapper.removeEventListener("pointerdown", showControls);
-    wrapper.removeEventListener("focusin", showControls);
-    wrapper.removeEventListener("touchstart", showControls);
-  };
-}
 
 function renderVideoFrame(container, video, transportLabel) {
+  video.steepleIsLive = transportLabel !== "Replay";
   const wrapper = document.createElement("div");
-  const chip = createTransportChip(transportLabel);
   wrapper.className = "live-player";
   wrapper.append(video);
-  attachVolumeControls(wrapper, video);
-  if (chip) wrapper.append(chip);
   container.replaceChildren(wrapper);
-
-  if (!chip) return;
-  let hideTimer = null;
-  const showChip = () => {
-    chip.classList.add("visible");
-    clearTimeout(hideTimer);
-    hideTimer = setTimeout(() => chip.classList.remove("visible"), 2400);
-  };
-  wrapper.addEventListener("pointermove", showChip);
-  wrapper.addEventListener("pointerdown", showChip);
-  wrapper.addEventListener("focusin", showChip);
-  wrapper.addEventListener("touchstart", showChip, { passive: true });
-  showChip();
-
-  container.steepleControlsCleanup = () => {
-    clearTimeout(hideTimer);
-    wrapper.removeEventListener("pointermove", showChip);
-    wrapper.removeEventListener("pointerdown", showChip);
-    wrapper.removeEventListener("focusin", showChip);
-    wrapper.removeEventListener("touchstart", showChip);
-  };
+  attachVolumeControls(wrapper, video);
 }
 
 const volumeStorageKey = "steeple-stream:audio";
@@ -703,14 +525,6 @@ function attachVolumeControls(wrapper, video) {
   };
 }
 
-function createTransportChip(label) {
-  if (!label) return null;
-  const chip = document.createElement("div");
-  chip.className = "transport-chip";
-  chip.textContent = label;
-  return chip;
-}
-
 function getLiveWindow(video) {
   const ranges = video.seekable;
   if (!ranges.length) return null;
@@ -721,23 +535,8 @@ function getLiveWindow(video) {
   return { start, end };
 }
 
-function maxAvailableBehind(liveWindow) {
-  return Math.max(0, liveWindow.end - liveWindow.start - 0.5);
-}
-
-function seekTargetForBehind(liveWindow, behind) {
-  return clamp(liveWindow.end - behind, liveWindow.start, liveWindow.end - 0.5);
-}
-
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
-}
-
-function formatBehind(seconds) {
-  const rounded = Math.round(seconds);
-  const minutes = Math.floor(rounded / 60);
-  const rest = String(rounded % 60).padStart(2, "0");
-  return `${minutes}:${rest}`;
 }
 
 function renderMessage(container, title, message) {

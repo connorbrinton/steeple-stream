@@ -412,103 +412,6 @@ video {
   display: block;
 }
 
-.transport-chip {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  min-height: 26px;
-  padding: 5px 10px;
-  border-radius: 999px;
-  color: white;
-  background: #e3262f;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.2;
-  opacity: 0;
-  transform: translateY(-4px);
-  transition: opacity 150ms ease, transform 150ms ease;
-  pointer-events: none;
-}
-
-.transport-chip.visible,
-.live-player:hover .transport-chip {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.live-controls {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: grid;
-  grid-template-columns: auto minmax(120px, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  min-height: 48px;
-  padding: 8px 10px;
-  color: white;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.78));
-  font-size: 13px;
-  opacity: 0;
-  transform: translateY(8px);
-  transition: opacity 150ms ease, transform 150ms ease;
-  pointer-events: none;
-}
-
-.live-player:hover .live-controls,
-.live-controls.visible,
-.live-controls:focus-within {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-}
-
-.live-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 116px;
-}
-
-.live-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: #8b949e;
-}
-
-.live-dot.at-live {
-  background: #e3262f;
-}
-
-.live-time {
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.live-range {
-  width: 100%;
-  accent-color: #e3262f;
-}
-
-.live-button {
-  min-width: 58px;
-  min-height: 30px;
-  padding: 0 10px;
-  border: 1px solid rgba(255, 255, 255, 0.42);
-  border-radius: 6px;
-  color: white;
-  background: rgba(0, 0, 0, 0.36);
-  cursor: pointer;
-}
-
-.live-button:disabled {
-  border-color: rgba(227, 38, 47, 0.82);
-  background: rgba(227, 38, 47, 0.92);
-  cursor: default;
-}
-
 .controls {
   display: flex;
   flex-wrap: wrap;
@@ -823,22 +726,8 @@ video {
     padding: 12px;
   }
 
-  .live-controls {
-    grid-template-columns: 1fr auto;
-  }
-
-  .live-status {
-    min-width: 0;
-  }
-
-  .live-range {
-    grid-column: 1 / -1;
-    grid-row: 1;
-  }
 }
 
-/* The component owns standard controls; this bar switches WebRTC/HLS DVR. */
+/* Media Chrome owns the complete responsive control surface. */
 .component-player { width: 100%; height: 100%; display: block; position: relative; }
-.live-controls { bottom: 46px; z-index: 3; }
-.transport-chip { z-index: 3; pointer-events: none; }
 .playback-status { z-index: 5; }
