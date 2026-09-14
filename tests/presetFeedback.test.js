@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import fs from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
+import fs from "node:fs/promises";
 
-const source = await fs.readFile(new URL("../public/assets/broadcaster.js", import.meta.url), "utf8");
+const source = await fs.readFile(new URL("../.test-build/broadcaster.js", import.meta.url), "utf8");
 
 function button() {
   const classes = new Set();

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import fs from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
+import fs from "node:fs/promises";
 
-const source = await fs.readFile(new URL("../public/assets/player.js", import.meta.url), "utf8");
+const source = await fs.readFile(new URL("../.test-build/player.js", import.meta.url), "utf8");
 class Element extends EventTarget {}
 function harness(storage = new Map()) {
   const context = vm.createContext({

@@ -10,10 +10,10 @@ export default defineConfig({
     modulePreload: { polyfill: false },
     rollupOptions: {
       input: {
-        admin: resolve(import.meta.dirname, 'entries/admin.js'),
-        broadcaster: resolve(import.meta.dirname, 'entries/broadcaster.js'),
-        player: resolve(import.meta.dirname, 'entries/player.js'),
-        viewer: resolve(import.meta.dirname, 'entries/viewer.js'),
+        admin: resolve(import.meta.dirname, 'entries/admin.ts'),
+        broadcaster: resolve(import.meta.dirname, 'entries/broadcaster.ts'),
+        player: resolve(import.meta.dirname, 'entries/player.ts'),
+        viewer: resolve(import.meta.dirname, 'entries/viewer.ts'),
       },
       output: {
         entryFileNames: '[name].js',

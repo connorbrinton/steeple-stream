@@ -3,7 +3,9 @@
 Vite builds separate browser entry points for the viewer, broadcaster, and
 administrator pages. Rollup extracts their shared player and Media Chrome code
 into shared chunks and emits one common stylesheet. The server-side application
-continues to run directly in Node.
+is authored in TypeScript and compiled to colocated JavaScript that runs
+directly in Node. Generated JavaScript and browser bundles are committed so Nix
+and container deployments do not need build-time development dependencies.
 
 Media Chrome supplies the accessible player controls while Steeple owns WHEP,
 HLS.js, recovery, autoplay fallback, and saved volume/mute preferences.

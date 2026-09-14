@@ -3,10 +3,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build"
+    "build": "npm run build:server && npm run build:frontend",
+    "build:frontend": "vite build",
+    "build:server": "tsc --project ../../tsconfig.json",
+    "build:test-sources": "tsc --project ../../tsconfig.test-sources.json",
+    "typecheck": "tsc --project ../../tsconfig.json --noEmit && tsc --project ../../tsconfig.frontend.json"
   },
   "devDependencies": {
+    "@types/node": "22.20.2",
     "media-chrome": "4.19.2",
+    "typescript": "7.0.2",
     "vite": "8.3.0"
   }
 }

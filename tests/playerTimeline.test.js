@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
 import test from 'node:test';
 import vm from 'node:vm';
+import fs from 'node:fs/promises';
 
 const context = vm.createContext({ window: {} });
-vm.runInContext(await fs.readFile(new URL('../public/assets/player.js', import.meta.url), 'utf8'), context);
+vm.runInContext(await fs.readFile(new URL('../.test-build/player.js', import.meta.url), 'utf8'), context);
 
 test('HLS history uses advertised dated complete segments, not meeting elapsed time', () => {
   const start = Date.parse('2026-09-14T10:30:00Z');
