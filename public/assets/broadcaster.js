@@ -123,13 +123,22 @@ async function recallPreset(button, presetId) {
 function renderPreview(state) {
   if (window.SteeplePlayer.renderPreviewStatus(adminPreview, state.source)) return;
   const broadcast = state.broadcast;
-  const capabilities = state.capabilities || {};
   const playback = broadcast.playback || state.preview;
   const hlsUrl = playback?.hlsUrl;
   const webrtcUrl = playback?.webrtcUrl;
   const streamKey = previewStreamKey(latestHealth?.ingest);
   latestPreviewSignature = streamKey;
-  if (webrtcUrl && (!capabilities.hlsScrub || broadcast.status !== "live")) {
+  if (hlsUrl && webrtcUrl) {
+    window.SteeplePlayer.renderHybridLive(adminPreview, playback, {
+      autoplay: true,
+      controls: false,
+      timeline: false,
+      timeoutMs: 4000,
+      streamKey
+    });
+    return;
+  }
+  if (webrtcUrl) {
     window.SteeplePlayer.renderWebRtc(adminPreview, webrtcUrl, {
       autoplay: true,
       controls: false,
@@ -141,20 +150,10 @@ function renderPreview(state) {
     });
     return;
   }
-  if (hlsUrl && webrtcUrl) {
-    window.SteeplePlayer.renderHybridLive(adminPreview, playback, {
-      autoplay: true,
-      timeoutMs: 4000,
-      timelineStartAt: broadcast.startedAt || latestHealth?.ingest?.startedAt,
-      streamKey
-    });
-    return;
-  }
   if (hlsUrl) {
     window.SteeplePlayer.renderHls(adminPreview, hlsUrl, {
       autoplay: true,
-      controls: capabilities.hlsScrub && broadcast.status === "live" ? "live" : false,
-      timelineStartAt: broadcast.startedAt || latestHealth?.ingest?.startedAt,
+      controls: false,
       streamKey
     });
     return;

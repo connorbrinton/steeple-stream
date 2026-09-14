@@ -1,28 +1,37 @@
-# media-chrome experiment
+# Media Chrome player controls
 
-This branch replaces the handmade mute/volume UI with media-chrome controls on
-recordings, camera previews, and broadcasts. It is an alternative to the other
-player experiment branches; merge only the selected implementation.
+Media Chrome supplies the accessible player controls while Steeple owns WHEP,
+HLS.js, recovery, autoplay fallback, and saved volume/mute preferences.
 
-Steeple keeps WHEP negotiation, HLS.js, recovery, persisted volume/mute, and the
-WebRTC-to-HLS DVR timeline. The component owns ordinary media controls. Autoplay
-is still requested, with Steeple's Play button when the browser blocks it.
+Desktop and fine-pointer input uses one conventional control row: play/pause,
+mute and an expanding volume control, time, seek, Live status, PiP, and
+fullscreen. Touch input moves play/pause to the center of the video, moves
+presentation actions to the upper right, and leaves time and seeking at the
+bottom. The most recently used pointer type selects the layout, so hybrid
+devices can move between them.
 
-The native video element remains the transport integration point. UI instances
-are disposed when streams change. Existing audio preferences are reused.
+For live broadcasts, the Media Chrome timeline represents meeting-relative
+time. Steeple reads dated segments from the HLS playlist to identify the real
+available rewind window. Seeking switches playback to HLS; Back to live returns
+to WebRTC when available. The same video element and control surface remain in
+place through the switch.
+
+Viewer players always include this timeline. Broadcaster and administrator
+players are live previews, so they explicitly disable it; their WebRTC-to-HLS
+fallback does not add a seek bar.
 
 ## Build
 
 `npm ci --prefix tools/player-ui`
 `npm run build --prefix tools/player-ui`
 
-Commit the generated `public/vendor/player-ui*` assets with source changes.
-CI rebuilds and checks them for drift. Component dependencies are isolated from
-the production npm lockfile and Nix dependency hash. No runtime CDN is required.
+Commit the generated `public/vendor/player-ui*` assets with source changes. CI
+rebuilds them and checks for drift. Dependencies remain isolated from the
+production npm lockfile and Nix dependency hash. No runtime CDN is required.
 
 ## Review
 
-Use the shared browser reports and 390px/1280px screenshots from this PR's CI.
-The component can be exercised locally using the fixture described in
-`e2e/README.md`. Verify fullscreen/PiP on real devices before choosing a player;
-headless tests cannot establish iPhone behavior. No deployment is part of this PR.
+CI exercises desktop and touch interaction, source switching, live rewind,
+returning to WebRTC, volume persistence, and autoplay fallback. Its reports
+include screenshots at 390px and 1280px. Fullscreen, PiP, iPhone system volume,
+and autoplay eligibility still require real-device checks.

@@ -39,6 +39,14 @@ test('a failed WHEP request falls back to playable HLS', async ({ page }) => {
   await expectAudio(page, 1, false);
 });
 
+test('a broadcaster or admin hybrid preview has no seek bar', async ({ page }) => {
+  await page.goto('/?mode=hybrid&timeline=false');
+  await startPlayback(page);
+  await expectWebRtcMedia(page);
+  await expect(page.getByRole('slider', { name: /^seek$/i })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /live/i })).toHaveCount(0);
+});
+
 test('HLS recovers after a network interruption without resetting audio preferences', async ({ page }) => {
   let interrupted = false;
   let blocked = 0;
@@ -64,7 +72,7 @@ test('rewind switches to HLS and Live returns to WebRTC with the same volume', a
   await expectWebRtcMedia(page);
   const original = await video(page).elementHandle();
   const volume = await setLowVolume(page);
-  const seek = page.getByRole('slider', { name: 'Seek', exact: true });
+  const seek = page.getByRole('slider', { name: /^seek$/i });
   await expect(seek).toBeEnabled();
   await seek.focus();
   await seek.press('Home');
@@ -76,7 +84,7 @@ test('rewind switches to HLS and Live returns to WebRTC with the same volume', a
     return ranges.length ? ranges.end(ranges.length - 1) - element.currentTime : 0;
   })).toBeGreaterThan(2);
   await expectAudio(page, volume, false);
-  await page.getByRole('button', { name: 'Live', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to live', exact: true }).click();
   await expectWebRtcMedia(page);
   expect(await video(page).evaluate((element, first) => element === first, original)).toBe(true);
   await expectProgress(page);

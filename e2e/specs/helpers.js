@@ -12,6 +12,7 @@ export async function startPlayback(page) {
   }
   await expectProgress(page);
   await page.locator('#player').hover();
+  await page.locator('media-mute-button').focus();
 }
 export async function setLowVolume(page) {
   await page.locator('#player').hover();
