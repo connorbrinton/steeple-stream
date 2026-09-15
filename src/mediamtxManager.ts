@@ -2,20 +2,41 @@ import fs from "node:fs/promises";
 import fsSync from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 
 const repo = "bluenviron/mediamtx";
 
+interface MediaMtxManagerOptions {
+  channelId?: string;
+  autoStart: boolean;
+  hls?: boolean;
+  playback?: boolean;
+  runtime: string;
+  nixPackage: string;
+  binaryPath: string | null;
+  version: string;
+  cacheDir: string;
+  configPath: string;
+  recordingsDir: string;
+  apiBaseUrl: string;
+}
+
+interface ResolvedCommand {
+  runtime: string;
+  command: string;
+  args: string[];
+}
+
 export class MediaMtxManager {
-  declare options: any;
-  declare process: any;
+  declare options: MediaMtxManagerOptions;
+  declare process: ChildProcessWithoutNullStreams | null;
   declare stopping: boolean;
   declare retryTimer: NodeJS.Timeout | null;
   declare retryAttempt: number;
 
-  constructor(options) {
+  constructor(options: MediaMtxManagerOptions) {
     this.options = options;
     this.process = null;
     this.stopping = false;
@@ -38,9 +59,9 @@ export class MediaMtxManager {
       env: process.env
     });
 
-    this.process.stdout.on("data", (chunk) => process.stdout.write(`[mediamtx] ${chunk}`));
-    this.process.stderr.on("data", (chunk) => process.stderr.write(`[mediamtx] ${chunk}`));
-    this.process.on("exit", (code, signal) => {
+    this.process.stdout.on("data", (chunk: Buffer) => process.stdout.write(`[mediamtx] ${chunk}`));
+    this.process.stderr.on("data", (chunk: Buffer) => process.stderr.write(`[mediamtx] ${chunk}`));
+    this.process.on("exit", (code: number | null, signal: NodeJS.Signals | null) => {
       this.process = null;
       if (code !== 0 && signal !== "SIGTERM") {
         console.error(`MediaMTX exited with code=${code} signal=${signal}`);
@@ -71,7 +92,7 @@ export class MediaMtxManager {
     });
   }
 
-  async setRecording(enabled) {
+  async setRecording(enabled: boolean): Promise<void> {
     const channel = this.options.channelId || "stakecenter";
     const response = await fetch(`${this.options.apiBaseUrl}/v3/config/paths/patch/${encodeURIComponent(channel)}`, {
       method: "PATCH",
@@ -81,7 +102,7 @@ export class MediaMtxManager {
     if (!response.ok) throw new Error(`MediaMTX recording update failed with HTTP ${response.status}`);
   }
 
-  async resolveCommand() {
+  async resolveCommand(): Promise<ResolvedCommand> {
     const runtime = this.options.runtime || "auto";
     if (!["system", "auto", "binary", "nix", "download"].includes(runtime)) {
       throw new Error(`Unsupported MediaMTX runtime: ${runtime}`);
@@ -110,13 +131,13 @@ export class MediaMtxManager {
     return { runtime: "download", command: await this.downloadCachedBinary(), args: [] };
   }
 
-  async resolveNixCommand() {
+  async resolveNixCommand(): Promise<ResolvedCommand> {
     const nix = await this.tryResolveNixCommand();
     if (!nix) throw new Error("MediaMTX Nix runtime requested, but nix was not found on PATH");
     return nix;
   }
 
-  async tryResolveNixCommand() {
+  async tryResolveNixCommand(): Promise<ResolvedCommand | null> {
     const nix = await findOnPath("nix");
     if (!nix) return null;
     return {
@@ -126,7 +147,7 @@ export class MediaMtxManager {
     };
   }
 
-  async downloadCachedBinary() {
+  async downloadCachedBinary(): Promise<string> {
     const platform = releasePlatform();
     const arch = releaseArch();
     const version = this.options.version;
@@ -210,11 +231,11 @@ export class MediaMtxManager {
   }
 }
 
-async function assertExecutable(binary) {
+async function assertExecutable(binary: string): Promise<void> {
   await fs.access(binary, fsSync.constants.X_OK);
 }
 
-async function findOnPath(command) {
+async function findOnPath(command: string): Promise<string | null> {
   const segments = (process.env.PATH || "").split(path.delimiter).filter(Boolean);
   const names = process.platform === "win32" ? [`${command}.exe`, command] : [command];
   for (const segment of segments) {
@@ -231,7 +252,7 @@ async function findOnPath(command) {
   return null;
 }
 
-async function downloadFile(url, destination) {
+async function downloadFile(url: string, destination: string): Promise<void> {
   const response = await fetch(url);
   if (!response.ok || !response.body) {
     throw new Error(`Failed to download ${url}: HTTP ${response.status}`);
@@ -239,7 +260,7 @@ async function downloadFile(url, destination) {
   await pipeline(Readable.fromWeb(response.body), fsSync.createWriteStream(destination));
 }
 
-async function extractTarGz(archivePath, destination) {
+async function extractTarGz(archivePath: string, destination: string): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const child = spawn("tar", ["-xzf", archivePath, "-C", destination], { stdio: "ignore" });
     child.on("error", reject);
@@ -266,6 +287,6 @@ function releaseArch() {
   throw new Error(`Unsupported MediaMTX architecture: ${process.arch}`);
 }
 
-function yamlString(value) {
+function yamlString(value: string): string {
   return JSON.stringify(value);
 }
