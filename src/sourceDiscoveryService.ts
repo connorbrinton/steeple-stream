@@ -1,11 +1,19 @@
 import { EventEmitter } from "node:events";
-import { discoverNdiSources } from "./sourceDiscovery.js";
+import { discoverNdiSources, type NdiSource } from "./sourceDiscovery.js";
+
+interface ConfiguredSource {
+  type?: string;
+  ndi?: {
+    sourceName?: string;
+    urlAddress?: string;
+  };
+}
 
 export class SourceDiscoveryService extends EventEmitter {
   declare discover: (currentSource?: any) => Promise<any[]>;
   declare intervalMs: number;
   declare logger: Console;
-  declare sources: Map<string, any>;
+  declare sources: Map<string, NdiSource>;
   declare timer: NodeJS.Timeout | null;
   declare refreshPromise: Promise<any[]> | null;
   declare lastStartedAt: string | null;
@@ -72,7 +80,7 @@ export class SourceDiscoveryService extends EventEmitter {
     return this.refreshPromise;
   }
 
-  listNdiSources(currentSource = null) {
+  listNdiSources(currentSource: ConfiguredSource | null = null) {
     const sources = [...this.sources.values()];
     const configured = currentSource?.ndi?.sourceName;
     if (configured && !sources.some((source) => source.name === configured)) {
@@ -86,7 +94,7 @@ export class SourceDiscoveryService extends EventEmitter {
     return sources.sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  resolveNdiSource(source) {
+  resolveNdiSource(source: ConfiguredSource | null) {
     if (source?.type !== "ndi" || !source.ndi?.sourceName) return source;
     const match = this.sources.get(source.ndi.sourceName);
     if (!match || match.available === false || !match.urlAddress || match.urlAddress === source.ndi.urlAddress) {
@@ -114,8 +122,8 @@ export class SourceDiscoveryService extends EventEmitter {
     };
   }
 
-  replaceSources(sources) {
-    const next = new Map();
+  replaceSources(sources: NdiSource[]) {
+    const next = new Map<string, NdiSource>();
     for (const source of sources || []) {
       if (!source?.name) continue;
       next.set(source.name, {
@@ -129,6 +137,6 @@ export class SourceDiscoveryService extends EventEmitter {
   }
 }
 
-function sourceSnapshot(sources) {
+function sourceSnapshot(sources: Map<string, NdiSource>) {
   return JSON.stringify([...sources.values()].sort((a, b) => a.name.localeCompare(b.name)));
 }

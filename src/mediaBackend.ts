@@ -1,11 +1,19 @@
-export class MediaMtxBackend {
-  declare options: any;
+interface MediaMtxBackendOptions {
+  apiBaseUrl: string;
+  hls?: boolean;
+  hlsBaseUrl?: string;
+  publicWebRtc?: boolean;
+  webrtcBaseUrl?: string;
+}
 
-  constructor(options) {
+export class MediaMtxBackend {
+  declare options: MediaMtxBackendOptions;
+
+  constructor(options: MediaMtxBackendOptions) {
     this.options = options;
   }
 
-  getPlayback(channelId) {
+  getPlayback(channelId: string) {
     const encoded = encodeURIComponent(channelId);
     const playback: any = {
       publish: {
@@ -23,7 +31,7 @@ export class MediaMtxBackend {
     return playback;
   }
 
-  async getHealth(channelId) {
+  async getHealth(channelId: string) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 1500);
     try {

@@ -10,7 +10,7 @@
     "build:frontend": "vite build --config tools/player-ui/vite.config.ts",
     "build:server": "tsc --project tsconfig.json",
     "build:test-sources": "tsc --project tsconfig.test-sources.json",
-    "typecheck": "tsc --project tsconfig.json --noEmit && tsc --project tsconfig.frontend.json",
+    "typecheck": "tsc --project tsconfig.json --noEmit && tsc --project tsconfig.no-implicit-any.json && tsc --project tsconfig.frontend.json",
     "start": "node src/server.js",
     "ndi:synthetic": "bash scripts/synthetic-ndi-source.sh",
     "ndi:probe": "python3 scripts/probe-ndi-source.py",

@@ -2,12 +2,31 @@ import { execFile, spawn } from "node:child_process";
 import dgram from "node:dgram";
 import { promisify } from "node:util";
 
+export interface NdiSource {
+  name: string;
+  urlAddress?: string;
+  source: string;
+  available?: boolean;
+}
+
+interface ConfiguredSource {
+  ndi?: {
+    sourceName?: string;
+    urlAddress?: string;
+  };
+}
+
+interface DnsName {
+  name: string;
+  offset: number;
+}
+
 const execFileAsync = promisify(execFile);
 const mdnsAddress = "224.0.0.251";
 const mdnsPort = 5353;
 
-export async function discoverNdiSources(currentSource): Promise<any[]> {
-  const discovered = new Map();
+export async function discoverNdiSources(currentSource?: ConfiguredSource | null): Promise<NdiSource[]> {
+  const discovered = new Map<string, NdiSource>();
 
   for (const name of envSources()) {
     discovered.set(name, { name, source: "env" });
@@ -42,10 +61,10 @@ export async function discoverNdiSources(currentSource): Promise<any[]> {
   return [...discovered.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-async function discoverWithNativeMdns(): Promise<any[]> {
-  return new Promise<any[]>((resolve) => {
+async function discoverWithNativeMdns(): Promise<NdiSource[]> {
+  return new Promise<NdiSource[]>((resolve) => {
     const socket = dgram.createSocket({ type: "udp4", reuseAddr: true });
-    const found = new Map();
+    const found = new Map<string, NdiSource>();
     const query = buildPtrQuery("_ndi._tcp.local");
     const finish = () => {
       socket.removeAllListeners();
@@ -130,8 +149,8 @@ async function discoverWithGStreamer() {
   }
 }
 
-function collectOutput(command, args, timeoutMs) {
-  return new Promise((resolve, reject) => {
+function collectOutput(command: string, args: string[], timeoutMs: number): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
     const child = spawn(command, args, { stdio: ["ignore", "pipe", "ignore"] });
     let stdout = "";
     let timedOut = false;
@@ -151,7 +170,7 @@ function collectOutput(command, args, timeoutMs) {
   });
 }
 
-export function parseGstDeviceMonitor(output) {
+export function parseGstDeviceMonitor(output: string): NdiSource[] {
   return String(output)
     .split(/Device found:\s*/)
     .slice(1)
@@ -162,14 +181,14 @@ export function parseGstDeviceMonitor(output) {
         ? { name, urlAddress: urlAddress || "", source: "gstreamer", available: true }
         : null;
     })
-    .filter(Boolean);
+    .filter((source): source is { name: string; urlAddress: string; source: string; available: boolean } => source !== null);
 }
 
-function decodeMdnsName(name) {
+function decodeMdnsName(name: string) {
   return name.replace(/\\032/g, " ").trim();
 }
 
-export function buildPtrQuery(name) {
+export function buildPtrQuery(name: string) {
   const labels = name.split(".");
   const questionLength = labels.reduce((total, label) => total + 1 + Buffer.byteLength(label), 0) + 1 + 4;
   const buffer = Buffer.alloc(12 + questionLength);
@@ -201,8 +220,8 @@ export function buildPtrQuery(name) {
   return buffer;
 }
 
-export function parsePtrAnswers(buffer, queryName) {
-  const names = [];
+export function parsePtrAnswers(buffer: Buffer, queryName: string): string[] {
+  const names: string[] = [];
   try {
     const qdCount = buffer.readUInt16BE(4);
     const answerCount = buffer.readUInt16BE(6) + buffer.readUInt16BE(8) + buffer.readUInt16BE(10);
@@ -236,11 +255,11 @@ export function parsePtrAnswers(buffer, queryName) {
   return names;
 }
 
-function readName(buffer, startOffset, depth = 0) {
+function readName(buffer: Buffer, startOffset: number, depth = 0): DnsName {
   if (depth > 8) throw new Error("DNS name pointer depth exceeded");
-  const labels = [];
+  const labels: string[] = [];
   let offset = startOffset;
-  let nextOffset = null;
+  let nextOffset: number | null = null;
 
   while (offset < buffer.length) {
     const length = buffer[offset];
@@ -250,7 +269,7 @@ function readName(buffer, startOffset, depth = 0) {
     }
     if ((length & 0xc0) === 0xc0) {
       const pointer = ((length & 0x3f) << 8) | buffer[offset + 1];
-      const pointed = readName(buffer, pointer, depth + 1);
+      const pointed: DnsName = readName(buffer, pointer, depth + 1);
       labels.push(pointed.name);
       nextOffset = offset + 2;
       break;
@@ -263,11 +282,11 @@ function readName(buffer, startOffset, depth = 0) {
   return { name: labels.filter(Boolean).join("."), offset: nextOffset ?? offset };
 }
 
-function normalizeMdnsName(name) {
+function normalizeMdnsName(name: string) {
   return name.replace(/\.$/, "").toLowerCase();
 }
 
-function serviceInstanceFromPtr(ptrName) {
+function serviceInstanceFromPtr(ptrName: string): string | null {
   const suffix = "._ndi._tcp.local";
   const normalized = normalizeMdnsName(ptrName);
   if (!normalized.endsWith(suffix)) return null;
