@@ -8,6 +8,7 @@
     "src/types.d.ts",
     "src/config.ts",
     "src/httpUtils.ts",
+    "src/authService.ts",
     "src/domain.ts",
     "src/store.ts",
     "src/sqliteStore.ts",

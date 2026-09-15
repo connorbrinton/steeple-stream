@@ -1,17 +1,65 @@
 import crypto from "node:crypto";
+import type { IncomingMessage } from "node:http";
+import type { DatabaseSync } from "node:sqlite";
 import { parseCookie, stringifySetCookie } from "cookie";
 import * as oidc from "openid-client";
 
 const SESSION_COOKIE = "steeple_session";
 const MIN_SESSION_SECRET_BYTES = 32;
 
+type AuthRole = "operator" | "administrator";
+
+interface AuthConfig {
+  mode?: string;
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+  adminEmails: Set<string>;
+  operatorEmails: Set<string>;
+  sessionSecret: string;
+  sessionHours: number;
+  channelId: string;
+  publicBaseUrl: string;
+  host: string;
+  requireProductionConfig: boolean;
+}
+
+interface AuthStore {
+  db: DatabaseSync;
+  load(): Promise<unknown>;
+}
+
+interface AuthPrincipal {
+  email: string;
+  role: AuthRole;
+  csrfToken: string;
+}
+
+interface OAuthAttempt {
+  verifier: string;
+  nonce: string;
+  return_to: string;
+  expires_at: string;
+}
+
+interface AuthSession {
+  email: string;
+  role: string;
+  expires_at: string;
+}
+
+interface AuthServiceOptions {
+  store: AuthStore;
+  config: AuthConfig;
+}
+
 export class AuthService {
-  declare store: any;
-  declare config: any;
+  declare store: AuthStore;
+  declare config: AuthConfig;
   declare oidc: oidc.Configuration | null;
   declare proxyCsrfSecret: Buffer;
 
-  constructor({ store, config }) {
+  constructor({ store, config }: AuthServiceOptions) {
     this.store = store;
     this.config = config;
     this.oidc = null;
@@ -54,11 +102,11 @@ export class AuthService {
     });
   }
 
-  async complete(callbackUrl) {
+  async complete(callbackUrl: string) {
     if (!this.oidc) throw httpError(503, "Google sign-in is not configured");
     const url = new URL(callbackUrl);
     const state = url.searchParams.get("state") || "";
-    const attempt = this.store.db.prepare("SELECT * FROM oauth_attempts WHERE state_hash=?").get(hash(state));
+    const attempt = this.store.db.prepare("SELECT * FROM oauth_attempts WHERE state_hash=?").get(hash(state)) as unknown as OAuthAttempt | undefined;
     if (!attempt || new Date(attempt.expires_at) <= new Date()) throw httpError(400, "Sign-in attempt expired or is invalid");
     this.store.db.prepare("DELETE FROM oauth_attempts WHERE state_hash=?").run(hash(state));
     const tokens = await oidc.authorizationCodeGrant(this.oidc, url, {
@@ -77,13 +125,13 @@ export class AuthService {
     return { token, returnTo: attempt.return_to };
   }
 
-  roleFor(email) {
+  roleFor(email: string): AuthRole | null {
     if (this.config.adminEmails.has(email)) return "administrator";
     if (this.config.operatorEmails.has(email)) return "operator";
     return null;
   }
 
-  authenticate(req) {
+  authenticate(req: IncomingMessage): AuthPrincipal | null {
     if (this.config.mode === "trusted-proxy") {
       if (!["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket?.remoteAddress)) return null;
       const header = req.headers["cf-access-authenticated-user-email"];
@@ -98,12 +146,13 @@ export class AuthService {
     }
     const token = parseCookie(req.headers.cookie || "")[SESSION_COOKIE];
     if (!token) return null;
-    const session = this.store.db.prepare("SELECT email, role, expires_at FROM auth_sessions WHERE token_hash=?").get(hash(token));
+    const session = this.store.db.prepare("SELECT email, role, expires_at FROM auth_sessions WHERE token_hash=?").get(hash(token)) as unknown as AuthSession | undefined;
     if (!session || new Date(session.expires_at) <= new Date()) return null;
+    if (session.role !== "operator" && session.role !== "administrator") return null;
     return { email: session.email, role: session.role, csrfToken: csrf(token, this.config.sessionSecret) };
   }
 
-  authorize(req, role = "operator", { csrfRequired = false } = {}) {
+  authorize(req: IncomingMessage, role: AuthRole = "operator", { csrfRequired = false }: { csrfRequired?: boolean } = {}): AuthPrincipal {
     const principal = this.authenticate(req);
     if (!principal) throw httpError(401, "Authentication required");
     if (role === "administrator" && principal.role !== "administrator") throw httpError(403, "Administrator access required");
@@ -111,12 +160,12 @@ export class AuthService {
     return principal;
   }
 
-  logout(req) {
+  logout(req: IncomingMessage): void {
     const token = parseCookie(req.headers.cookie || "")[SESSION_COOKIE];
     if (token) this.store.db.prepare("DELETE FROM auth_sessions WHERE token_hash=?").run(hash(token));
   }
 
-  sessionCookie(token) {
+  sessionCookie(token: string): string {
     return stringifySetCookie({
       name: SESSION_COOKIE,
       value: token,
@@ -170,19 +219,19 @@ export class AuthService {
   }
 }
 
-function randomToken() {
+function randomToken(): string {
   return crypto.randomBytes(32).toString("base64url");
 }
 
-function hash(value) {
+function hash(value: string): string {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
-function csrf(token, secret) {
+function csrf(token: string, secret: string | Buffer): string {
   return crypto.createHmac("sha256", secret).update(token).digest("base64url");
 }
 
-export function safeReturnPath(value, channelId = "stakecenter") {
+export function safeReturnPath(value: unknown, channelId = "stakecenter"): string {
   const fallback = `/broadcasts/${channelId}/broadcaster`;
   const path = String(value || fallback);
   if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\") || /%5c/i.test(path)) return fallback;
@@ -205,7 +254,7 @@ export function safeReturnPath(value, channelId = "stakecenter") {
   return `${parsed.pathname}${parsed.search}`;
 }
 
-function safeEqual(left, right) {
+function safeEqual(left: unknown, right: unknown): boolean {
   if (typeof left !== "string" || typeof right !== "string") return false;
   const leftBuffer = Buffer.from(left);
   const rightBuffer = Buffer.from(right);
@@ -213,16 +262,16 @@ function safeEqual(left, right) {
   return crypto.timingSafeEqual(leftBuffer, rightBuffer);
 }
 
-function isStrongSecret(secret) {
-  if (!secret || secret === "development-only") return false;
+function isStrongSecret(secret: unknown): boolean {
+  if (typeof secret !== "string" || secret === "development-only") return false;
   return Buffer.byteLength(secret, "utf8") >= MIN_SESSION_SECRET_BYTES;
 }
 
-function isLoopbackHost(host) {
+function isLoopbackHost(host: string): boolean {
   return ["127.0.0.1", "localhost", "::1"].includes(host);
 }
 
-function isProductionAuthContext(config) {
+function isProductionAuthContext(config: AuthConfig): boolean {
   if (!isLoopbackHost(config.host)) return true;
   try {
     const url = new URL(config.publicBaseUrl || "http://localhost");
@@ -232,7 +281,7 @@ function isProductionAuthContext(config) {
   }
 }
 
-function httpError(status, message) {
+function httpError(status: number, message: string): Error {
   const error = new Error(message);
   error.status = status;
   return error;
