@@ -1,18 +1,74 @@
-export function sourceId(source) {
+import type { VideoSource } from "./domain.js";
+
+interface DiscoveredNdiSource {
+  name?: string;
+  urlAddress?: string;
+  available?: boolean;
+  source?: string;
+}
+
+interface IngestStatus {
+  ready?: boolean;
+  status?: string;
+  inputs?: { video?: { ready?: boolean }; audio?: { ready?: boolean } };
+  lastError?: { message?: string };
+}
+
+interface BackendHealth { ready?: boolean }
+
+interface CatalogSource {
+  id: string;
+  type: VideoSource["type"];
+  name: string;
+  detail: string;
+  source: VideoSource;
+  origin: string;
+  origins: string[];
+  configured: boolean;
+  activeOnly: boolean;
+  available: boolean;
+  discoveryMethod: string | null;
+  selected?: boolean;
+  cameraControl?: boolean;
+  health?: ReturnType<typeof sourceHealth>;
+}
+
+interface CatalogOptions {
+  activeSource: VideoSource;
+  cameraControlSource?: VideoSource | null;
+  manualSources?: VideoSource[];
+  discoveredNdiSources?: DiscoveredNdiSource[];
+  discoveryStatus?: Record<string, unknown>;
+  ingestStatus?: IngestStatus | null;
+  backendHealth?: BackendHealth | null;
+}
+
+interface SourceFlags {
+  origin?: string;
+  configured?: boolean;
+  activeOnly?: boolean;
+  available?: boolean;
+  discoveryMethod?: string;
+}
+
+export function sourceId(source?: Partial<VideoSource> | null): string {
   if (source?.type === "ndi") return source.ndi?.sourceName ? `ndi:${source.ndi.sourceName}` : "";
   if (source?.type === "network") return source.network?.uri ? `network:${source.network.protocol || "rtsp"}:${source.network.uri}` : "";
   return "";
 }
 
-export function buildSourceCatalog({ activeSource, cameraControlSource = null, manualSources = [], discoveredNdiSources = [], discoveryStatus = {}, ingestStatus = null, backendHealth = null }: any = {}) {
-  const sources = new Map<string, any>();
+export function buildSourceCatalog({ activeSource, cameraControlSource = null, manualSources = [], discoveredNdiSources = [], discoveryStatus = {}, ingestStatus = null, backendHealth = null }: CatalogOptions) {
+  const sources = new Map<string, CatalogSource>();
   const activeSourceId = sourceId(activeSource);
   const cameraControlSourceId = sourceId(cameraControlSource);
 
   for (const ndi of discoveredNdiSources || []) {
     upsertSource(sources, {
       type: "ndi",
-      ndi: { sourceName: ndi.name || "", urlAddress: ndi.urlAddress || "", discoveryServer: "" }
+      ndi: { sourceName: ndi.name || "", urlAddress: ndi.urlAddress || "", discoveryServer: "" },
+      capture: { videoDevice: "", audioDevice: "", resolution: "1920x1080", frameRate: 30 },
+      network: { uri: "", protocol: "rtsp" },
+      notes: ""
     }, {
       origin: "discovered",
       available: ndi.available !== false,
@@ -58,7 +114,7 @@ export function buildSourceCatalog({ activeSource, cameraControlSource = null, m
   };
 }
 
-function upsertSource(sources, source, flags: any = {}) {
+function upsertSource(sources: Map<string, CatalogSource>, source: VideoSource, flags: SourceFlags = {}) {
   const id = sourceId(source);
   if (!id) return;
   const existing = sources.get(id);
@@ -78,7 +134,7 @@ function upsertSource(sources, source, flags: any = {}) {
   });
 }
 
-function mergeSource(previous, next, { preferPreviousNdiAddress = false }: any = {}) {
+function mergeSource(previous: VideoSource | undefined, next: VideoSource, { preferPreviousNdiAddress = false }: { preferPreviousNdiAddress?: boolean } = {}): VideoSource {
   if (!previous) return structuredClone(next);
   return {
     ...previous,
@@ -98,19 +154,19 @@ function mergeSource(previous, next, { preferPreviousNdiAddress = false }: any =
   };
 }
 
-function sourceName(source) {
+function sourceName(source: VideoSource): string {
   if (source?.type === "ndi") return source.ndi?.sourceName || "Unnamed NDI source";
   if (source?.type === "network") return source.network?.uri || "Unnamed network source";
   return "Unnamed source";
 }
 
-function sourceDetail(source) {
+function sourceDetail(source: VideoSource): string {
   if (source?.type === "ndi") return source.ndi?.urlAddress || "NDI discovery";
   if (source?.type === "network") return source.network?.uri || "";
   return "";
 }
 
-function sourceHealth(source, { activeSource, ingestStatus, backendHealth }) {
+function sourceHealth(source: CatalogSource, { activeSource, ingestStatus, backendHealth }: Pick<CatalogOptions, "activeSource" | "ingestStatus" | "backendHealth">) {
   if (!source.selected) {
     return {
       ingestReady: null,
@@ -133,7 +189,13 @@ function sourceHealth(source, { activeSource, ingestStatus, backendHealth }) {
   };
 }
 
-function selectedMessage({ source, activeSource, ingestStatus, ingestReady, previewReady }) {
+function selectedMessage({ source, activeSource, ingestStatus, ingestReady, previewReady }: {
+  source: CatalogSource;
+  activeSource: VideoSource;
+  ingestStatus?: IngestStatus | null;
+  ingestReady: boolean;
+  previewReady: boolean;
+}): string {
   if (ingestStatus?.lastError?.message) return ingestStatus.lastError.message;
   if (!source.available && activeSource?.type === "ndi") return "Selected, but not currently discovered";
   if (ingestReady && previewReady) return "Receiving audio, video, and preview";
@@ -143,19 +205,19 @@ function selectedMessage({ source, activeSource, ingestStatus, ingestReady, prev
   return "Selected";
 }
 
-function compareSources(a, b) {
+function compareSources(a: CatalogSource, b: CatalogSource): number {
   if (a.selected !== b.selected) return a.selected ? -1 : 1;
   if (a.available !== b.available) return a.available ? -1 : 1;
   if (a.configured !== b.configured) return a.configured ? -1 : 1;
   return a.name.localeCompare(b.name);
 }
 
-function bestOrigin(previous, next) {
+function bestOrigin(previous?: string, next?: string): string {
   if (previous === "discovered" || next === "discovered") return "discovered";
   if (previous === "manual" || next === "manual") return "manual";
   return next || previous || "unknown";
 }
 
-function unique(values) {
+function unique(values: string[]): string[] {
   return [...new Set(values)];
 }

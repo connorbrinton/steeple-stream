@@ -1,7 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import type { ApplicationState, PtzPreset, StateMutator, VideoSource } from "./domain.js";
 
-export const defaultState = {
+export const defaultState: ApplicationState = {
   version: 1,
   broadcast: {
     id: null,
@@ -57,11 +58,11 @@ export const defaultState = {
 
 export class JsonStore {
   declare filePath: string;
-  declare state: any;
+  declare state: ApplicationState;
   declare loaded: boolean;
   declare writeQueue: Promise<void>;
 
-  constructor(filePath) {
+  constructor(filePath: string) {
     this.filePath = filePath;
     this.state = structuredClone(defaultState);
     this.loaded = false;
@@ -87,11 +88,11 @@ export class JsonStore {
     return structuredClone(this.state);
   }
 
-  async update(mutator) {
+  async update<T>(mutator: StateMutator<T>): Promise<T> {
     await this.load();
     const result = await mutator(this.state);
     await this.save();
-    return result ?? structuredClone(this.state);
+    return result ?? structuredClone(this.state) as T;
   }
 
   async save() {
@@ -101,7 +102,7 @@ export class JsonStore {
   }
 }
 
-export function migrateState(state: any = {}) {
+export function migrateState(state: any = {}): ApplicationState {
   const migrated = mergeState(defaultState, state);
   migrated.source = migrateSource(migrated.source);
   migrated.cameraControlSource = migrated.cameraControlSource ? migrateSource(migrated.cameraControlSource) : null;
@@ -111,9 +112,9 @@ export function migrateState(state: any = {}) {
   return migrated;
 }
 
-function migratePtz(ptz: any = {}) {
+function migratePtz(ptz: any = {}): ApplicationState["ptz"] {
   const defaultPresets = new Map(defaultState.ptz.presets.map((preset) => [preset.id, preset]));
-  const savedPresets = Array.isArray(ptz.presets) && ptz.presets.length ? ptz.presets : defaultState.ptz.presets;
+  const savedPresets: PtzPreset[] = Array.isArray(ptz.presets) && ptz.presets.length ? ptz.presets : defaultState.ptz.presets;
   const legacyIds = new Set(["pulpit", "wide", "choir", "full-stand", "music-director", "piano", "pulpit-wide",
     ...Array.from({ length: 18 }, (_, index) => `ndi-raw-${index + 1}`)]);
   const replaceCatalog = isLegacyDefaultPresetList(savedPresets)
@@ -136,11 +137,11 @@ function migratePtz(ptz: any = {}) {
   };
 }
 
-function isLegacyDefaultPresetList(presets) {
+function isLegacyDefaultPresetList(presets: PtzPreset[]) {
   return JSON.stringify(presets.map((preset) => preset.id)) === JSON.stringify(["pulpit", "wide", "choir"]);
 }
 
-function migrateSource(source: any = {}) {
+function migrateSource(source: any = {}): VideoSource {
   const type = ["ndi", "network"].includes(source.type) ? source.type : "ndi";
   return {
     ...source,
@@ -153,12 +154,12 @@ function migrateSource(source: any = {}) {
   };
 }
 
-function migrateManualSources(manualSources = [], configuredSources = []) {
+function migrateManualSources(manualSources: any[] = [], configuredSources: any[] = []): VideoSource[] {
   const sources = Array.isArray(manualSources) && manualSources.length ? manualSources : configuredSources;
   return Array.isArray(sources) ? sources.map(migrateSource) : [];
 }
 
-export function mergeState(base, override) {
+export function mergeState(base: any, override: any): any {
   if (Array.isArray(base)) return Array.isArray(override) ? override : structuredClone(base);
   if (!base || typeof base !== "object") return override ?? base;
   const merged = structuredClone(base);
