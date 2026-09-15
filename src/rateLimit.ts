@@ -1,4 +1,9 @@
 import { RateLimiterMemory } from "rate-limiter-flexible";
+import type { IncomingMessage } from "node:http";
+
+interface ProxyConfig {
+  trustedProxy?: boolean;
+}
 
 export class AppRateLimiter {
   declare authStart: RateLimiterMemory;
@@ -26,20 +31,20 @@ export class AppRateLimiter {
     });
   }
 
-  authStartFor(req, config) {
+  authStartFor(req: IncomingMessage, config: ProxyConfig) {
     return consume(this.authStart, clientIp(req, config));
   }
 
-  authCallbackFor(req, config) {
+  authCallbackFor(req: IncomingMessage, config: ProxyConfig) {
     return consume(this.authCallback, clientIp(req, config));
   }
 
-  unauthenticatedApiFor(req, config) {
+  unauthenticatedApiFor(req: IncomingMessage, config: ProxyConfig) {
     return consume(this.apiUnauthenticated, clientIp(req, config));
   }
 }
 
-export function clientIp(req, config: any = {}) {
+export function clientIp(req: IncomingMessage, config: ProxyConfig = {}) {
   if (config.trustedProxy) {
     const connectingIp = header(req, "cf-connecting-ip");
     if (connectingIp) return connectingIp;
@@ -49,7 +54,7 @@ export function clientIp(req, config: any = {}) {
   return req.socket?.remoteAddress || "unknown";
 }
 
-async function consume(limiter, key) {
+async function consume(limiter: RateLimiterMemory, key: string) {
   try {
     await limiter.consume(key || "unknown");
   } catch (result) {
@@ -63,7 +68,7 @@ async function consume(limiter, key) {
   }
 }
 
-function header(req, name) {
+function header(req: IncomingMessage, name: string) {
   const value = req.headers?.[name];
   return Array.isArray(value) ? value[0] : value;
 }

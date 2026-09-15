@@ -2,15 +2,17 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { createHash } from "node:crypto";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import type { Readable as NodeReadable } from "node:stream";
 
 const uncachedHeaders = {
   "cache-control": "private, no-store",
   "cdn-cache-control": "no-store"
 };
 
-export async function parseJson(req) {
+export async function parseJson(req: IncomingMessage): Promise<Record<string, any>> {
   const limit = 1024 * 1024;
-  const chunks = [];
+  const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
@@ -25,7 +27,7 @@ export async function parseJson(req) {
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
-export function sendJson(res, status, payload, extraHeaders = {}) {
+export function sendJson(res: ServerResponse, status: number, payload: unknown, extraHeaders: Record<string, string | number> = {}) {
   const body = JSON.stringify(payload);
   res.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
@@ -36,7 +38,7 @@ export function sendJson(res, status, payload, extraHeaders = {}) {
   res.end(body);
 }
 
-export async function sendStatic(res, publicDir, filePath) {
+export async function sendStatic(res: ServerResponse, publicDir: string, filePath: string) {
   const safePath = filePath === "/" ? "/index.html" : filePath;
   const absolute = path.join(publicDir, path.normalize(safePath).replace(/^(\.\.[/\\])+/, ""));
   try {
@@ -61,10 +63,10 @@ export async function sendStatic(res, publicDir, filePath) {
   }
 }
 
-async function frontendVersion(publicDir) {
+async function frontendVersion(publicDir: string) {
   const hash = createHash("sha256");
   // Read current contents so local development and packaged deployments agree.
-  async function visit(relativeDir) {
+  async function visit(relativeDir: string): Promise<void> {
     const entries = await fs.readdir(path.join(publicDir, relativeDir), { withFileTypes: true });
     entries.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
     for (const entry of entries) {
@@ -80,7 +82,7 @@ async function frontendVersion(publicDir) {
   return hash.digest("hex").slice(0, 20);
 }
 
-export async function proxyHttp(req, res, baseUrl, targetPath, { locationPrefix = "" } = {}) {
+export async function proxyHttp(req: IncomingMessage, res: ServerResponse, baseUrl: string, targetPath: string, { locationPrefix = "" }: { locationPrefix?: string } = {}) {
   const target = new URL(targetPath, baseUrl);
   const body = ["GET", "HEAD"].includes(req.method || "GET") ? undefined : Buffer.concat(await readChunks(req));
   const response = await fetch(target, {
@@ -94,7 +96,7 @@ export async function proxyHttp(req, res, baseUrl, targetPath, { locationPrefix 
     body
   });
 
-  const headers = {};
+  const headers: Record<string, string> = {};
   for (const [key, value] of response.headers) {
     if (isHopByHopHeader(key) || key.toLowerCase() === "set-cookie") continue;
     if (key.toLowerCase() === "location" && locationPrefix) {
@@ -112,8 +114,8 @@ export async function proxyHttp(req, res, baseUrl, targetPath, { locationPrefix 
   Readable.fromWeb(response.body).pipe(res);
 }
 
-async function readChunks(stream) {
-  const chunks = [];
+async function readChunks(stream: NodeReadable): Promise<Buffer[]> {
+  const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of stream) {
     size += chunk.length;
@@ -123,7 +125,7 @@ async function readChunks(stream) {
   return chunks;
 }
 
-export function contentType(filePath) {
+export function contentType(filePath: string) {
   if (filePath.endsWith(".html")) return "text/html; charset=utf-8";
   if (filePath.endsWith(".css")) return "text/css; charset=utf-8";
   if (filePath.endsWith(".js")) return "text/javascript; charset=utf-8";
@@ -131,7 +133,7 @@ export function contentType(filePath) {
   return "application/octet-stream";
 }
 
-function isHopByHopHeader(header) {
+function isHopByHopHeader(header: string) {
   return [
     "connection",
     "keep-alive",

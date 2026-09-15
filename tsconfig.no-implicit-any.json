@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "noImplicitAny": true
+  },
+  "include": [
+    "src/types.d.ts",
+    "src/config.ts",
+    "src/httpUtils.ts",
+    "src/mediaBackend.ts",
+    "src/rateLimit.ts",
+    "src/sourceDiscovery.ts",
+    "src/sourceDiscoveryService.ts"
+  ]
+}

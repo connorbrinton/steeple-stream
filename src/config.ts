@@ -2,7 +2,7 @@ import path from "node:path";
 
 const dataDir = process.env.STEEPLE_DATA_DIR || path.resolve("data");
 const publicBaseUrl = process.env.STEEPLE_PUBLIC_BASE_URL || "http://localhost:8080";
-const csv = (value) => new Set(String(value || "").split(",").map((entry) => entry.trim().toLowerCase()).filter(Boolean));
+const csv = (value: string | undefined) => new Set(String(value || "").split(",").map((entry) => entry.trim().toLowerCase()).filter(Boolean));
 const profile = process.env.STEEPLE_PROFILE || "broadcast";
 const host = process.env.STEEPLE_HOST || "127.0.0.1";
 const channelId = process.env.STEEPLE_CHANNEL_ID || "stakecenter";
