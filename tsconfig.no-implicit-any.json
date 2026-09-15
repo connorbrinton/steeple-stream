@@ -16,6 +16,7 @@
     "src/broadcastService.ts",
     "src/commandCoordinator.ts",
     "src/mediaBackend.ts",
+    "src/mediamtxManager.ts",
     "src/rateLimit.ts",
     "src/sourceDiscovery.ts",
     "src/sourceDiscoveryService.ts"
