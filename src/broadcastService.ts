@@ -1,13 +1,44 @@
 import crypto from "node:crypto";
+import type {
+  Actor, ApplicationState, Playback, PtzPosition, PtzPreset, SceneMode, StateStore, VideoSource
+} from "./domain.js";
 import { sourceId } from "./sourceCatalog.js";
 
-export class BroadcastService {
-  declare store: any;
-  declare mediaBackend: any;
-  declare config: any;
-  declare ptzController: any;
+interface BroadcastServiceConfig {
+  retentionHours: number;
+  channelId: string;
+  capabilities: unknown;
+}
 
-  constructor({ store, mediaBackend, config, ptzController = null }) {
+interface MediaBackend {
+  getPlayback(channelId: string): Playback;
+}
+
+interface PtzTransportResult {
+  transport: string;
+  status: string;
+  [key: string]: unknown;
+}
+
+interface PtzController {
+  recallPreset(options: { preset: PtzPreset; source: VideoSource }): Promise<PtzTransportResult>;
+  capturePosition(options: { source: VideoSource }): Promise<PtzPosition>;
+}
+
+interface BroadcastServiceOptions {
+  store: StateStore;
+  mediaBackend: MediaBackend;
+  config: BroadcastServiceConfig;
+  ptzController?: PtzController | null;
+}
+
+export class BroadcastService {
+  declare store: StateStore;
+  declare mediaBackend: MediaBackend;
+  declare config: BroadcastServiceConfig;
+  declare ptzController: PtzController | null;
+
+  constructor({ store, mediaBackend, config, ptzController = null }: BroadcastServiceOptions) {
     this.store = store;
     this.mediaBackend = mediaBackend;
     this.config = config;
@@ -29,14 +60,14 @@ export class BroadcastService {
     };
   }
 
-  async start(actor = null) {
+  async start(actor: Actor | null = null) {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + this.config.retentionHours * 60 * 60 * 1000);
     const playback = this.mediaBackend.getPlayback(this.config.channelId);
 
     return this.store.update((state) => {
       if (state.broadcast.status === "live") return this.publicState(state);
-      const mode = ["chapel", "sacrament"].includes(state.broadcast.mode) ? state.broadcast.mode : "chapel";
+      const mode: SceneMode = ["chapel", "sacrament"].includes(state.broadcast.mode) ? state.broadcast.mode : "chapel";
       state.broadcast = {
         id: crypto.randomUUID(),
         channelId: this.config.channelId,
@@ -61,7 +92,7 @@ export class BroadcastService {
     });
   }
 
-  async setMode(mode, actor = null) {
+  async setMode(mode: SceneMode, actor: Actor | null = null) {
     if (!["chapel", "sacrament"].includes(mode)) {
       const error = new Error("Mode must be chapel or sacrament");
       error.status = 400;
@@ -74,7 +105,7 @@ export class BroadcastService {
     });
   }
 
-  async end(actor = null) {
+  async end(actor: Actor | null = null) {
     const now = new Date();
     return this.store.update((state) => {
       if (state.broadcast.status === "offline") {
@@ -134,7 +165,7 @@ export class BroadcastService {
     return { id: sessionId || crypto.randomUUID(), name: viewerName };
   }
 
-  async updateSource(source, actor = null) {
+  async updateSource(source: unknown, actor: Actor | null = null) {
     const normalized = normalizeSource(source);
     return this.store.update((state) => {
       state.source = normalized;
@@ -143,7 +174,7 @@ export class BroadcastService {
     });
   }
 
-  async updateCameraControlSource(source, actor = null) {
+  async updateCameraControlSource(source: unknown, actor: Actor | null = null) {
     const normalized = normalizeSource(source);
     if (normalized.type !== "ndi" || !normalized.ndi.sourceName) {
       const error = new Error("Camera control source must be an NDI source");
@@ -157,7 +188,7 @@ export class BroadcastService {
     });
   }
 
-  async addManualSource(source, actor = null) {
+  async addManualSource(source: unknown, actor: Actor | null = null) {
     const normalized = normalizeSource(source);
     if (!sourceId(normalized)) {
       const error = new Error("Source name or URI is required");
@@ -175,11 +206,11 @@ export class BroadcastService {
     });
   }
 
-  async addConfiguredSource(source, actor = null) {
+  async addConfiguredSource(source: unknown, actor: Actor | null = null) {
     return this.addManualSource(source, actor);
   }
 
-  async recallPreset(presetId, actor = null) {
+  async recallPreset(presetId: string, actor: Actor | null = null) {
     const current = await this.store.read();
     const target = current.ptz.presets.find((entry) => entry.id === presetId);
     if (!target) {
@@ -199,7 +230,7 @@ export class BroadcastService {
     });
   }
 
-  async capturePreset(presetId, actor = null) {
+  async capturePreset(presetId: string, actor: Actor | null = null) {
     if (!this.ptzController) throw Object.assign(new Error("PTZ control is not configured"), { status: 409 });
     const current = await this.store.read();
     const target = current.ptz.presets.find((entry) => entry.id === presetId);
@@ -213,7 +244,7 @@ export class BroadcastService {
     });
   }
 
-  publicState(state) {
+  publicState(state: ApplicationState) {
     return {
       capabilities: this.config.capabilities,
       broadcast: state.broadcast,
@@ -230,18 +261,18 @@ export class BroadcastService {
   }
 }
 
-function cameraControlSourceFor(state) {
+function cameraControlSourceFor(state: ApplicationState): VideoSource {
   if (state.cameraControlSource?.type === "ndi" && state.cameraControlSource.ndi?.sourceName) return state.cameraControlSource;
   if (state.source?.type === "ndi" && state.source.ndi?.sourceName) return state.source;
   return state.cameraControlSource || state.source;
 }
 
-function auditActor(actor) {
+function auditActor(actor: Actor | null): { type: string; id: string | null; name: string | null } | null {
   if (!actor) return null;
   return { type: actor.type || "user", id: actor.id || actor.email || null, name: actor.name || actor.email || null };
 }
 
-function normalizeSource(source: any = {}) {
+function normalizeSource(source: any = {}): VideoSource {
   const type = ["ndi", "network"].includes(source.type) ? source.type : "ndi";
   return {
     type,
@@ -264,7 +295,7 @@ function normalizeSource(source: any = {}) {
   };
 }
 
-export function appendAudit(state, event, details = {}) {
+export function appendAudit(state: ApplicationState, event: string, details: Record<string, unknown> = {}): void {
   state.auditLog.push({
     id: crypto.randomUUID(),
     event,

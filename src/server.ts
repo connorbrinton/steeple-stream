@@ -248,6 +248,8 @@ async function route(req, res) {
     }
     store.upsertPlaybackSession({
       ...body,
+      id: String(body.id),
+      viewerId: String(body.viewerId),
       viewerName: String(body.viewerName).trim().slice(0, 80),
       locationId: config.channelId,
       ip: clientIp(req, config.auth),

@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import type { ObsCredential, PlaybackSession, StateMutator } from "./domain.js";
 import { migrateState } from "./store.js";
 
 export class SqliteStore {
@@ -10,7 +11,7 @@ export class SqliteStore {
   declare db: DatabaseSync | null;
   declare loaded: boolean;
 
-  constructor(filePath, { legacyPath = null } = {}) {
+  constructor(filePath: string, { legacyPath = null }: { legacyPath?: string | null } = {}) {
     this.filePath = filePath;
     this.legacyPath = legacyPath;
     this.db = null;
@@ -118,7 +119,7 @@ export class SqliteStore {
     return structuredClone(state);
   }
 
-  async update(mutator) {
+  async update<T>(mutator: StateMutator<T>): Promise<T> {
     if (!this.loaded) await this.load();
     this.db.exec("BEGIN IMMEDIATE");
     try {
@@ -127,14 +128,14 @@ export class SqliteStore {
       this.db.prepare("UPDATE app_state SET document=?, updated_at=? WHERE id=1")
         .run(JSON.stringify(state), new Date().toISOString());
       this.db.exec("COMMIT");
-      return result ?? structuredClone(state);
+      return result ?? structuredClone(state) as T;
     } catch (error) {
       this.db.exec("ROLLBACK");
       throw error;
     }
   }
 
-  upsertPlaybackSession(session) {
+  upsertPlaybackSession(session: PlaybackSession) {
     const now = new Date().toISOString();
     this.db.prepare(`
       INSERT INTO playback_sessions(
@@ -186,17 +187,17 @@ export class SqliteStore {
     }
   }
 
-  activePlaybackCount(broadcastId, referenceDate = new Date()) {
+  activePlaybackCount(broadcastId: string | null, referenceDate = new Date()) {
     if (!broadcastId) return 0;
     const cutoff = new Date(referenceDate.getTime() - 45_000).toISOString();
     return Number(this.db.prepare("SELECT COUNT(*) AS count FROM playback_sessions WHERE broadcast_id=? AND last_seen_at>=?").get(broadcastId, cutoff).count);
   }
 
-  listObsCredentials() {
-    return this.db.prepare("SELECT id, unit_name AS unitName, port, salt, secret, enabled, created_at AS createdAt FROM obs_credentials ORDER BY unit_name").all();
+  listObsCredentials(): ObsCredential[] {
+    return this.db.prepare("SELECT id, unit_name AS unitName, port, salt, secret, enabled, created_at AS createdAt FROM obs_credentials ORDER BY unit_name").all() as unknown as ObsCredential[];
   }
 
-  createObsCredential({ unitName, port }) {
+  createObsCredential({ unitName, port }: { unitName: string; port: number }) {
     const id = crypto.randomUUID();
     const password = crypto.randomBytes(18).toString("base64url");
     const salt = crypto.randomBytes(24).toString("base64");
