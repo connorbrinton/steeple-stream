@@ -56,6 +56,7 @@ export interface PtzPreset {
   group: string;
   protocol: string;
   ndiPreset: number;
+  viscaPreset?: number;
   position: PtzPosition | null;
 }
 

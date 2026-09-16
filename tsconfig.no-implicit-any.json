@@ -17,6 +17,7 @@
     "src/commandCoordinator.ts",
     "src/mediaBackend.ts",
     "src/mediamtxManager.ts",
+    "src/ptzController.ts",
     "src/rateLimit.ts",
     "src/sourceDiscovery.ts",
     "src/sourceDiscoveryService.ts"
