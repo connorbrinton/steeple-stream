@@ -3,8 +3,56 @@ import { execFile } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import type { PtzPosition, PtzPreset, VideoSource } from "./domain.js";
 
-const presetIndexes = {
+interface PtzConfig {
+  transport: string;
+  host?: string | null;
+  port?: number;
+  timeoutMs?: number;
+  smooth?: boolean;
+  smoothDurationMs?: number;
+  ndiHelper?: string | null;
+  ndiPresetSpeed?: number;
+  ndiSettleMs?: number;
+}
+
+interface PtzSource {
+  type?: VideoSource["type"];
+  ndi?: Partial<VideoSource["ndi"]>;
+  network?: Partial<VideoSource["network"]>;
+}
+
+interface NdiRecallOptions {
+  helper: string | null;
+  sourceName: string;
+  urlAddress: string;
+  presetIndex: number;
+  speed: number;
+  settleMs: number;
+  timeoutMs: number;
+}
+
+interface PtzRunner {
+  recallNdiPreset(options: NdiRecallOptions): Promise<void>;
+}
+
+type SocketFactory = () => dgram.Socket;
+
+interface PtzControllerOptions {
+  config: PtzConfig;
+  socketFactory?: SocketFactory;
+  runner?: PtzRunner;
+}
+
+interface ViscaOptions {
+  socketFactory: SocketFactory;
+  host: string;
+  port: number;
+  timeoutMs: number;
+}
+
+const presetIndexes: Record<string, number> = {
   "full-stand": 1,
   pulpit: 2,
   "music-director": 8,
@@ -16,17 +64,17 @@ const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export class PtzController {
-  declare config: any;
-  declare socketFactory: any;
-  declare runner: any;
+  declare config: PtzConfig;
+  declare socketFactory: SocketFactory;
+  declare runner: PtzRunner;
 
-  constructor({ config, socketFactory = defaultSocketFactory, runner = defaultRunner }) {
+  constructor({ config, socketFactory = defaultSocketFactory, runner = defaultRunner }: PtzControllerOptions) {
     this.config = config;
     this.socketFactory = socketFactory;
     this.runner = runner;
   }
 
-  async recallPreset({ preset, source }) {
+  async recallPreset({ preset, source }: { preset: PtzPreset; source: PtzSource }) {
     const transport = this.config.transport || "manual";
     if (transport === "manual") {
       return { transport, status: "recorded" };
@@ -103,7 +151,7 @@ export class PtzController {
   }
 
 
-  async capturePosition({ source }) {
+  async capturePosition({ source }: { source: PtzSource }): Promise<PtzPosition> {
     const host = this.config.host || inferHostFromSource(source);
     if (!host) throw Object.assign(new Error("PTZ host is not configured"), { status: 409 });
     return queryPosition({
@@ -115,28 +163,28 @@ export class PtzController {
   }
 }
 
-export function viscaRecallPresetCommand(presetIndex) {
+export function viscaRecallPresetCommand(presetIndex: number): Buffer {
   return Buffer.from([0x81, 0x01, 0x04, 0x3f, 0x02, presetIndex, 0xff]);
 }
 
-export function viscaAbsolutePositionCommand({ pan, tilt, panSpeed = 12, tiltSpeed = 10 }) {
+export function viscaAbsolutePositionCommand({ pan, tilt, panSpeed = 12, tiltSpeed = 10 }: PtzPosition & { panSpeed?: number; tiltSpeed?: number }): Buffer {
   return Buffer.from([
     0x81, 0x01, 0x06, 0x02, panSpeed, tiltSpeed,
     ...nibbles(pan), ...nibbles(tilt), 0xff
   ]);
 }
 
-export function viscaAbsoluteZoomCommand(zoom) {
+export function viscaAbsoluteZoomCommand(zoom: number): Buffer {
   return Buffer.from([0x81, 0x01, 0x04, 0x47, ...nibbles(zoom), 0xff]);
 }
 
-export function inferHostFromSource(source) {
+export function inferHostFromSource(source: PtzSource): string | null {
   const sourceName = source?.ndi?.urlAddress || source?.ndi?.sourceName || source?.network?.uri || "";
   const match = String(sourceName).match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/);
   return match?.[0] || null;
 }
 
-async function smoothMove({ socketFactory, host, port, timeoutMs, target, durationMs }) {
+async function smoothMove({ socketFactory, host, port, timeoutMs, target, durationMs }: ViscaOptions & { target: PtzPosition; durationMs: number }): Promise<void> {
   const start = await queryPosition({ socketFactory, host, port, timeoutMs });
   const steps = Math.max(2, Math.round(durationMs / 50));
   for (let index = 1; index <= steps; index += 1) {
@@ -153,7 +201,7 @@ async function smoothMove({ socketFactory, host, port, timeoutMs, target, durati
   }
 }
 
-async function queryPosition({ socketFactory, host, port, timeoutMs }) {
+async function queryPosition({ socketFactory, host, port, timeoutMs }: ViscaOptions): Promise<PtzPosition> {
   const panTilt = await sendViscaInquiry({ socketFactory, host, port, timeoutMs, command: Buffer.from([0x81, 0x09, 0x06, 0x12, 0xff]) });
   const zoom = await sendViscaInquiry({ socketFactory, host, port, timeoutMs, command: Buffer.from([0x81, 0x09, 0x04, 0x47, 0xff]) });
   if (panTilt.length < 11 || zoom.length < 7 || panTilt[1] !== 0x50 || zoom[1] !== 0x50) throw new Error("Camera returned an unsupported VISCA inquiry response");
@@ -164,11 +212,11 @@ async function queryPosition({ socketFactory, host, port, timeoutMs }) {
   };
 }
 
-async function sendViscaInquiry({ socketFactory, host, port, timeoutMs, command }) {
+async function sendViscaInquiry({ socketFactory, host, port, timeoutMs, command }: ViscaOptions & { command: Buffer }): Promise<Buffer> {
   const socket = socketFactory();
   return new Promise<Buffer>((resolve, reject) => {
     let settled = false;
-    const finish = (error, message?: Buffer) => {
+    const finish = (error: Error | null, message?: Buffer) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
@@ -176,14 +224,14 @@ async function sendViscaInquiry({ socketFactory, host, port, timeoutMs, command 
       if (error) reject(error); else resolve(message!);
     };
     const timer = setTimeout(() => finish(new Error(`VISCA inquiry timed out after ${timeoutMs}ms`)), timeoutMs);
-    socket.once("error", finish);
+    socket.once("error", (error) => finish(error));
     socket.once("message", (message) => finish(null, message));
     if (typeof socket.bind === "function") socket.bind(0, () => socket.send(command, port, host, (error) => error && finish(error)));
     else socket.send(command, port, host, (error) => error && finish(error));
   });
 }
 
-function nibbles(value) {
+function nibbles(value: number): number[] {
   const normalized = Math.round(value) & 0xffff;
   return [(normalized >> 12) & 0x0f, (normalized >> 8) & 0x0f, (normalized >> 4) & 0x0f, normalized & 0x0f];
 }
@@ -198,11 +246,11 @@ function interpolate(from: number, to: number, progress: number) {
   return Math.round(from + (to - from) * progress);
 }
 
-async function sendViscaUdp({ socketFactory, host, port, timeoutMs, command }) {
+async function sendViscaUdp({ socketFactory, host, port, timeoutMs, command }: ViscaOptions & { command: Buffer }): Promise<void> {
   const socket = socketFactory();
   await new Promise<void>((resolve, reject) => {
     let settled = false;
-    const finish = (error) => {
+    const finish = (error: Error | null = null) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
@@ -216,12 +264,12 @@ async function sendViscaUdp({ socketFactory, host, port, timeoutMs, command }) {
   });
 }
 
-function defaultSocketFactory() {
+function defaultSocketFactory(): dgram.Socket {
   return dgram.createSocket("udp4");
 }
 
 const defaultRunner = {
-  async recallNdiPreset({ helper, sourceName, urlAddress, presetIndex, speed, settleMs, timeoutMs }) {
+  async recallNdiPreset({ helper, sourceName, urlAddress, presetIndex, speed, settleMs, timeoutMs }: NdiRecallOptions): Promise<void> {
     const command = helper || "python3";
     const args = [
       ...(helper ? [] : [path.resolve(__dirname, "ndi_ptz.py")]),
