@@ -164,6 +164,18 @@ server = http.createServer(async (req, res) => {
       return;
     }
     if (url.pathname === "/api/public-state") {
+      const upcoming = {
+        key: "conference-public/2026-10-18",
+        schedulePublicId: "conference-public",
+        channelId: "stakecenter",
+        unit: { id: "stake", slug: "apex-north-stake", name: "Apex North Stake", type: "stake" },
+        title: "Stake Conference — Sunday General Session",
+        kind: "stake-conference",
+        scheduledStart: "2026-10-18T14:00:00Z",
+        scheduledEnd: "2026-10-18T16:00:00Z",
+        localDate: "2026-10-18",
+        href: "/broadcasts/conference-public/2026-10-18",
+      };
       res.setHeader("content-type", "application/json");
       res.end(
         JSON.stringify({
@@ -177,6 +189,25 @@ server = http.createServer(async (req, res) => {
             expiresAt: null,
           },
           viewerCount: 2,
+          upcoming: [upcoming],
+        }),
+      );
+      return;
+    }
+    if (url.pathname === "/api/public-occurrences/conference-public/2026-10-18") {
+      res.setHeader("content-type", "application/json");
+      res.end(
+        JSON.stringify({
+          key: "conference-public/2026-10-18",
+          schedulePublicId: "conference-public",
+          channelId: "stakecenter",
+          unit: { id: "stake", slug: "apex-north-stake", name: "Apex North Stake", type: "stake" },
+          title: "Stake Conference — Sunday General Session",
+          kind: "stake-conference",
+          scheduledStart: "2026-10-18T14:00:00Z",
+          scheduledEnd: "2026-10-18T16:00:00Z",
+          localDate: "2026-10-18",
+          href: "/broadcasts/conference-public/2026-10-18",
         }),
       );
       return;
@@ -216,6 +247,10 @@ server = http.createServer(async (req, res) => {
       return;
     }
     if (url.pathname === "/" && url.searchParams.get("page") === "landing") {
+      await sendStatic(res, path.join(dir, "../public"), "/index.html");
+      return;
+    }
+    if (url.pathname === "/broadcasts/conference-public/2026-10-18") {
       await sendStatic(res, path.join(dir, "../public"), "/index.html");
       return;
     }

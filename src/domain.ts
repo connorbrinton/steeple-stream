@@ -1,6 +1,54 @@
 export type BroadcastStatus = "offline" | "live" | "replay";
 export type SceneMode = "chapel" | "sacrament";
 export type SourceType = "ndi" | "network";
+export type UnitType = "ward" | "branch" | "stake" | "other";
+export type BroadcastKind = "sacrament-meeting" | "stake-conference" | "other";
+export type ScheduleRecurrence = "weekly" | "once";
+
+export interface Unit {
+  id: string;
+  slug: string;
+  name: string;
+  type: UnitType;
+  parentUnitId: string | null;
+  archivedAt: string | null;
+}
+
+export interface BroadcastSchedule {
+  id: string;
+  publicId: string;
+  channelId: string;
+  unitId: string;
+  title: string;
+  kind: BroadcastKind;
+  timeZone: string;
+  recurrence: ScheduleRecurrence;
+  weekday: number | null;
+  localDate: string | null;
+  localStartTime: string;
+  durationMinutes: number;
+  enabled: boolean;
+}
+
+export interface ScheduleException {
+  scheduleId: string;
+  localDate: string;
+  action: "cancel";
+}
+
+export interface UpcomingOccurrence {
+  key: string;
+  scheduleId: string;
+  schedulePublicId: string;
+  channelId: string;
+  unit: Pick<Unit, "id" | "slug" | "name" | "type">;
+  title: string;
+  kind: BroadcastKind;
+  scheduledStart: string;
+  scheduledEnd: string;
+  localDate: string;
+  href: string;
+}
 
 export interface Playback {
   webrtcUrl?: string;

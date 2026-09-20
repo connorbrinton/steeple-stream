@@ -14,4 +14,15 @@ test("public landing page links an active broadcast", async ({ page }) => {
     "href",
     "/broadcaster",
   );
+  const upcoming = page.getByRole("link", {
+    name: /Stake Conference — Sunday General Session/,
+  });
+  await expect(upcoming).toHaveAttribute("href", "/broadcasts/conference-public/2026-10-18");
+  await upcoming.click();
+  await expect(
+    page.getByRole("heading", { name: "Stake Conference — Sunday General Session" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("This broadcast has not started yet", { exact: false }),
+  ).toBeVisible();
 });

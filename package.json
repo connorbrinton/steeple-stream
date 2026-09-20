@@ -21,6 +21,7 @@
     "test": "npm run build:server && npm run build:test-sources && node --test"
   },
   "dependencies": {
+    "@js-temporal/polyfill": "0.5.1",
     "cookie": "^2.0.1",
     "openid-client": "^6.8.7",
     "rate-limiter-flexible": "^11.2.0"
