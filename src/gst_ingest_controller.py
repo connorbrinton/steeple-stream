@@ -11,6 +11,9 @@ gi.require_version("Gst", "1.0")
 gi.require_version("GLib", "2.0")
 from gi.repository import GLib, Gst
 
+INPUT_STARTUP_GRACE_SECONDS = 30
+INPUT_STALE_SECONDS = 15
+
 
 def q(value):
     return Gst.value_serialize(str(value))
@@ -74,11 +77,13 @@ def build_pipeline(args):
             "! rtmpsink",
             f"location={q(args.rtmp_url)}",
             *source,
-            f"{video_pad} ! queue ! videoconvert ! videoscale ! videorate",
+            f"{video_pad} ! identity name=source_video_watch silent=true",
+            "! queue ! videoconvert ! videoscale ! videorate",
             f"! {video_caps}",
             "! identity name=ndi_video_probe silent=true",
             "! queue ! vcomp.sink_0",
-            f"{audio_pad} ! queue ! audioconvert ! audioresample",
+            f"{audio_pad} ! identity name=source_audio_watch silent=true",
+            "! queue ! audioconvert ! audioresample",
             f"! {audio_caps}",
             "! identity name=ndi_audio_probe silent=true",
             "! queue ! amix.sink_0",
@@ -111,6 +116,9 @@ class Controller:
         self.ndi_audio_pad = None
         self.transition_source_id = None
         self.heartbeat_source_id = None
+        self.stopping = False
+        self.input_started_at = time.monotonic()
+        self.input_last_seen = {"video": None, "audio": None}
 
     def emit(self, event, **data):
         print(json.dumps({"event": event, **data}), flush=True)
@@ -131,6 +139,7 @@ class Controller:
         self.configure_pads()
         self.apply_requested_mode()
 
+        self.input_started_at = time.monotonic()
         result = self.pipeline.set_state(Gst.State.PLAYING)
         if result == Gst.StateChangeReturn.FAILURE:
             raise RuntimeError("GStreamer pipeline failed to enter PLAYING")
@@ -149,12 +158,22 @@ class Controller:
         try:
             self.loop.run()
         finally:
+            self.stopping = True
             if self.heartbeat_source_id is not None:
                 GLib.source_remove(self.heartbeat_source_id)
                 self.heartbeat_source_id = None
             self.pipeline.set_state(Gst.State.NULL)
 
     def configure_pads(self):
+        # Observe the real source before videorate can duplicate frames or mixers mask EOS.
+        for media in ("video", "audio"):
+            watch = self.pipeline.get_by_name(f"source_{media}_watch")
+            watch.get_static_pad("src").add_probe(
+                Gst.PadProbeType.BUFFER | Gst.PadProbeType.EVENT_DOWNSTREAM,
+                self.on_source_activity,
+                media,
+            )
+
         compositor = self.pipeline.get_by_name("vcomp")
         audio_mixer = self.pipeline.get_by_name("amix")
         self.ndi_video_pad = compositor.get_static_pad("sink_0")
@@ -191,14 +210,57 @@ class Controller:
         return Gst.PadProbeReturn.OK
 
     def heartbeat(self):
+        now = time.monotonic()
+        ages = {
+            media: None if seen is None else max(0, int((now - seen) * 1000))
+            for media, seen in self.input_last_seen.items()
+        }
+        for media, age in ages.items():
+            missing_after_startup = (
+                age is None
+                and now - self.input_started_at >= INPUT_STARTUP_GRACE_SECONDS
+            )
+            stale = age is not None and age >= INPUT_STALE_SECONDS * 1000
+            if missing_after_startup or stale:
+                self.fail_input(media, "no fresh buffers received")
+                self.heartbeat_source_id = None
+                return False
+
         self.emit(
             "heartbeat",
             mode=self.mode,
             requestedMode=self.requested_mode,
             inputVideoReady=self.ndi_video_ready,
             inputAudioReady=self.ndi_audio_ready,
+            inputVideoAgeMs=ages["video"],
+            inputAudioAgeMs=ages["audio"],
         )
         return True
+
+    def on_source_activity(self, pad, info, media):
+        if self.stopping:
+            return Gst.PadProbeReturn.OK
+        if info.type & Gst.PadProbeType.BUFFER:
+            self.input_last_seen[media] = time.monotonic()
+        elif info.get_event().type == Gst.EventType.EOS:
+            # Leave the streaming thread before changing controller state.
+            GLib.idle_add(self.fail_input, media, "end of stream received")
+        return Gst.PadProbeReturn.OK
+
+    def fail_input(self, media, reason):
+        if not self.stopping:
+            self.stopping = True
+            self.ndi_video_ready = False
+            self.ndi_audio_ready = False
+            self.emit(
+                "error",
+                category="input",
+                media=media,
+                message=f"{media.capitalize()} input unavailable: {reason}; reconnecting.",
+            )
+            # Process exit lets the existing supervisor recreate the requested scene.
+            self.loop.quit()
+        return False
 
     def read_commands(self):
         for line in sys.stdin:
@@ -285,6 +347,7 @@ class Controller:
         self.transition_source_id = GLib.timeout_add(16, tick)
 
     def stop(self):
+        self.stopping = True
         if self.transition_source_id is not None:
             GLib.source_remove(self.transition_source_id)
             self.transition_source_id = None
