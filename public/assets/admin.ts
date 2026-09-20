@@ -56,7 +56,7 @@ obsForm.addEventListener("submit", async (event) => {
   await loadObsCredentials();
 });
 
-async function post(url, body = {}, method = "POST") {
+async function post(url, body = {}, method: "POST" | "PUT" = "POST") {
   const response = await fetch(url, {
     method,
     headers: { "content-type": "application/json", "x-steeple-csrf": csrfToken },

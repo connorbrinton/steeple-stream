@@ -331,7 +331,13 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     requireCapability("obsControl");
     auth.authorize(req, "administrator");
     sendJson(res, 200, {
-      credentials: store.listObsCredentials().map(({ secret, salt, ...entry }) => entry),
+      credentials: store.listObsCredentials().map(({ id, unitName, port, enabled, createdAt }) => ({
+        id,
+        unitName,
+        port,
+        enabled,
+        createdAt,
+      })),
     });
     return;
   }
