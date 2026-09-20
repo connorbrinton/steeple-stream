@@ -311,7 +311,7 @@ export class GStreamerMediaEngine extends EventEmitter {
     }
 
     return {
-      command: pipelineType === "slate-only" ? this.config.gstLaunchBinary || "gst-launch-1.0" : pipeline[0],
+      command: pipelineType === "slate-only" ? this.config.gstLaunchBinary || "gst-launch-1.0" : pipeline[0]!,
       args: pipelineType === "slate-only" ? ["-e", ...pipeline] : pipeline.slice(1),
       env
     };
@@ -468,9 +468,11 @@ export function switchableNdiSlateToRtmpCommand({ sourceType = "ndi", networkUri
     sourceType,
   ];
   if (sourceType === "ndi") {
+    if (!sourceName) throw new Error("NDI source name is required");
     command.push("--ndi-source", sourceName);
     if (sourceUrlAddress) command.push("--ndi-url-address", sourceUrlAddress);
   } else {
+    if (!networkUri) throw new Error("Network source URI is required");
     command.push("--network-uri", networkUri);
   }
   command.push(

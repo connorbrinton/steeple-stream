@@ -123,13 +123,13 @@ function renderHybridPlayer(container, playback, options: any = {}) {
   const wrapper = document.createElement("div");
   wrapper.className = "live-player";
   const video = getVideo(container);
-  let mode = null;
+  let mode: string | null = null;
   let stopped = false;
-  let requestedTime = null;
+  let requestedTime: number | null = null;
   let followingLive = true;
-  let advertised = null;
-  let refreshTimer;
-  let request;
+  let advertised: { start: number; end: number; updatedAt: number } | null = null;
+  let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  let request: AbortController | undefined;
   const subscribers = new Set<() => void>();
   const startedAt = Date.parse(options.timelineStartAt || "") || Date.now();
   const elapsed = () => Math.max(0, (Date.now() - startedAt) / 1000);
@@ -146,13 +146,14 @@ function renderHybridPlayer(container, playback, options: any = {}) {
     const end = elapsed();
     const offset = mode === "hls" ? hlsOffset() : null;
     const current = requestedTime ?? (offset !== null ? video.currentTime + offset : end);
-    const available = advertised && Date.now() - advertised.updatedAt < 15000;
+    const advertisedWindow = advertised;
+    const available = Boolean(advertisedWindow && Date.now() - advertisedWindow.updatedAt < 15000);
     return {
-      start: available ? Math.max(0, advertised.start) : end,
+      start: available && advertisedWindow ? Math.max(0, advertisedWindow.start) : end,
       end,
       current: clamp(current, 0, end),
       live: followingLive,
-      available: Boolean(available && advertised.end > Math.max(0, advertised.start) + 1),
+      available: Boolean(available && advertisedWindow && advertisedWindow.end > Math.max(0, advertisedWindow.start) + 1),
       busy: requestedTime !== null
     };
   };
@@ -172,7 +173,7 @@ function renderHybridPlayer(container, playback, options: any = {}) {
     video.play().catch(() => {});
     notify();
   };
-  const showHls = (time = null, fallbackReason = null) => {
+  const showHls = (time: number | null = null, fallbackReason: string | null = null) => {
     if (!playback.hlsUrl || stopped) return;
     requestedTime = time;
     followingLive = time === null;
@@ -228,7 +229,7 @@ function renderHybridPlayer(container, playback, options: any = {}) {
         goLive();
         return;
       }
-      if (!value.available) return;
+      if (!value.available || !advertised) return;
       showHls(clamp(time, value.start, Math.min(value.end, advertised.end) - 0.5));
     },
     goLive
@@ -294,24 +295,24 @@ function hlsVariant(text) {
 }
 
 function hlsPlaylistWindow(text) {
-  let date = null;
-  let duration = null;
-  let start = null;
-  let end = null;
+  let date: number | null = null;
+  let duration: number | null = null;
+  let start: number | null = null;
+  let end: number | null = null;
   for (const line of text.split(/\r?\n/).map(line => line.trim())) {
     if (line.startsWith("#EXT-X-PROGRAM-DATE-TIME:")) {
       const parsed = Date.parse(line.slice("#EXT-X-PROGRAM-DATE-TIME:".length));
       date = Number.isFinite(parsed) ? parsed : null;
     } else if (line.startsWith("#EXTINF:")) {
       duration = Number.parseFloat(line.slice(8));
-    } else if (line && !line.startsWith("#") && date !== null && Number.isFinite(duration) && duration > 0) {
+    } else if (line && !line.startsWith("#") && date !== null && duration !== null && Number.isFinite(duration) && duration > 0) {
       start ??= date;
       date += duration * 1000;
       end = date;
       duration = null;
     }
   }
-  return start !== null && end > start ? { start, end } : null;
+  return start !== null && end !== null && end > start ? { start, end } : null;
 }
 
 function waitForIceGathering(pc, timeoutMs) {
@@ -330,7 +331,7 @@ function waitForIceGathering(pc, timeoutMs) {
 function waitForPlaying(video, timeoutMs, signal) {
   if (video.readyState >= 3) return video.play().catch(() => {});
   return new Promise<void>((resolve, reject) => {
-    const finish = (error = null) => {
+    const finish = (error: Error | null = null) => {
       clearTimeout(timeout);
       video.removeEventListener("playing", playing);
       signal?.removeEventListener("abort", aborted);
@@ -352,12 +353,12 @@ function waitForPlaying(video, timeoutMs, signal) {
 
 async function selectedCandidateType(pc) {
   const stats = await pc.getStats();
-  let pair = null;
+  let pair: (RTCStats & { remoteCandidateId?: string }) | undefined;
   for (const report of stats.values()) {
-    if (report.type === "transport" && report.selectedCandidatePairId) pair = stats.get(report.selectedCandidatePairId);
-    if (!pair && report.type === "candidate-pair" && report.nominated && report.state === "succeeded") pair = report;
+    if (report.type === "transport" && report.selectedCandidatePairId) pair = stats.get(report.selectedCandidatePairId) as typeof pair;
+    if (!pair && report.type === "candidate-pair" && report.nominated && report.state === "succeeded") pair = report as typeof pair;
   }
-  const remote = pair ? stats.get(pair.remoteCandidateId) : null;
+  const remote = pair?.remoteCandidateId ? stats.get(pair.remoteCandidateId) : undefined;
   return remote?.candidateType || "unknown";
 }
 
@@ -383,7 +384,7 @@ async function attachWebRtc(container, video, whepUrl, options: any = {}) {
   const response = await fetch(whepUrl, {
     method: "POST",
     headers: { "content-type": "application/sdp" },
-    body: pc.localDescription.sdp
+    body: pc.localDescription!.sdp
   });
   const location = response.headers.get("location");
   const resource = location ? new URL(location, new URL(whepUrl, window.location.href)).href : null;
@@ -511,7 +512,7 @@ let audioPreference = { volume: 1, muted: false };
 
 function readAudioPreference() {
   try {
-    const saved = JSON.parse(localStorage.getItem(volumeStorageKey));
+    const saved = JSON.parse(localStorage.getItem(volumeStorageKey) || "null");
     if (saved && typeof saved.volume === "number" && Number.isFinite(saved.volume)
         && saved.volume >= 0 && saved.volume <= 1 && typeof saved.muted === "boolean") {
       audioPreference = { volume: saved.volume, muted: saved.muted };
@@ -583,7 +584,7 @@ function showPlaybackStatus(container, title, message) {
 
 function monitorPlayback(container, video, options) {
   let disposed = false;
-  let waitingSince = null;
+  let waitingSince: number | null = null;
   let lastProgressAt = performance.now();
   let lastTime = video.currentTime;
   let hasPlayed = false;
@@ -612,13 +613,13 @@ function monitorPlayback(container, video, options) {
       if (reason.name !== "NotAllowedError") return;
       autoplayBlocked = true;
       showPlaybackStatus(container, "Ready to watch", "");
-      const overlay = container.querySelector(".playback-status");
+      const overlay = container.querySelector(".playback-status")!;
       if (overlay.querySelector("button")) return;
       const button = document.createElement("button");
       button.className = "button";
       button.textContent = "Play video";
       button.addEventListener("click", () => video.play().catch(error));
-      overlay.firstElementChild.append(button);
+      overlay.firstElementChild!.append(button);
     });
   };
   const waiting = () => {

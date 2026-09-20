@@ -1,29 +1,29 @@
-const statusDot = document.querySelector("#status-dot");
-const statusLabel = document.querySelector("#status-label");
-const health = document.querySelector("#health");
-const sourceForm = document.querySelector("#source-form");
-const sourceType = document.querySelector("#source-type");
-const sourceHelp = document.querySelector("#source-help");
-const adminPreview = document.querySelector("#admin-preview");
-const sourceCurrent = document.querySelector("#source-current");
-const sourceList = document.querySelector("#source-list");
-const sourceDiscoveryStatus = document.querySelector("#source-discovery-status");
-const sourceModal = document.querySelector("#manual-source-modal");
-const openManualSource = document.querySelector("#open-manual-source");
-const obsForm = document.querySelector("#obs-credential-form");
+const statusDot = document.querySelector("#status-dot")!;
+const statusLabel = document.querySelector("#status-label")!;
+const health = document.querySelector("#health")!;
+const sourceForm = document.querySelector("#source-form")!;
+const sourceType = document.querySelector("#source-type")!;
+const sourceHelp = document.querySelector("#source-help")!;
+const adminPreview = document.querySelector("#admin-preview")!;
+const sourceCurrent = document.querySelector("#source-current")!;
+const sourceList = document.querySelector("#source-list")!;
+const sourceDiscoveryStatus = document.querySelector("#source-discovery-status")!;
+const sourceModal = document.querySelector("#manual-source-modal")!;
+const openManualSource = document.querySelector("#open-manual-source")!;
+const obsForm = document.querySelector("#obs-credential-form")!;
 
-let latestHealth = null;
-let latestState = null;
+let latestHealth: { ingest?: unknown } | null = null;
+let latestState: unknown = null;
 let latestPreviewSignature = "";
 let obsCredentialsLoaded = false;
-let sourceCatalog = null;
-let selectingSourceId = null;
-let selectingCameraControlSourceId = null;
+let sourceCatalog: { sources?: Array<{ selected?: boolean; cameraControl?: boolean }>; discovery?: unknown } | null = null;
+let selectingSourceId: string | null = null;
+let selectingCameraControlSourceId: string | null = null;
 let csrfToken = "development";
 
 openManualSource.addEventListener("click", () => openManualSourceModal());
-document.querySelector("#cancel-manual-source").addEventListener("click", () => closeManualSourceModal());
-document.querySelector("#cancel-manual-source-x").addEventListener("click", () => closeManualSourceModal());
+document.querySelector("#cancel-manual-source")!.addEventListener("click", () => closeManualSourceModal());
+document.querySelector("#cancel-manual-source-x")!.addEventListener("click", () => closeManualSourceModal());
 sourceModal.addEventListener("click", (event) => {
   if (event.target === sourceModal) closeManualSourceModal();
 });
@@ -41,10 +41,10 @@ sourceForm.addEventListener("submit", async (event) => {
 obsForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const result = await post("/api/obs-credentials", {
-    unitName: document.querySelector("#obs-unit-name").value,
-    port: Number(document.querySelector("#obs-port").value)
+    unitName: document.querySelector("#obs-unit-name")!.value,
+    port: Number(document.querySelector("#obs-port")!.value)
   });
-  document.querySelector("#obs-new-password").textContent = `Password for ${result.unitName}: ${result.password}. This password is shown once.`;
+  document.querySelector("#obs-new-password")!.textContent = `Password for ${result.unitName}: ${result.password}. This password is shown once.`;
   await loadObsCredentials();
 });
 
@@ -78,7 +78,7 @@ function renderState(state) {
   latestState = state;
   const broadcast = state.broadcast;
   const capabilities = state.capabilities || {};
-  document.querySelector("#obs-credentials-panel").hidden = window.steepleRole !== "administrator" || !capabilities.obsControl;
+  document.querySelector("#obs-credentials-panel")!.hidden = window.steepleRole !== "administrator" || !capabilities.obsControl;
   if (window.steepleRole === "administrator" && capabilities.obsControl && !obsCredentialsLoaded) {
     obsCredentialsLoaded = true;
     loadObsCredentials().catch(console.error);
@@ -101,15 +101,15 @@ function readSourceForm() {
   return {
     type: sourceType.value,
     ndi: {
-      sourceName: document.querySelector("#add-ndi-source-name").value,
-      urlAddress: document.querySelector("#add-ndi-url-address").value,
+      sourceName: document.querySelector("#add-ndi-source-name")!.value,
+      urlAddress: document.querySelector("#add-ndi-url-address")!.value,
       discoveryServer: ""
     },
     network: {
-      protocol: document.querySelector("#network-protocol").value,
-      uri: document.querySelector("#network-uri").value
+      protocol: document.querySelector("#network-protocol")!.value,
+      uri: document.querySelector("#network-uri")!.value
     },
-    notes: document.querySelector("#source-notes").value
+    notes: document.querySelector("#source-notes")!.value
   };
 }
 
@@ -147,7 +147,7 @@ async function loadObsCredentials() {
   const response = await fetch("/api/obs-credentials");
   if (response.status === 404) return;
   const payload = await response.json();
-  const list = document.querySelector("#obs-credentials");
+  const list = document.querySelector("#obs-credentials")!;
   list.replaceChildren();
   for (const credential of payload.credentials || []) {
     const item = document.createElement("div");
@@ -497,9 +497,10 @@ async function initialize() {
   const events = new EventSource("/api/events");
   events.addEventListener("state", (event) => renderState(JSON.parse(event.data)));
   events.addEventListener("health", (event) => {
-    latestHealth = JSON.parse(event.data);
-    renderHealth(latestHealth);
-    if (latestState && previewStreamKey(latestHealth.ingest) !== latestPreviewSignature) {
+    const healthState = JSON.parse(event.data);
+    latestHealth = healthState;
+    renderHealth(healthState);
+    if (latestState && previewStreamKey(healthState.ingest) !== latestPreviewSignature) {
       renderPreview(latestState);
     }
     renderSourceCatalog();

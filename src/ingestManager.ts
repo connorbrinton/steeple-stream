@@ -206,7 +206,7 @@ export class IngestManager extends EventEmitter {
     try {
       const discovered = await this.ndiDiscovery(source);
       const match = discovered.find((entry) => entry.name === source.ndi.sourceName && entry.available !== false && entry.urlAddress);
-      if (!match || match.urlAddress === source.ndi.urlAddress) return source;
+      if (!match?.urlAddress || match.urlAddress === source.ndi.urlAddress) return source;
       return {
         ...source,
         ndi: {

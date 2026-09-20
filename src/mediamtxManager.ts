@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import fsSync from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn, type ChildProcessByStdio } from "node:child_process";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 
@@ -31,7 +31,7 @@ interface ResolvedCommand {
 
 export class MediaMtxManager {
   declare options: MediaMtxManagerOptions;
-  declare process: ChildProcessWithoutNullStreams | null;
+  declare process: ChildProcessByStdio<null, Readable, Readable> | null;
   declare stopping: boolean;
   declare retryTimer: NodeJS.Timeout | null;
   declare retryAttempt: number;
@@ -49,19 +49,20 @@ export class MediaMtxManager {
       return { started: false, reason: "disabled" };
     }
 
-    clearTimeout(this.retryTimer);
+    if (this.retryTimer) clearTimeout(this.retryTimer);
     this.stopping = false;
     const command = await this.resolveCommand();
     await this.writeConfig();
 
-    this.process = spawn(command.command, [...command.args, this.options.configPath], {
+    const child = spawn(command.command, [...command.args, this.options.configPath], {
       stdio: ["ignore", "pipe", "pipe"],
       env: process.env
     });
 
-    this.process.stdout.on("data", (chunk: Buffer) => process.stdout.write(`[mediamtx] ${chunk}`));
-    this.process.stderr.on("data", (chunk: Buffer) => process.stderr.write(`[mediamtx] ${chunk}`));
-    this.process.on("exit", (code: number | null, signal: NodeJS.Signals | null) => {
+    this.process = child;
+    child.stdout.on("data", (chunk: Buffer) => process.stdout.write(`[mediamtx] ${chunk}`));
+    child.stderr.on("data", (chunk: Buffer) => process.stderr.write(`[mediamtx] ${chunk}`));
+    child.on("exit", (code: number | null, signal: NodeJS.Signals | null) => {
       this.process = null;
       if (code !== 0 && signal !== "SIGTERM") {
         console.error(`MediaMTX exited with code=${code} signal=${signal}`);
@@ -79,7 +80,7 @@ export class MediaMtxManager {
 
   async stop() {
     this.stopping = true;
-    clearTimeout(this.retryTimer);
+    if (this.retryTimer) clearTimeout(this.retryTimer);
     if (!this.process) return;
     const child = this.process;
     await new Promise<void>((resolve) => {

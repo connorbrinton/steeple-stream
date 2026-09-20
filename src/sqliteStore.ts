@@ -8,20 +8,25 @@ import { migrateState } from "./store.js";
 export class SqliteStore {
   declare filePath: string;
   declare legacyPath: string | null;
-  declare db: DatabaseSync | null;
+  declare private database: DatabaseSync | null;
+
+  get db(): DatabaseSync {
+    if (!this.database) throw new Error("SQLite store is not loaded");
+    return this.database;
+  }
   declare loaded: boolean;
 
   constructor(filePath: string, { legacyPath = null }: { legacyPath?: string | null } = {}) {
     this.filePath = filePath;
     this.legacyPath = legacyPath;
-    this.db = null;
+    this.database = null;
     this.loaded = false;
   }
 
   async load() {
     if (this.loaded) return this.read();
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
-    this.db = new DatabaseSync(this.filePath);
+    this.database = new DatabaseSync(this.filePath);
     this.db.exec("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
     this.migrate();
     this.importLegacyState();

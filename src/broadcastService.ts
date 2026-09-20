@@ -68,8 +68,9 @@ export class BroadcastService {
     return this.store.update((state) => {
       if (state.broadcast.status === "live") return this.publicState(state);
       const mode: SceneMode = ["chapel", "sacrament"].includes(state.broadcast.mode) ? state.broadcast.mode : "chapel";
+      const broadcastId = crypto.randomUUID();
       state.broadcast = {
-        id: crypto.randomUUID(),
+        id: broadcastId,
         channelId: this.config.channelId,
         status: "live",
         mode,
@@ -79,7 +80,7 @@ export class BroadcastService {
         playback
       };
       state.recordings.push({
-        id: state.broadcast.id,
+        id: broadcastId,
         channelId: this.config.channelId,
         startedAt: now.toISOString(),
         endedAt: null,
@@ -114,7 +115,7 @@ export class BroadcastService {
       state.broadcast.status = "replay";
       state.broadcast.endedAt = now.toISOString();
       state.broadcast.playback = {
-        recordingUrl: `/recordings/${encodeURIComponent(state.broadcast.id)}`
+        recordingUrl: `/recordings/${encodeURIComponent(state.broadcast.id || "")}`
       };
       const recording = state.recordings.find((entry) => entry.id === state.broadcast.id);
       if (recording) {
@@ -238,6 +239,7 @@ export class BroadcastService {
     const position = await this.ptzController.capturePosition({ source: cameraControlSourceFor(current) });
     return this.store.update((state) => {
       const preset = state.ptz.presets.find((entry) => entry.id === presetId);
+      if (!preset) throw Object.assign(new Error("Unknown PTZ preset"), { status: 404 });
       preset.position = position;
       appendAudit(state, "ptz.capture", { presetId, actor: auditActor(actor) });
       return { preset };

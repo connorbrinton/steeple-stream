@@ -30,16 +30,16 @@ window.SteepleComponent = {
     const top = document.createElement('div');
     top.className = 'player-top';
     top.slot = 'top-chrome';
-    const position = bar.querySelector('.player-time'), range = bar.querySelector('media-time-range');
-    const liveButton = bar.querySelector('.player-live'), actions = bar.querySelector('.player-actions');
-    bar.querySelector('media-volume-range').range.step = '0.05';
+    const position = bar.querySelector('.player-time')!, range = bar.querySelector('media-time-range')!;
+    const liveButton = bar.querySelector('.player-live')!, actions = bar.querySelector('.player-actions')!;
+    bar.querySelector('media-volume-range')!.range.step = '0.05';
     range.hidden = live && !timeline;
     liveButton.hidden = !live || !timeline;
     liveButton.disabled = !timeline;
     listen(liveButton, 'click', () => timeline?.goLive());
     controller.append(top, center, bar);
     for (const element of [top, center, bar]) element.setAttribute('noautohide', '');
-    let dragging = false, pendingSeek = null, touch = matchMedia('(pointer: coarse)').matches, hideTimer;
+    let dragging = false, pendingSeek: number | null = null, touch = matchMedia('(pointer: coarse)').matches, hideTimer: ReturnType<typeof setTimeout> | undefined;
     const nativeStore = createMediaStore({ media: video, fullscreenElement: wrapper, documentElement: document,
       options: { noAutoSeekToLive: true, noVolumePref: true, noMutedPref: true } });
     const subscribers = new Set<(state: any) => void>();
@@ -53,7 +53,7 @@ window.SteepleComponent = {
     };
     const render = () => {
       const state = project(), broadcast = timeline?.getState(), current = state.mediaCurrentTime || 0;
-      actions.querySelector('media-captions-button').hidden = !state.mediaSubtitlesList?.length;
+      actions.querySelector('media-captions-button')!.hidden = !state.mediaSubtitlesList?.length;
       position.textContent = live ? (timeline ? timeLabel(current) : '') : timeLabel(current) + ' / ' + timeLabel(state.mediaDuration);
       if (broadcast) {
         range.toggleAttribute('disabled', !broadcast.available);

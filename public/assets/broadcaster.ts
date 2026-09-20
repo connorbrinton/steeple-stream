@@ -1,21 +1,21 @@
-const statusDot = document.querySelector("#status-dot");
-const statusLabel = document.querySelector("#status-label");
-const details = document.querySelector("#broadcast-details");
-const broadcastControlsGroup = document.querySelector("#broadcast-controls-group");
-const ptzControls = document.querySelector("#ptz-controls");
-const adminPreview = document.querySelector("#admin-preview");
+const statusDot = document.querySelector("#status-dot")!;
+const statusLabel = document.querySelector("#status-label")!;
+const details = document.querySelector("#broadcast-details")!;
+const broadcastControlsGroup = document.querySelector("#broadcast-controls-group")!;
+const ptzControls = document.querySelector("#ptz-controls")!;
+const adminPreview = document.querySelector("#admin-preview")!;
 
-let latestHealth = null;
-let latestState = null;
+let latestHealth: { ingest?: unknown } | null = null;
+let latestState: unknown = null;
 let latestPreviewSignature = "";
 let csrfToken = "development";
 let presetSignature = "";
 let latestRecall = 0;
 
-document.querySelector("#start").addEventListener("click", () => post("/api/broadcast/start"));
-document.querySelector("#chapel").addEventListener("click", () => post("/api/broadcast/mode", { mode: "chapel" }));
-document.querySelector("#sacrament").addEventListener("click", () => post("/api/broadcast/mode", { mode: "sacrament" }));
-document.querySelector("#end").addEventListener("click", () => post("/api/broadcast/end"));
+document.querySelector("#start")!.addEventListener("click", () => post("/api/broadcast/start"));
+document.querySelector("#chapel")!.addEventListener("click", () => post("/api/broadcast/mode", { mode: "chapel" }));
+document.querySelector("#sacrament")!.addEventListener("click", () => post("/api/broadcast/mode", { mode: "sacrament" }));
+document.querySelector("#end")!.addEventListener("click", () => post("/api/broadcast/end"));
 
 async function post(url, body = {}, method = "POST", refreshAfter = true) {
   const response = await fetch(url, {
@@ -50,15 +50,15 @@ function renderState(state) {
   const broadcast = state.broadcast;
   const capabilities = state.capabilities || {};
   broadcastControlsGroup.hidden = !capabilities.broadcastControls;
-  document.querySelector("#chapel").hidden = !capabilities.sceneControls;
-  document.querySelector("#sacrament").hidden = !capabilities.sceneControls;
+  document.querySelector("#chapel")!.hidden = !capabilities.sceneControls;
+  document.querySelector("#sacrament")!.hidden = !capabilities.sceneControls;
   statusDot.className = `dot ${broadcast.status === "live" ? broadcast.mode : ""}`;
   statusLabel.textContent = capabilities.broadcastControls
     ? broadcast.status === "live" ? `${broadcast.mode} live` : broadcast.status
     : "camera control";
   details.textContent = `Status: ${broadcast.status}. Mode: ${broadcast.mode}. Started: ${format(broadcast.startedAt)}. Expires: ${format(broadcast.expiresAt)}.`;
-  document.querySelector("#chapel").classList.toggle("active", broadcast.mode === "chapel");
-  document.querySelector("#sacrament").classList.toggle("active", broadcast.mode === "sacrament");
+  document.querySelector("#chapel")!.classList.toggle("active", broadcast.mode === "chapel");
+  document.querySelector("#sacrament")!.classList.toggle("active", broadcast.mode === "sacrament");
   renderPreview(state);
   renderPtzControls(state);
 }
@@ -188,8 +188,9 @@ async function initialize() {
   const events = new EventSource("/api/events");
   events.addEventListener("state", (event) => renderState(JSON.parse(event.data)));
   events.addEventListener("health", (event) => {
-    latestHealth = JSON.parse(event.data);
-    if (latestState && previewStreamKey(latestHealth.ingest) !== latestPreviewSignature) {
+    const healthState = JSON.parse(event.data);
+    latestHealth = healthState;
+    if (latestState && previewStreamKey(healthState.ingest) !== latestPreviewSignature) {
       renderPreview(latestState);
     }
   });

@@ -133,7 +133,7 @@ export class AuthService {
 
   authenticate(req: IncomingMessage): AuthPrincipal | null {
     if (this.config.mode === "trusted-proxy") {
-      if (!["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket?.remoteAddress)) return null;
+      if (!["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress || "")) return null;
       const header = req.headers["cf-access-authenticated-user-email"];
       if (typeof header !== "string") return null;
       const email = header.trim().toLowerCase();

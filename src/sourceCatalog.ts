@@ -11,7 +11,7 @@ interface IngestStatus {
   ready?: boolean;
   status?: string;
   inputs?: { video?: { ready?: boolean }; audio?: { ready?: boolean } };
-  lastError?: { message?: string };
+  lastError?: { message?: string } | null;
 }
 
 interface BackendHealth {
@@ -97,7 +97,7 @@ export function buildSourceCatalog({ activeSource, cameraControlSource = null, m
     });
   }
 
-  if (cameraControlSourceId) {
+  if (cameraControlSourceId && cameraControlSource) {
     upsertSource(sources, cameraControlSource, {
       origin: "camera-control",
       activeOnly: true,
@@ -131,7 +131,7 @@ function upsertSource(sources: Map<string, CatalogSource>, source: VideoSource, 
     detail: sourceDetail(merged),
     source: merged,
     origin: bestOrigin(existing?.origin, flags.origin),
-    origins: unique([...(existing?.origins || []), flags.origin].filter(Boolean)),
+    origins: unique([...(existing?.origins || []), flags.origin].filter((origin): origin is string => Boolean(origin))),
     configured: Boolean(existing?.configured || flags.configured),
     activeOnly: Boolean(flags.activeOnly && !existing),
     available: Boolean(existing?.available || flags.available),
