@@ -21,7 +21,7 @@ document
   .addEventListener("click", () => post("/api/broadcast/mode", { mode: "sacrament" }));
 document.querySelector("#end")!.addEventListener("click", () => post("/api/broadcast/end"));
 
-async function post(url, body = {}, method = "POST", refreshAfter = true) {
+async function post(url, body = {}, method: "POST" | "PUT" = "POST", refreshAfter = true) {
   const response = await fetch(url, {
     method,
     headers: { "content-type": "application/json", "x-steeple-csrf": csrfToken },

@@ -155,7 +155,10 @@ window.SteepleComponent = {
       }
     });
     listen(video, "click", () => {
-      if (!touch) video.paused ? video.play().catch(() => {}) : video.pause();
+      if (!touch) {
+        if (video.paused) video.play().catch(() => {});
+        else video.pause();
+      }
     });
     listen(controller, "focusin", reveal);
     listen(controller, "focusout", reveal);

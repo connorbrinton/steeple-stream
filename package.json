@@ -12,6 +12,8 @@
     "build:test-sources": "tsc --project tsconfig.test-sources.json",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
+    "lint": "oxlint --deny-warnings .",
+    "lint:fix": "oxlint --fix .",
     "typecheck": "tsc --project tsconfig.json --noEmit && tsc --project tsconfig.frontend.json",
     "start": "node src/server.js",
     "ndi:synthetic": "bash scripts/synthetic-ndi-source.sh",
@@ -27,6 +29,7 @@
     "@types/node": "22.20.2",
     "media-chrome": "4.19.2",
     "oxfmt": "0.68.0",
+    "oxlint": "1.83.0",
     "typescript": "7.0.2",
     "vite": "8.3.0"
   },

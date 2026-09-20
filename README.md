@@ -38,6 +38,9 @@ For development:
 ```bash
 nix develop
 npm ci
+npm run format:check
+npm run lint
+npm run typecheck
 npm run build
 npm start
 ```
