@@ -30,6 +30,13 @@ async function makeAuth(config = {}) {
   });
 }
 
+function trustedProxyRequest(email, address = "127.0.0.1") {
+  return {
+    socket: { remoteAddress: address },
+    headers: { "cf-access-authenticated-user-email": email },
+  };
+}
+
 test("return paths are constrained to known same-origin routes", () => {
   assert.equal(
     safeReturnPath("/broadcasts/stakecenter/broadcaster", "stakecenter"),
@@ -136,29 +143,25 @@ test("trusted proxy authenticates only assigned loopback identities and preserve
     publicBaseUrl: "https://broadcasts.example.org",
   });
   await auth.initialize();
-  const request = (email, address = "127.0.0.1") => ({
-    socket: { remoteAddress: address },
-    headers: { "cf-access-authenticated-user-email": email },
-  });
-  const req = request(" ADMIN@EXAMPLE.ORG ");
+  const req = trustedProxyRequest(" ADMIN@EXAMPLE.ORG ");
   assert.equal(auth.authorize(req).role, "administrator");
   assert.equal(auth.authorize(req, "administrator").email, "admin@example.org");
-  assert.equal(auth.authenticate(request(undefined)), null);
-  assert.equal(auth.authenticate(request("unknown@example.org")), null);
-  assert.equal(auth.authenticate(request("admin@example.org", "192.168.1.2")), null);
-  assert.equal(auth.authenticate(request(["admin@example.org"])), null);
+  assert.equal(auth.authenticate(trustedProxyRequest(undefined)), null);
+  assert.equal(auth.authenticate(trustedProxyRequest("unknown@example.org")), null);
+  assert.equal(auth.authenticate(trustedProxyRequest("admin@example.org", "192.168.1.2")), null);
+  assert.equal(auth.authenticate(trustedProxyRequest(["admin@example.org"])), null);
   assert.equal(
-    auth.authenticate(request("admin@example.org", "::ffff:127.0.0.1")).role,
+    auth.authenticate(trustedProxyRequest("admin@example.org", "::ffff:127.0.0.1")).role,
     "administrator",
   );
   assert.throws(
-    () => auth.authorize(request("operator@example.org"), "administrator"),
+    () => auth.authorize(trustedProxyRequest("operator@example.org"), "administrator"),
     /Administrator/,
   );
   assert.throws(() => auth.authorize(req, "operator", { csrfRequired: true }), /CSRF/);
   req.headers["x-steeple-csrf"] = auth.authenticate(req).csrfToken;
   assert.equal(auth.authorize(req, "operator", { csrfRequired: true }).role, "administrator");
-  const other = request("operator@example.org");
+  const other = trustedProxyRequest("operator@example.org");
   other.headers["x-steeple-csrf"] = req.headers["x-steeple-csrf"];
   assert.throws(() => auth.authorize(other, "operator", { csrfRequired: true }), /CSRF/);
   await assert.rejects(auth.begin(), /Google sign-in is not configured/);

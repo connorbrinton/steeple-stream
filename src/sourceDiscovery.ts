@@ -60,7 +60,7 @@ export async function discoverNdiSources(
     });
   }
 
-  return [...discovered.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return [...discovered.values()].toSorted((a, b) => a.name.localeCompare(b.name));
 }
 
 async function discoverWithNativeMdns(): Promise<NdiSource[]> {

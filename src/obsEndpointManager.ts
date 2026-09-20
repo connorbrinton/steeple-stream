@@ -37,6 +37,7 @@ export class ObsEndpointManager {
         res.writeHead(404);
         res.end();
       });
+      // oxlint-disable-next-line eslint/no-new -- construction attaches the WebSocket server.
       new ObsWebSocketServer({
         server,
         service: this.service,

@@ -179,18 +179,18 @@ server = http.createServer(async (req, res) => {
       res.setHeader("accept-ranges", "bytes");
       const range = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range || "");
       if (range) {
-        const start = Number(range[1]);
+        const rangeStart = Number(range[1]);
         const end = range[2] ? Math.min(Number(range[2]), data.length - 1) : data.length - 1;
-        if (start > end || start >= data.length) {
+        if (rangeStart > end || rangeStart >= data.length) {
           res.writeHead(416, { "content-range": `bytes */${data.length}` });
           res.end();
           return;
         }
         res.writeHead(206, {
-          "content-range": `bytes ${start}-${end}/${data.length}`,
-          "content-length": end - start + 1,
+          "content-range": `bytes ${rangeStart}-${end}/${data.length}`,
+          "content-length": end - rangeStart + 1,
         });
-        res.end(data.subarray(start, end + 1));
+        res.end(data.subarray(rangeStart, end + 1));
       } else {
         res.setHeader("content-length", data.length);
         res.end(data);

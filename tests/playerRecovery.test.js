@@ -80,7 +80,7 @@ function harness({ native = false, mse = !native, autoplay = true } = {}) {
   const advance = (milliseconds) => {
     const end = now + milliseconds;
     while (true) {
-      const next = [...timers].sort((a, b) => a[1].at - b[1].at)[0];
+      const next = [...timers].toSorted((a, b) => a[1].at - b[1].at)[0];
       if (!next || next[1].at > end) break;
       const [id, timer] = next;
       now = timer.at;
