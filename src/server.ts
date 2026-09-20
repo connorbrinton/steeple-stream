@@ -17,6 +17,7 @@ import { buildSourceCatalog } from "./sourceCatalog.js";
 import { AppRateLimiter, clientIp } from "./rateLimit.js";
 import { ScheduleService } from "./scheduleService.js";
 import { AdminCatalogService } from "./adminCatalogService.js";
+import { AccessService } from "./accessService.js";
 import type { PlaybackSession, SceneMode } from "./domain.js";
 
 const publicDir = path.resolve(import.meta.dirname, "..", "public");
@@ -28,6 +29,7 @@ const ptzController = new PtzController({ config: config.ptz });
 const service = new BroadcastService({ store, mediaBackend, config, ptzController });
 const schedules = new ScheduleService(store);
 const adminCatalog = new AdminCatalogService(store, config.channelId);
+const access = new AccessService(store, config.auth);
 const sourceDiscovery = new SourceDiscoveryService({ intervalMs: config.discovery.ndiIntervalMs });
 const ingestManager = new IngestManager({
   config: config.ingest,
@@ -38,7 +40,7 @@ const coordinator = new LocationCommandCoordinator({
   ingestManager,
   mediaManager: mediamtxManager,
 });
-const auth = new AuthService({ store, config: config.auth });
+const auth = new AuthService({ store, config: config.auth, roleResolver: access });
 const rateLimiter = new AppRateLimiter();
 const obsEndpoints = new ObsEndpointManager({ store, service, coordinator, host: config.obsHost });
 let latestBackendHealth: MediaBackendHealth | null = null;
@@ -218,6 +220,29 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (method === "POST" && url.pathname === "/api/admin/schedules") {
     auth.authorize(req, "administrator", { csrfRequired: true });
     sendJson(res, 201, adminCatalog.saveSchedule(await parseJson(req)));
+    return;
+  }
+
+  if (method === "GET" && url.pathname === "/api/admin/access") {
+    auth.authorize(req, "administrator");
+    sendJson(res, 200, { people: access.listPeople() });
+    return;
+  }
+
+  if (method === "POST" && url.pathname === "/api/admin/people") {
+    auth.authorize(req, "administrator", { csrfRequired: true });
+    sendJson(res, 201, access.save(await parseJson(req)));
+    return;
+  }
+
+  const adminPersonMatch = /^\/api\/admin\/people\/([^/]+)$/.exec(url.pathname);
+  if (method === "PUT" && adminPersonMatch) {
+    auth.authorize(req, "administrator", { csrfRequired: true });
+    sendJson(
+      res,
+      200,
+      access.save(await parseJson(req), decodeURIComponent(adminPersonMatch[1] || "")),
+    );
     return;
   }
 

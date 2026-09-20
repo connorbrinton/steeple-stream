@@ -112,5 +112,34 @@ test("units, schedules and occurrence cancellations persist", async () => {
   assert.deepEqual(store.listScheduleExceptions(), [
     { scheduleId: schedule.id, localDate: "2026-10-18", action: "cancel" },
   ]);
-  assert.equal(store.db.prepare("PRAGMA user_version").get().user_version, 2);
+  assert.equal(store.db.prepare("PRAGMA user_version").get().user_version, 3);
+});
+
+test("managed people and unit assignments persist", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "steeple-people-"));
+  const store = new SqliteStore(path.join(dir, "state.sqlite"));
+  await store.load();
+  const unit = store.createUnit({
+    id: "unit-1",
+    slug: "harris-lake",
+    name: "Harris Lake Ward",
+    type: "ward",
+    parentUnitId: null,
+  });
+  store.saveManagedPerson({
+    email: "wyatt@example.com",
+    role: "broadcaster",
+    unitIds: [unit.id],
+    enabled: true,
+  });
+  const disabled = store.saveManagedPerson({
+    email: "wyatt@example.com",
+    role: "broadcaster",
+    unitIds: [unit.id],
+    enabled: false,
+  });
+
+  assert.deepEqual(store.listManagedPeople(), [disabled]);
+  assert.equal(disabled.enabled, false);
+  assert.deepEqual(disabled.unitIds, [unit.id]);
 });

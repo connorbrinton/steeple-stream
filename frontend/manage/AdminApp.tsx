@@ -35,6 +35,13 @@ interface Session {
   email: string;
   csrfToken: string;
 }
+interface PersonAccess {
+  email: string;
+  role: "broadcaster" | "administrator";
+  unitIds: string[];
+  enabled: boolean;
+  source: "configuration" | "managed";
+}
 interface Catalog {
   channelId: string;
   units: Unit[];
@@ -456,19 +463,168 @@ function ScheduleForm({
 }
 
 export function People() {
+  const { units, session } = useAdmin();
+  const [people, setPeople] = useState<PersonAccess[] | null>(null);
+  const [editing, setEditing] = useState<PersonAccess | null>(null);
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState("");
+  const reload = async () => {
+    const result = await getJson<{ people: PersonAccess[] }>("/api/admin/access");
+    setPeople(result.people);
+  };
+  useEffect(() => {
+    void reload().catch((reason: unknown) => setError(message(reason)));
+  }, []);
   return (
     <Page
       title="People & access"
       intro="Associate broadcasters with one or more units and manage administrator access."
     >
-      <section className="admin-panel">
-        <h2>Coming next</h2>
-        <p>
-          This area will support broadcaster-to-unit assignments used for automatic broadcast
-          matching and disambiguation.
-        </p>
-      </section>
+      <button
+        className="button primary"
+        disabled={!units.length}
+        onClick={() => {
+          setEditing(null);
+          setOpen(true);
+        }}
+      >
+        Add person
+      </button>
+      {!units.length && <p className="admin-hint">Add a unit before inviting a broadcaster.</p>}
+      {error && <p className="form-error">{error}</p>}
+      {people === null && !error ? (
+        <p className="admin-hint">Loading people…</p>
+      ) : (
+        <div className="admin-list">
+          {people?.map((person) => (
+            <article className="admin-row" key={person.email}>
+              <div>
+                <h2>{person.email}</h2>
+                <p>
+                  {person.role === "administrator" ? "Administrator" : "Broadcaster"} ·{" "}
+                  {unitNames(person.unitIds, units)}
+                </p>
+              </div>
+              <div className={person.enabled ? "status-chip" : "status-chip muted"}>
+                {person.enabled ? "Active" : "Disabled"}
+              </div>
+              <button
+                className="button"
+                onClick={() => {
+                  setEditing(person);
+                  setOpen(true);
+                }}
+              >
+                Edit
+              </button>
+            </article>
+          ))}
+        </div>
+      )}
+      {open && (
+        <PersonForm
+          person={editing}
+          units={units}
+          csrf={session.csrfToken}
+          close={() => setOpen(false)}
+          saved={reload}
+        />
+      )}
     </Page>
+  );
+}
+
+function PersonForm({
+  person,
+  units,
+  csrf,
+  close,
+  saved,
+}: {
+  person: PersonAccess | null;
+  units: Unit[];
+  csrf: string;
+  close(): void;
+  saved(): Promise<void>;
+}) {
+  const [error, setError] = useState("");
+  const configured = person?.source === "configuration";
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError("");
+    const data = new FormData(event.currentTarget);
+    const body = {
+      email: String(data.get("email") || ""),
+      role: String(data.get("role") || "broadcaster"),
+      unitIds: data.getAll("unitIds").map(String),
+      enabled: data.has("enabled"),
+    };
+    try {
+      await sendJson<PersonAccess>(
+        person ? `/api/admin/people/${encodeURIComponent(person.email)}` : "/api/admin/people",
+        person ? "PUT" : "POST",
+        body,
+        csrf,
+      );
+      await saved();
+      close();
+    } catch (reason) {
+      setError(message(reason));
+    }
+  };
+  return (
+    <Dialog title={person ? "Edit access" : "Add person"} close={close}>
+      <form className="admin-form" onSubmit={submit}>
+        <Field label="Google account email">
+          <input
+            name="email"
+            type="email"
+            required
+            readOnly={Boolean(person)}
+            defaultValue={person?.email}
+            autoComplete="off"
+          />
+        </Field>
+        <Field label="Role">
+          <select name="role" defaultValue={person?.role || "broadcaster"} disabled={configured}>
+            <option value="broadcaster">Broadcaster</option>
+            <option value="administrator">Administrator</option>
+          </select>
+          {configured && <input type="hidden" name="role" value={person.role} />}
+        </Field>
+        <fieldset className="unit-picker">
+          <legend>Units</legend>
+          {units.map((unit) => (
+            <label className="check" key={unit.id}>
+              <input
+                type="checkbox"
+                name="unitIds"
+                value={unit.id}
+                defaultChecked={person?.unitIds.includes(unit.id)}
+              />
+              {unit.name}
+            </label>
+          ))}
+        </fieldset>
+        <label className="check">
+          <input
+            type="checkbox"
+            name="enabled"
+            defaultChecked={person?.enabled ?? true}
+            disabled={configured}
+          />
+          Access enabled
+        </label>
+        {configured && <input type="hidden" name="enabled" value="on" />}
+        {configured && (
+          <p className="admin-hint">
+            This person’s role and access are required by server configuration. Unit assignments can
+            still be changed here.
+          </p>
+        )}
+        <FormActions error={error} close={close} />
+      </form>
+    </Dialog>
   );
 }
 function Page({ title, intro, children }: { title: string; intro: string; children: ReactNode }) {
@@ -548,6 +704,10 @@ function scheduleSummary(schedule: Schedule) {
         ]
       : schedule.localDate;
   return `${day} at ${schedule.localStartTime} · ${schedule.durationMinutes} min`;
+}
+function unitNames(unitIds: string[], units: Unit[]) {
+  const names = unitIds.map((id) => units.find((unit) => unit.id === id)?.name).filter(Boolean);
+  return names.length ? names.join(", ") : "No units assigned";
 }
 function message(value: unknown) {
   return value instanceof Error ? value.message : "Something went wrong";

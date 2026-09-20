@@ -28,6 +28,17 @@ const adminCatalog = {
   ],
   schedules: [],
 };
+const adminAccess = {
+  people: [
+    {
+      email: "admin@example.com",
+      role: "administrator",
+      unitIds: ["stake"],
+      enabled: true,
+      source: "configuration",
+    },
+  ],
+};
 let shuttingDown = false;
 function start(command, args, name) {
   const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
@@ -220,7 +231,22 @@ server = http.createServer(async (req, res) => {
       res.end(JSON.stringify(adminCatalog));
       return;
     }
+    if (url.pathname === "/api/admin/access") {
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify(adminAccess));
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/admin/people") {
+      if (!requireCsrf(req, res)) return;
+      const body = await readJson(req);
+      const person = { ...body, source: "managed" };
+      adminAccess.people.push(person);
+      res.writeHead(201, { "content-type": "application/json" });
+      res.end(JSON.stringify(person));
+      return;
+    }
     if (req.method === "POST" && url.pathname === "/api/admin/units") {
+      if (!requireCsrf(req, res)) return;
       const body = await readJson(req);
       const unit = { ...body, id: `unit-${adminCatalog.units.length}`, archivedAt: null };
       adminCatalog.units.push(unit);
@@ -229,6 +255,7 @@ server = http.createServer(async (req, res) => {
       return;
     }
     if (req.method === "POST" && url.pathname === "/api/admin/schedules") {
+      if (!requireCsrf(req, res)) return;
       const body = await readJson(req);
       const schedule = {
         ...body,
@@ -330,4 +357,11 @@ async function readJson(req) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+}
+
+function requireCsrf(req, res) {
+  if (req.headers["x-steeple-csrf"] === "test") return true;
+  res.writeHead(403, { "content-type": "application/json" });
+  res.end(JSON.stringify({ error: "Invalid CSRF token" }));
+  return false;
 }

@@ -22,7 +22,7 @@ export async function sendJson<T>(
 ): Promise<T> {
   const response = await fetch(path, {
     method,
-    headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
+    headers: { "content-type": "application/json", "x-steeple-csrf": csrfToken },
     body: JSON.stringify(body),
   });
   if (!response.ok) {

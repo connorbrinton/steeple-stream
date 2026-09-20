@@ -29,6 +29,10 @@ interface AuthStore {
   load(): Promise<unknown>;
 }
 
+interface RoleResolver {
+  roleFor(email: string): AuthRole | null;
+}
+
 interface AuthPrincipal {
   email: string;
   role: AuthRole;
@@ -51,6 +55,7 @@ interface AuthSession {
 interface AuthServiceOptions {
   store: AuthStore;
   config: AuthConfig;
+  roleResolver?: RoleResolver;
 }
 
 export class AuthService {
@@ -58,12 +63,14 @@ export class AuthService {
   declare config: AuthConfig;
   declare oidc: oidc.Configuration | null;
   declare proxyCsrfSecret: Buffer;
+  declare roleResolver: RoleResolver | null;
 
-  constructor({ store, config }: AuthServiceOptions) {
+  constructor({ store, config, roleResolver }: AuthServiceOptions) {
     this.store = store;
     this.config = config;
     this.oidc = null;
     this.proxyCsrfSecret = crypto.randomBytes(32);
+    this.roleResolver = roleResolver || null;
   }
 
   get enabled() {
@@ -153,6 +160,7 @@ export class AuthService {
   }
 
   roleFor(email: string): AuthRole | null {
+    if (this.roleResolver) return this.roleResolver.roleFor(email);
     if (this.config.adminEmails.has(email)) return "administrator";
     if (this.config.operatorEmails.has(email)) return "operator";
     return null;
@@ -178,10 +186,11 @@ export class AuthService {
       .prepare("SELECT email, role, expires_at FROM auth_sessions WHERE token_hash=?")
       .get(hash(token)) as unknown as AuthSession | undefined;
     if (!session || new Date(session.expires_at) <= new Date()) return null;
-    if (session.role !== "operator" && session.role !== "administrator") return null;
+    const currentRole = this.roleFor(session.email);
+    if (!currentRole) return null;
     return {
       email: session.email,
-      role: session.role,
+      role: currentRole,
       csrfToken: csrf(token, this.config.sessionSecret),
     };
   }

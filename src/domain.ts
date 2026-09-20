@@ -4,6 +4,15 @@ export type SourceType = "ndi" | "network";
 export type UnitType = "ward" | "branch" | "stake" | "other";
 export type BroadcastKind = "sacrament-meeting" | "stake-conference" | "other";
 export type ScheduleRecurrence = "weekly" | "once";
+export type AccessRole = "broadcaster" | "administrator";
+
+export interface PersonAccess {
+  email: string;
+  role: AccessRole;
+  unitIds: string[];
+  enabled: boolean;
+  source: "configuration" | "managed";
+}
 
 export interface Unit {
   id: string;
