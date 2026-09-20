@@ -115,7 +115,7 @@ async function discoverWithAvahi() {
     return stdout
       .split("\n")
       .map((line) => line.match(/=\s+[^;]+;[^;]+;_ndi\._tcp;[^;]*;([^;]+)/)?.[1])
-      .filter(Boolean)
+      .filter((name): name is string => Boolean(name))
       .map(decodeMdnsName)
       .map((name) => ({ name, source: "avahi", available: true }));
   } catch {
@@ -129,7 +129,7 @@ async function discoverWithDnsSd() {
     return stdout
       .split("\n")
       .map((line) => line.match(/\s+_ndi\._tcp\.\s+(.+)$/)?.[1])
-      .filter(Boolean)
+      .filter((name): name is string => Boolean(name))
       .map((name) => ({ name: name.trim(), source: "dns-sd", available: true }));
   } catch {
     return [];
@@ -262,13 +262,14 @@ function readName(buffer: Buffer, startOffset: number, depth = 0): DnsName {
   let nextOffset: number | null = null;
 
   while (offset < buffer.length) {
-    const length = buffer[offset];
+    const length = buffer[offset]!;
     if (length === 0) {
       offset += 1;
       break;
     }
     if ((length & 0xc0) === 0xc0) {
-      const pointer = ((length & 0x3f) << 8) | buffer[offset + 1];
+      if (offset + 1 >= buffer.length) throw new Error("Truncated DNS name pointer");
+      const pointer = ((length & 0x3f) << 8) | buffer[offset + 1]!;
       const pointed: DnsName = readName(buffer, pointer, depth + 1);
       labels.push(pointed.name);
       nextOffset = offset + 2;

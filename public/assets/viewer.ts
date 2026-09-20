@@ -3,17 +3,31 @@ const nameKey = "steeple.viewerName";
 const sessionId = localStorage.getItem(sessionKey) || crypto.randomUUID();
 localStorage.setItem(sessionKey, sessionId);
 
-const statusDot = document.querySelector("#status-dot");
-const statusLabel = document.querySelector("#status-label");
-const details = document.querySelector("#details");
-const frame = document.querySelector("#video-frame");
-const namePanel = document.querySelector("#name-panel");
-const nameForm = document.querySelector("#name-form");
-const nameInput = document.querySelector("#viewer-name");
+const statusDot = document.querySelector("#status-dot")!;
+const statusLabel = document.querySelector("#status-label")!;
+const details = document.querySelector("#details")!;
+const frame = document.querySelector("#video-frame")!;
+const namePanel = document.querySelector("#name-panel")!;
+const nameForm = document.querySelector("#name-form")!;
+const nameInput = document.querySelector("#viewer-name")!;
 
 const storedName = localStorage.getItem(nameKey);
 let viewerName = storedName || "";
-let playback = null;
+interface PlaybackReport {
+  id: string;
+  viewerId: string;
+  viewerName: string;
+  broadcastId: string | null;
+  startedAt: string;
+  transport: string | null;
+  watchSeconds: number;
+  bufferingMs: number;
+  bufferingCount: number;
+  reconnectCount: number;
+  [key: string]: unknown;
+}
+
+let playback: PlaybackReport | null = null;
 if (storedName) {
   namePanel.style.display = "none";
   registerViewer(storedName).catch(console.error);
@@ -119,7 +133,7 @@ function reportPlayback(beacon = false) {
 function observeVideo(video) {
   const listeners = new AbortController();
   const options = { signal: listeners.signal };
-  let waitingAt = null;
+  let waitingAt: number | null = null;
   video.addEventListener("waiting", () => {
     waitingAt = performance.now();
     if (playback) playback.bufferingCount += 1;

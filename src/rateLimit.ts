@@ -49,7 +49,7 @@ export function clientIp(req: IncomingMessage, config: ProxyConfig = {}) {
     const connectingIp = header(req, "cf-connecting-ip");
     if (connectingIp) return connectingIp;
     const forwardedFor = header(req, "x-forwarded-for");
-    if (forwardedFor) return forwardedFor.split(",")[0].trim();
+    if (forwardedFor) return forwardedFor.split(",")[0]?.trim() || "unknown";
   }
   return req.socket?.remoteAddress || "unknown";
 }

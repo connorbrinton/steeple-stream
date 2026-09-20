@@ -44,7 +44,7 @@ const server = http.createServer(async (req: IncomingMessage, res: ServerRespons
   } catch (error) {
     const finalError = await rateLimitedError(req, error);
     const status = finalError.status || 500;
-    const headers = finalError.retryAfter ? { "retry-after": String(finalError.retryAfter) } : {};
+    const headers: Record<string, string> = finalError.retryAfter ? { "retry-after": String(finalError.retryAfter) } : {};
     sendJson(res, status, { error: finalError.message }, headers);
   }
 });
@@ -82,7 +82,7 @@ setInterval(() => {
 }, 5 * 60 * 1000).unref();
 
 async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+  const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   const method = req.method || "GET";
 
   if (method === "GET" && ["/auth/login", "/auth/google"].includes(url.pathname)) {
@@ -101,7 +101,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
 
   if (method === "GET" && url.pathname === "/auth/google/callback") {
     await rateLimiter.authCallbackFor(req, config.auth);
-    const result = await auth.complete(new URL(req.url, config.publicBaseUrl).href);
+    const result = await auth.complete(new URL(req.url || "/", config.publicBaseUrl).href);
     res.writeHead(302, { location: result.returnTo, "set-cookie": auth.sessionCookie(result.token) });
     res.end();
     return;
@@ -480,10 +480,10 @@ function optionalString(value: unknown): string | null {
   return value === undefined || value === null || value === "" ? null : String(value);
 }
 
-function optionalNumber(value: unknown): number | null {
-  if (value === undefined || value === null || value === "") return null;
+function optionalNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
   const number = Number(value);
-  return Number.isFinite(number) ? number : null;
+  return Number.isFinite(number) ? number : undefined;
 }
 
 function sceneMode(value: unknown): SceneMode {

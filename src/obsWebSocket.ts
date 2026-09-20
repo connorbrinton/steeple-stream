@@ -40,7 +40,7 @@ export class ObsWebSocketServer {
     this.actor = actor;
     this.clients = new Set();
     server.on("upgrade", (req, socket) => {
-      if (!["/", "/obs"].includes(new URL(req.url, "http://localhost").pathname)) return;
+      if (!["/", "/obs"].includes(new URL(req.url || "/", "http://localhost").pathname)) return;
       this.handleUpgrade(req, socket);
     });
   }
@@ -204,8 +204,8 @@ function sceneFromState(broadcast: Broadcast): string {
 }
 
 function readFrame(buffer: Buffer): { opcode: number; payload: Buffer; bytesRead: number } | null {
-  const first = buffer[0];
-  const second = buffer[1];
+  const first = buffer[0]!;
+  const second = buffer[1]!;
   const opcode = first & 0x0f;
   const masked = Boolean(second & 0x80);
   let length = second & 0x7f;
@@ -229,7 +229,7 @@ function readFrame(buffer: Buffer): { opcode: number; payload: Buffer; bytesRead
   if (masked) {
     const mask = buffer.subarray(maskOffset, maskOffset + 4);
     for (let index = 0; index < payload.length; index += 1) {
-      payload[index] ^= mask[index % 4];
+      payload[index] = payload[index]! ^ mask[index % 4]!;
     }
   }
 
