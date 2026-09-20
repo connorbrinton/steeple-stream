@@ -49,6 +49,8 @@ Application source is TypeScript. The build type-checks and compiles the Node
 service to colocated JavaScript, then uses Vite to compile the browser entry
 points into the ignored `public/build` directory. Colocated server JavaScript
 is ignored as well. Nix, Docker, and CI always compile both targets from source.
+New application screens use React while the existing player and operator pages
+are migrated incrementally.
 
 The flake is the authoritative runtime definition. It provides Node, MediaMTX,
 GStreamer, the GStreamer plugin set, `gst-plugin-ndi`, and the proprietary NDI

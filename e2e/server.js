@@ -163,6 +163,24 @@ server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ startedAt }));
       return;
     }
+    if (url.pathname === "/api/public-state") {
+      res.setHeader("content-type", "application/json");
+      res.end(
+        JSON.stringify({
+          broadcast: {
+            id: "landing-test",
+            channelId: "stakecenter",
+            status: "live",
+            mode: "chapel",
+            startedAt,
+            endedAt: null,
+            expiresAt: null,
+          },
+          viewerCount: 2,
+        }),
+      );
+      return;
+    }
     if (url.pathname.startsWith("/hls/")) {
       await proxyHttp(req, res, "http://127.0.0.1:8888", req.url.slice(4));
       return;
@@ -195,6 +213,10 @@ server = http.createServer(async (req, res) => {
         res.setHeader("content-length", data.length);
         res.end(data);
       }
+      return;
+    }
+    if (url.pathname === "/" && url.searchParams.get("page") === "landing") {
+      await sendStatic(res, path.join(dir, "../public"), "/index.html");
       return;
     }
     if (url.pathname === "/" || url.pathname === "/fixture.js") {

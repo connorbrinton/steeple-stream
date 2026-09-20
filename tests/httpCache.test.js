@@ -57,8 +57,26 @@ test("frontend URLs change with contents and responses cannot be cached", async 
 
 test("all page templates version their scripts and stylesheets", async (t) => {
   const url = await serve(t, (req, res) => sendStatic(res, path.resolve("public"), req.url));
-  for (const name of ["admin", "broadcaster", "viewer"]) {
-    const body = await (await fetch(`${url}/${name}.html`)).text();
+  const pages = [
+    {
+      name: "admin",
+      path: "/admin.html",
+      assets: ["/build/app.css", "/vendor/hls.min.js", "/build/admin.js"],
+    },
+    {
+      name: "broadcaster",
+      path: "/broadcaster.html",
+      assets: ["/build/app.css", "/vendor/hls.min.js", "/build/broadcaster.js"],
+    },
+    { name: "landing", path: "/index.html", assets: ["/build/app.css", "/build/landing.js"] },
+    {
+      name: "viewer",
+      path: "/viewer.html",
+      assets: ["/build/app.css", "/vendor/hls.min.js", "/build/viewer.js"],
+    },
+  ];
+  for (const page of pages) {
+    const body = await (await fetch(url + page.path)).text();
     assert.ok(!body.includes("__ASSET_VERSION__"));
     const urls = [
       ...body.matchAll(
@@ -67,7 +85,8 @@ test("all page templates version their scripts and stylesheets", async (t) => {
     ].map((match) => match[1]);
     assert.deepEqual(
       urls.map((asset) => asset.replace(/\?v=.*/, "")),
-      ["/build/app.css", "/vendor/hls.min.js", `/build/${name}.js`],
+      page.assets,
+      page.name,
     );
     for (const asset of urls) assert.match(asset, /\?v=[a-f0-9]{20}$/);
   }
