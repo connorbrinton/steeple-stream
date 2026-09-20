@@ -10,7 +10,7 @@ import {
   ndiToRtmpPipeline,
   sacramentSlateToRtmpPipeline,
   switchableNdiSlateToRtmpCommand,
-  type StartSceneOptions
+  type StartSceneOptions,
 } from "./gstreamerMediaEngine.js";
 import { discoverNdiSources, type NdiSource } from "./sourceDiscovery.js";
 import { EventEmitter } from "node:events";
@@ -30,7 +30,7 @@ export {
   gstRuntimePackages,
   ndiToRtmpPipeline,
   sacramentSlateToRtmpPipeline,
-  switchableNdiSlateToRtmpCommand
+  switchableNdiSlateToRtmpCommand,
 };
 
 export class IngestManager extends EventEmitter {
@@ -43,7 +43,12 @@ export class IngestManager extends EventEmitter {
   declare lastRequestedState: RequestedState | null;
   declare engine: GStreamerMediaEngine;
 
-  constructor({ config, cwd = process.cwd(), runner, ndiDiscovery = discoverNdiSources }: {
+  constructor({
+    config,
+    cwd = process.cwd(),
+    runner,
+    ndiDiscovery = discoverNdiSources,
+  }: {
     config: IngestConfig;
     cwd?: string;
     runner?: GStreamerRunner;
@@ -61,7 +66,7 @@ export class IngestManager extends EventEmitter {
       config,
       cwd,
       runner,
-      onExit: (event) => this.handleEngineExit(event)
+      onExit: (event) => this.handleEngineExit(event),
     });
     this.engine.on("changed", (status) => this.emit("changed", status));
   }
@@ -69,7 +74,12 @@ export class IngestManager extends EventEmitter {
   async startForState(state: RequestedState): Promise<IngestStatus> {
     this.lastRequestedState = structuredClone(state);
     let source = state.source;
-    const mode = this.config.sceneControls === false ? "chapel" : state.broadcast?.mode === "sacrament" ? "sacrament" : "chapel";
+    const mode =
+      this.config.sceneControls === false
+        ? "chapel"
+        : state.broadcast?.mode === "sacrament"
+          ? "sacrament"
+          : "chapel";
 
     if (!this.config.autoStart) {
       this.engine.setState({ status: "disabled", message: "Ingest autostart is disabled." });
@@ -100,19 +110,33 @@ export class IngestManager extends EventEmitter {
 
     if (!source || !["ndi", "network"].includes(source.type)) {
       await this.stop();
-      this.engine.setState({ status: "stopped", sourceType: source?.type || null, message: "No supported source is selected." });
+      this.engine.setState({
+        status: "stopped",
+        sourceType: source?.type || null,
+        message: "No supported source is selected.",
+      });
       return this.status();
     }
 
     if (source.type === "ndi" && !source.ndi?.sourceName) {
       await this.stop();
-      this.engine.setState({ status: "waiting", sourceType: "ndi", sourceName: null, message: "Select an NDI source to start ingest." });
+      this.engine.setState({
+        status: "waiting",
+        sourceType: "ndi",
+        sourceName: null,
+        message: "Select an NDI source to start ingest.",
+      });
       return this.status();
     }
 
     if (source.type === "network" && !source.network?.uri) {
       await this.stop();
-      this.engine.setState({ status: "waiting", sourceType: "network", sourceName: null, message: "Enter a network source URI to start ingest." });
+      this.engine.setState({
+        status: "waiting",
+        sourceType: "network",
+        sourceName: null,
+        message: "Enter a network source URI to start ingest.",
+      });
       return this.status();
     }
 
@@ -154,12 +178,13 @@ export class IngestManager extends EventEmitter {
   }
 
   handleEngineExit({ code, signal, sdkMissing, stopping }: EngineExitEvent): void {
-    const shouldRetry = !stopping && !sdkMissing && this.lastRequestedState && this.config.autoStart;
+    const shouldRetry =
+      !stopping && !sdkMissing && this.lastRequestedState && this.config.autoStart;
     if (!shouldRetry) return;
 
     this.engine.setState({
       status: "starting",
-      message: `Ingest exited with code=${code} signal=${signal}; retrying shortly.`
+      message: `Ingest exited with code=${code} signal=${signal}; retrying shortly.`,
     });
     this.scheduleRetry();
   }
@@ -179,8 +204,8 @@ export class IngestManager extends EventEmitter {
           lastError: {
             category: "supervisor",
             message,
-            at: new Date().toISOString()
-          }
+            at: new Date().toISOString(),
+          },
         });
         this.scheduleRetry();
       });
@@ -205,14 +230,17 @@ export class IngestManager extends EventEmitter {
     }
     try {
       const discovered = await this.ndiDiscovery(source);
-      const match = discovered.find((entry) => entry.name === source.ndi.sourceName && entry.available !== false && entry.urlAddress);
+      const match = discovered.find(
+        (entry) =>
+          entry.name === source.ndi.sourceName && entry.available !== false && entry.urlAddress,
+      );
       if (!match?.urlAddress || match.urlAddress === source.ndi.urlAddress) return source;
       return {
         ...source,
         ndi: {
           ...source.ndi,
-          urlAddress: match.urlAddress
-        }
+          urlAddress: match.urlAddress,
+        },
       };
     } catch {
       return source;
@@ -221,7 +249,13 @@ export class IngestManager extends EventEmitter {
 }
 
 function hasConfiguredSource(source: VideoSource | null | undefined): boolean {
-  return Boolean(source?.type === "ndi" ? source.ndi?.sourceName : source?.type === "network" ? source.network?.uri : false);
+  return Boolean(
+    source?.type === "ndi"
+      ? source.ndi?.sourceName
+      : source?.type === "network"
+        ? source.network?.uri
+        : false,
+  );
 }
 
 function runtimeSourceKey(source: VideoSource): string {
@@ -234,7 +268,11 @@ function configuredSourceKey(source: VideoSource | null | undefined): string {
     return JSON.stringify({ type: "ndi", sourceName: source.ndi?.sourceName || "" });
   }
   if (source.type === "network") {
-    return JSON.stringify({ type: "network", protocol: source.network?.protocol || "", uri: source.network?.uri || "" });
+    return JSON.stringify({
+      type: "network",
+      protocol: source.network?.protocol || "",
+      uri: source.network?.uri || "",
+    });
   }
   return JSON.stringify({ type: source.type || null });
 }

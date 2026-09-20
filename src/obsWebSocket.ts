@@ -32,7 +32,13 @@ export class ObsWebSocketServer {
   declare actor: Actor | null;
   declare clients: Set<ObsSocket>;
 
-  constructor({ server, service, coordinator = null, credential = null, actor = null }: ObsWebSocketOptions) {
+  constructor({
+    server,
+    service,
+    coordinator = null,
+    credential = null,
+    actor = null,
+  }: ObsWebSocketOptions) {
     this.server = server;
     this.service = service;
     this.coordinator = coordinator;
@@ -56,14 +62,16 @@ export class ObsWebSocketServer {
       .createHash("sha1")
       .update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`)
       .digest("base64");
-    socket.write([
-      "HTTP/1.1 101 Switching Protocols",
-      "Upgrade: websocket",
-      "Connection: Upgrade",
-      `Sec-WebSocket-Accept: ${accept}`,
-      "",
-      ""
-    ].join("\r\n"));
+    socket.write(
+      [
+        "HTTP/1.1 101 Switching Protocols",
+        "Upgrade: websocket",
+        "Connection: Upgrade",
+        `Sec-WebSocket-Accept: ${accept}`,
+        "",
+        "",
+      ].join("\r\n"),
+    );
 
     socket.buffer = Buffer.alloc(0);
     socket.authenticated = !this.credential;
@@ -76,8 +84,10 @@ export class ObsWebSocketServer {
       d: {
         obsWebSocketVersion: "5.0.0-steeple",
         rpcVersion: 1,
-        ...(this.credential ? { authentication: { challenge: socket.challenge, salt: this.credential.salt } } : {})
-      }
+        ...(this.credential
+          ? { authentication: { challenge: socket.challenge, salt: this.credential.salt } }
+          : {}),
+      },
     });
   }
 
@@ -97,7 +107,10 @@ export class ObsWebSocketServer {
         await this.handleMessage(socket, payload);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        this.send(socket, { op: 7, d: { requestStatus: { result: false, code: 400, comment: message } } });
+        this.send(socket, {
+          op: 7,
+          d: { requestStatus: { result: false, code: 400, comment: message } },
+        });
       }
     }
   }
@@ -107,7 +120,10 @@ export class ObsWebSocketServer {
     const data = asRecord(message.d);
     if (message.op === 1) {
       if (this.credential) {
-        const expected = crypto.createHash("sha256").update(this.credential.secret + socket.challenge).digest("base64");
+        const expected = crypto
+          .createHash("sha256")
+          .update(this.credential.secret + socket.challenge)
+          .digest("base64");
         if (!safeEqual(data.authentication, expected)) {
           socket.end(encodeCloseFrame(4009, "Authentication failed"));
           return;
@@ -128,18 +144,21 @@ export class ObsWebSocketServer {
         requestType,
         requestId,
         requestStatus: { result: true, code: 100 },
-        responseData: response
-      }
+        responseData: response,
+      },
     });
   }
 
-  async handleRequest(requestType: string, requestData: RequestData): Promise<Record<string, unknown>> {
+  async handleRequest(
+    requestType: string,
+    requestData: RequestData,
+  ): Promise<Record<string, unknown>> {
     switch (requestType) {
       case "GetSceneList": {
         const state = await this.service.summary();
         return {
           currentProgramSceneName: sceneFromState(state.broadcast),
-          scenes: [{ sceneName: "Chapel" }, { sceneName: "Sacrament" }]
+          scenes: [{ sceneName: "Chapel" }, { sceneName: "Sacrament" }],
         };
       }
       case "GetCurrentProgramScene": {
@@ -148,7 +167,10 @@ export class ObsWebSocketServer {
       }
       case "SetCurrentProgramScene": {
         const sceneName = requestData.sceneName || requestData["scene-name"];
-        await (this.coordinator || this.service).setMode(sceneName === "Sacrament" ? "sacrament" : "chapel", this.actor);
+        await (this.coordinator || this.service).setMode(
+          sceneName === "Sacrament" ? "sacrament" : "chapel",
+          this.actor,
+        );
         return {};
       }
       case "StartStream":
@@ -167,7 +189,7 @@ export class ObsWebSocketServer {
           outputCongestion: 0,
           outputBytes: 0,
           outputSkippedFrames: 0,
-          outputTotalFrames: 0
+          outputTotalFrames: 0,
         };
       }
       default: {
@@ -253,5 +275,7 @@ function encodeHeader(length: number): Buffer {
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }

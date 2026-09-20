@@ -15,7 +15,7 @@ test("writes MediaMTX config into Steeple Stream data paths", async () => {
     version: "v1.19.2",
     cacheDir: path.join(dir, "bin"),
     configPath: path.join(dir, "mediamtx.yml"),
-    recordingsDir: path.join(dir, "recordings")
+    recordingsDir: path.join(dir, "recordings"),
   });
 
   await manager.writeConfig();
@@ -36,7 +36,7 @@ test("resolves forced Nix runtime to nix shell command", async () => {
     version: "v1.19.2",
     cacheDir: "/tmp/unused",
     configPath: "/tmp/unused/mediamtx.yml",
-    recordingsDir: "/tmp/unused/recordings"
+    recordingsDir: "/tmp/unused/recordings",
   });
 
   const command = await manager.resolveCommand();
@@ -57,7 +57,7 @@ test("writes WebRTC preview config without HLS or playback", async () => {
     configPath: path.join(dir, "mediamtx.yml"),
     recordingsDir: path.join(dir, "recordings"),
     hls: false,
-    playback: false
+    playback: false,
   });
 
   await manager.writeConfig();

@@ -56,7 +56,7 @@ export class MediaMtxManager {
 
     const child = spawn(command.command, [...command.args, this.options.configPath], {
       stdio: ["ignore", "pipe", "pipe"],
-      env: process.env
+      env: process.env,
     });
 
     this.process = child;
@@ -70,12 +70,20 @@ export class MediaMtxManager {
       if (!this.stopping && this.options.autoStart) {
         this.retryAttempt += 1;
         const delay = Math.min(30000, 1000 * 2 ** Math.min(this.retryAttempt - 1, 5));
-        this.retryTimer = setTimeout(() => this.start().catch((error) => console.error("MediaMTX restart failed", error)), delay);
+        this.retryTimer = setTimeout(
+          () => this.start().catch((error) => console.error("MediaMTX restart failed", error)),
+          delay,
+        );
         this.retryTimer.unref();
       }
     });
 
-    return { started: true, runtime: command.runtime, command: command.command, configPath: this.options.configPath };
+    return {
+      started: true,
+      runtime: command.runtime,
+      command: command.command,
+      configPath: this.options.configPath,
+    };
   }
 
   async stop() {
@@ -95,12 +103,16 @@ export class MediaMtxManager {
 
   async setRecording(enabled: boolean): Promise<void> {
     const channel = this.options.channelId || "stakecenter";
-    const response = await fetch(`${this.options.apiBaseUrl}/v3/config/paths/patch/${encodeURIComponent(channel)}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ record: Boolean(enabled) })
-    });
-    if (!response.ok) throw new Error(`MediaMTX recording update failed with HTTP ${response.status}`);
+    const response = await fetch(
+      `${this.options.apiBaseUrl}/v3/config/paths/patch/${encodeURIComponent(channel)}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ record: Boolean(enabled) }),
+      },
+    );
+    if (!response.ok)
+      throw new Error(`MediaMTX recording update failed with HTTP ${response.status}`);
   }
 
   async resolveCommand(): Promise<ResolvedCommand> {
@@ -123,7 +135,9 @@ export class MediaMtxManager {
     if (pathBinary) return { runtime: "path", command: pathBinary, args: [] };
 
     if (runtime === "system" || runtime === "binary") {
-      throw new Error("MediaMTX system runtime requested, but no binary was configured or found on PATH");
+      throw new Error(
+        "MediaMTX system runtime requested, but no binary was configured or found on PATH",
+      );
     }
 
     const nix = await this.tryResolveNixCommand();
@@ -144,7 +158,7 @@ export class MediaMtxManager {
     return {
       runtime: "nix",
       command: nix,
-      args: ["shell", this.options.nixPackage || "nixpkgs#mediamtx", "--command", "mediamtx"]
+      args: ["shell", this.options.nixPackage || "nixpkgs#mediamtx", "--command", "mediamtx"],
     };
   }
 
@@ -153,7 +167,10 @@ export class MediaMtxManager {
     const arch = releaseArch();
     const version = this.options.version;
     const installDir = path.join(this.options.cacheDir, version, `${platform}_${arch}`);
-    const binary = path.join(installDir, process.platform === "win32" ? "mediamtx.exe" : "mediamtx");
+    const binary = path.join(
+      installDir,
+      process.platform === "win32" ? "mediamtx.exe" : "mediamtx",
+    );
 
     if (fsSync.existsSync(binary)) {
       await assertExecutable(binary);
@@ -226,7 +243,7 @@ export class MediaMtxManager {
       `  ${(this.options.channelId || "stakecenter") + "-webrtc"}:`,
       "    source: publisher",
       "    record: no",
-      ""
+      "",
     ].join("\n");
     await fs.writeFile(this.options.configPath, config);
   }

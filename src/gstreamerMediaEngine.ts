@@ -10,9 +10,7 @@ import type { SceneMode, VideoSource } from "./domain.js";
 const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export const gstRuntimePackages = [
-  "nixpkgs#gst_all_1.gstreamer"
-];
+export const gstRuntimePackages = ["nixpkgs#gst_all_1.gstreamer"];
 
 export const gstPluginPackages = [
   "nixpkgs#gst_all_1.gstreamer.out",
@@ -22,7 +20,7 @@ export const gstPluginPackages = [
   "nixpkgs#gst_all_1.gst-plugins-bad",
   "nixpkgs#gst_all_1.gst-plugins-ugly",
   "nixpkgs#gst_all_1.gst-libav",
-  "nixpkgs#gst_all_1.gst-rtsp-server"
+  "nixpkgs#gst_all_1.gst-rtsp-server",
 ];
 
 export const defaultNdiNixPackage = "nixpkgs#ndi";
@@ -50,7 +48,11 @@ interface RunnerOptions {
 }
 
 export interface GStreamerRunner {
-  spawn(command: string, args: readonly string[], options: SpawnOptionsWithoutStdio & { stdio: ["pipe", "pipe", "pipe"] }): ChildProcessWithoutNullStreams;
+  spawn(
+    command: string,
+    args: readonly string[],
+    options: SpawnOptionsWithoutStdio & { stdio: ["pipe", "pipe", "pipe"] },
+  ): ChildProcessWithoutNullStreams;
   nixBuild(packages: readonly string[], cwd: string, options?: RunnerOptions): Promise<string[]>;
 }
 
@@ -130,7 +132,12 @@ export class GStreamerMediaEngine extends EventEmitter {
   declare stdoutBuffer: string;
   declare state: IngestStatus;
 
-  constructor({ config, cwd = process.cwd(), runner = defaultRunner, onExit = null }: {
+  constructor({
+    config,
+    cwd = process.cwd(),
+    runner = defaultRunner,
+    onExit = null,
+  }: {
     config: GStreamerConfig;
     cwd?: string;
     runner?: GStreamerRunner;
@@ -152,7 +159,13 @@ export class GStreamerMediaEngine extends EventEmitter {
     return Boolean(this.process);
   }
 
-  async startScene({ mode, source = null, sourceName = source?.ndi?.sourceName || source?.network?.uri || null, sourceUrlAddress = source?.ndi?.urlAddress, pipelineType = "switcher" }: StartSceneOptions) {
+  async startScene({
+    mode,
+    source = null,
+    sourceName = source?.ndi?.sourceName || source?.network?.uri || null,
+    sourceUrlAddress = source?.ndi?.urlAddress,
+    pipelineType = "switcher",
+  }: StartSceneOptions) {
     this.setState({
       status: "starting",
       sourceType: mode === "sacrament" ? "slate" : source?.type || "ndi",
@@ -162,11 +175,14 @@ export class GStreamerMediaEngine extends EventEmitter {
         requested: mode,
         observed: null,
         transitioning: false,
-        transitionStartedAt: null
+        transitionStartedAt: null,
       },
       inputs: inputStateFor(source, pipelineType),
       outputs: outputStateFor(this.config, pipelineType),
-      message: mode === "sacrament" ? "Preparing GStreamer sacrament slate." : `Preparing GStreamer ${source?.type || "NDI"} ingest.`,
+      message:
+        mode === "sacrament"
+          ? "Preparing GStreamer sacrament slate."
+          : `Preparing GStreamer ${source?.type || "NDI"} ingest.`,
       startedAt: new Date().toISOString(),
       exitedAt: null,
       exitCode: null,
@@ -174,24 +190,31 @@ export class GStreamerMediaEngine extends EventEmitter {
       ready: false,
       transitioning: false,
       lastError: null,
-      log: []
+      log: [],
     });
 
-    const command = await this.gstreamerCommand({ mode, source, sourceName, sourceUrlAddress, pipelineType });
+    const command = await this.gstreamerCommand({
+      mode,
+      source,
+      sourceName,
+      sourceUrlAddress,
+      pipelineType,
+    });
 
     this.stopping = false;
     this.process = this.runner.spawn(command.command, command.args, {
       cwd: this.cwd,
       env: command.env,
-      stdio: ["pipe", "pipe", "pipe"]
+      stdio: ["pipe", "pipe", "pipe"],
     });
     this.currentMode = mode;
 
     this.setState({
       status: "starting",
-      message: mode === "sacrament"
-        ? `Publishing sacrament slate to ${this.config.rtmpUrl}.`
-        : `Publishing ${source?.type || "NDI"} source "${sourceName}" to ${this.config.rtmpUrl}.`
+      message:
+        mode === "sacrament"
+          ? `Publishing sacrament slate to ${this.config.rtmpUrl}.`
+          : `Publishing ${source?.type || "NDI"} source "${sourceName}" to ${this.config.rtmpUrl}.`,
     });
     this.process.stdout.on("data", (chunk) => this.handleControllerOutput(chunk));
     this.process.stderr.on("data", (chunk) => this.appendLog(chunk));
@@ -209,7 +232,7 @@ export class GStreamerMediaEngine extends EventEmitter {
             : `Ingest exited with code=${code} signal=${signal}.`,
         exitedAt: new Date().toISOString(),
         exitCode: code,
-        signal
+        signal,
       });
       this.onExit?.({ code, signal, sdkMissing, stopping: this.stopping });
     });
@@ -242,68 +265,89 @@ export class GStreamerMediaEngine extends EventEmitter {
         ...this.state.scene,
         requested: mode,
         transitioning: true,
-        transitionStartedAt: new Date().toISOString()
+        transitionStartedAt: new Date().toISOString(),
       },
-      message: mode === "sacrament"
-        ? `Publishing sacrament slate to ${this.config.rtmpUrl}.`
-        : `Publishing ${sourceType} source "${this.state.sourceName}" to ${this.config.rtmpUrl}.`
+      message:
+        mode === "sacrament"
+          ? `Publishing sacrament slate to ${this.config.rtmpUrl}.`
+          : `Publishing ${sourceType} source "${this.state.sourceName}" to ${this.config.rtmpUrl}.`,
     });
   }
 
   async gstreamerEnvironment() {
     if (this.config.runtime !== "nix") {
-      const libraryPath = [this.config.ndiRuntimeDir, process.env.LD_LIBRARY_PATH].filter(Boolean).join(":");
+      const libraryPath = [this.config.ndiRuntimeDir, process.env.LD_LIBRARY_PATH]
+        .filter(Boolean)
+        .join(":");
       return {
         ...process.env,
-        ...(libraryPath ? { LD_LIBRARY_PATH: libraryPath } : {})
+        ...(libraryPath ? { LD_LIBRARY_PATH: libraryPath } : {}),
       };
     }
     const paths = await this.runner.nixBuild(gstPluginPackages, this.cwd);
     const pluginPath = paths.map((output) => `${output}/lib/gstreamer-1.0`).join(":");
     const ndiLibraryDirs = await this.ndiLibraryDirs();
-    const libraryPath = [...ndiLibraryDirs, this.config.ndiRuntimeDir, process.env.LD_LIBRARY_PATH].filter(Boolean).join(":");
+    const libraryPath = [...ndiLibraryDirs, this.config.ndiRuntimeDir, process.env.LD_LIBRARY_PATH]
+      .filter(Boolean)
+      .join(":");
     return {
       ...process.env,
-      GST_PLUGIN_PATH: process.env.GST_PLUGIN_PATH ? `${pluginPath}:${process.env.GST_PLUGIN_PATH}` : pluginPath,
-      ...(libraryPath ? { LD_LIBRARY_PATH: libraryPath } : {})
+      GST_PLUGIN_PATH: process.env.GST_PLUGIN_PATH
+        ? `${pluginPath}:${process.env.GST_PLUGIN_PATH}`
+        : pluginPath,
+      ...(libraryPath ? { LD_LIBRARY_PATH: libraryPath } : {}),
     };
   }
 
-  async gstreamerCommand({ mode, source = null, sourceName = null, sourceUrlAddress, pipelineType = "switcher" }: StartSceneOptions): Promise<GStreamerCommand> {
+  async gstreamerCommand({
+    mode,
+    source = null,
+    sourceName = null,
+    sourceUrlAddress,
+    pipelineType = "switcher",
+  }: StartSceneOptions): Promise<GStreamerCommand> {
     const env = await this.gstreamerEnvironment();
-    const pipeline = pipelineType === "slate-only"
-      ? sacramentSlateToRtmpPipeline({
-        rtmpUrl: this.config.rtmpUrl,
-        frameRate: this.config.frameRate,
-        videoBitrateKbps: this.config.videoBitrateKbps,
-        audioBitrate: this.config.audioBitrate
-      })
-      : switchableNdiSlateToRtmpCommand({
-        sourceType: source?.type === "network" ? source.network.protocol : "ndi",
-        networkUri: source?.network?.uri,
-        sourceName,
-        sourceUrlAddress,
-        rtmpUrl: this.config.rtmpUrl,
-        webrtcRtspUrl: this.config.webrtcRtspUrl,
-        frameRate: this.config.frameRate,
-        videoBitrateKbps: this.config.videoBitrateKbps,
-        audioBitrate: this.config.audioBitrate,
-        transitionDurationMs: this.config.transitionDurationMs,
-        mode
-      });
+    const pipeline =
+      pipelineType === "slate-only"
+        ? sacramentSlateToRtmpPipeline({
+            rtmpUrl: this.config.rtmpUrl,
+            frameRate: this.config.frameRate,
+            videoBitrateKbps: this.config.videoBitrateKbps,
+            audioBitrate: this.config.audioBitrate,
+          })
+        : switchableNdiSlateToRtmpCommand({
+            sourceType: source?.type === "network" ? source.network.protocol : "ndi",
+            networkUri: source?.network?.uri,
+            sourceName,
+            sourceUrlAddress,
+            rtmpUrl: this.config.rtmpUrl,
+            webrtcRtspUrl: this.config.webrtcRtspUrl,
+            frameRate: this.config.frameRate,
+            videoBitrateKbps: this.config.videoBitrateKbps,
+            audioBitrate: this.config.audioBitrate,
+            transitionDurationMs: this.config.transitionDurationMs,
+            mode,
+          });
 
     if (this.config.runtime === "nix") {
       return pipelineType === "slate-only"
         ? {
-          command: "nix",
-          args: ["shell", ...gstRuntimePackages, "--command", "gst-launch-1.0", "-e", ...pipeline],
-          env
-        }
+            command: "nix",
+            args: [
+              "shell",
+              ...gstRuntimePackages,
+              "--command",
+              "gst-launch-1.0",
+              "-e",
+              ...pipeline,
+            ],
+            env,
+          }
         : {
-          command: "nix",
-          args: ["shell", ...gstRuntimePackages, "--command", ...pipeline],
-          env
-        };
+            command: "nix",
+            args: ["shell", ...gstRuntimePackages, "--command", ...pipeline],
+            env,
+          };
     }
 
     if (this.config.runtime !== "system") {
@@ -311,9 +355,12 @@ export class GStreamerMediaEngine extends EventEmitter {
     }
 
     return {
-      command: pipelineType === "slate-only" ? this.config.gstLaunchBinary || "gst-launch-1.0" : pipeline[0]!,
+      command:
+        pipelineType === "slate-only"
+          ? this.config.gstLaunchBinary || "gst-launch-1.0"
+          : pipeline[0]!,
       args: pipelineType === "slate-only" ? ["-e", ...pipeline] : pipeline.slice(1),
-      env
+      env,
     };
   }
 
@@ -323,7 +370,7 @@ export class GStreamerMediaEngine extends EventEmitter {
 
     const outputs = await this.runner.nixBuild([ndiPackage], this.cwd, {
       env: { ...process.env, NIXPKGS_ALLOW_UNFREE: "1" },
-      impure: true
+      impure: true,
     });
     return outputs.map((output) => `${output}/lib`);
   }
@@ -343,12 +390,13 @@ export class GStreamerMediaEngine extends EventEmitter {
     if (text.includes("Failed loading NDI SDK")) {
       this.setState({
         status: "failed",
-        message: "NDI runtime library is missing. Run through the Steeple Stream flake wrapper or set STEEPLE_NDI_RUNTIME_DIR to a local SDK lib directory.",
+        message:
+          "NDI runtime library is missing. Run through the Steeple Stream flake wrapper or set STEEPLE_NDI_RUNTIME_DIR to a local SDK lib directory.",
         lastError: {
           category: "missing-runtime",
           message: "NDI runtime library is missing.",
-          at: new Date().toISOString()
-        }
+          at: new Date().toISOString(),
+        },
       });
     }
     this.appendLogLines(text);
@@ -373,7 +421,10 @@ export class GStreamerMediaEngine extends EventEmitter {
   }
 
   appendLogLines(text: string) {
-    const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const lines = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
     this.state.log.push(...lines);
     this.trimLog();
   }
@@ -390,7 +441,7 @@ export class GStreamerMediaEngine extends EventEmitter {
         observedMode: event.mode,
         transitioning: false,
         scene: { ...this.state.scene, observed: event.mode, transitioning: false },
-        outputs: markOutputs(this.state.outputs, event.outputs || [])
+        outputs: markOutputs(this.state.outputs, event.outputs || []),
       });
     } else if (event.event === "mode" || event.event === "transition-complete") {
       this.setState({
@@ -400,8 +451,8 @@ export class GStreamerMediaEngine extends EventEmitter {
           ...this.state.scene,
           observed: event.mode,
           transitioning: event.event === "mode",
-          transitionStartedAt: event.event === "mode" ? this.state.scene.transitionStartedAt : null
-        }
+          transitionStartedAt: event.event === "mode" ? this.state.scene.transitionStartedAt : null,
+        },
       });
     } else if (event.event === "transition") {
       this.setState({
@@ -410,8 +461,8 @@ export class GStreamerMediaEngine extends EventEmitter {
           ...this.state.scene,
           requested: event.mode,
           transitioning: true,
-          transitionStartedAt: new Date().toISOString()
-        }
+          transitionStartedAt: new Date().toISOString(),
+        },
       });
     } else if (event.event === "error") {
       this.setState({
@@ -422,16 +473,20 @@ export class GStreamerMediaEngine extends EventEmitter {
           category: "pipeline",
           message: event.message,
           debug: event.debug || null,
-          at: new Date().toISOString()
-        }
+          at: new Date().toISOString(),
+        },
       });
     } else if (event.event === "input-ready" || event.event === "ndi-ready") {
       this.setState({
         inputs: {
           ...this.state.inputs,
-          [event.media]: { ...this.state.inputs[event.media], ready: true, lastSeenAt: new Date().toISOString() }
+          [event.media]: {
+            ...this.state.inputs[event.media],
+            ready: true,
+            lastSeenAt: new Date().toISOString(),
+          },
         },
-        [`${event.media}Ready`]: true
+        [`${event.media}Ready`]: true,
       });
     } else if (event.event === "heartbeat") {
       this.setState({ lastHeartbeatAt: new Date().toISOString() }, { emit: false });
@@ -460,7 +515,19 @@ interface RtmpPipelineOptions {
   audioBitrate: number;
 }
 
-export function switchableNdiSlateToRtmpCommand({ sourceType = "ndi", networkUri, sourceName, sourceUrlAddress, rtmpUrl, webrtcRtspUrl, frameRate, videoBitrateKbps, audioBitrate, transitionDurationMs = 600, mode }: SwitchablePipelineOptions): string[] {
+export function switchableNdiSlateToRtmpCommand({
+  sourceType = "ndi",
+  networkUri,
+  sourceName,
+  sourceUrlAddress,
+  rtmpUrl,
+  webrtcRtspUrl,
+  frameRate,
+  videoBitrateKbps,
+  audioBitrate,
+  transitionDurationMs = 600,
+  mode,
+}: SwitchablePipelineOptions): string[] {
   const command = [
     process.env.STEEPLE_GST_CONTROLLER_BINARY || "python3",
     path.join(__dirname, "gst_ingest_controller.py"),
@@ -488,12 +555,18 @@ export function switchableNdiSlateToRtmpCommand({ sourceType = "ndi", networkUri
     "--transition-duration-ms",
     String(transitionDurationMs),
     "--initial-mode",
-    mode
+    mode,
   );
   return command;
 }
 
-export function ndiToRtmpPipeline({ sourceName, rtmpUrl, frameRate, videoBitrateKbps, audioBitrate }: RtmpPipelineOptions & { sourceName: string }): string[] {
+export function ndiToRtmpPipeline({
+  sourceName,
+  rtmpUrl,
+  frameRate,
+  videoBitrateKbps,
+  audioBitrate,
+}: RtmpPipelineOptions & { sourceName: string }): string[] {
   return [
     "ndisrc",
     `ndi-name=${sourceName}`,
@@ -544,11 +617,16 @@ export function ndiToRtmpPipeline({ sourceName, rtmpUrl, frameRate, videoBitrate
     "streamable=true",
     "!",
     "rtmpsink",
-    `location=${rtmpUrl}`
+    `location=${rtmpUrl}`,
   ];
 }
 
-export function sacramentSlateToRtmpPipeline({ rtmpUrl, frameRate, videoBitrateKbps, audioBitrate }: RtmpPipelineOptions): string[] {
+export function sacramentSlateToRtmpPipeline({
+  rtmpUrl,
+  frameRate,
+  videoBitrateKbps,
+  audioBitrate,
+}: RtmpPipelineOptions): string[] {
   return [
     "videotestsrc",
     "is-live=true",
@@ -593,7 +671,7 @@ export function sacramentSlateToRtmpPipeline({ rtmpUrl, frameRate, videoBitrateK
     "streamable=true",
     "!",
     "rtmpsink",
-    `location=${rtmpUrl}`
+    `location=${rtmpUrl}`,
   ];
 }
 
@@ -613,38 +691,51 @@ function initialState(): IngestStatus {
       requested: null,
       observed: null,
       transitioning: false,
-      transitionStartedAt: null
+      transitionStartedAt: null,
     },
     inputs: {
       video: { expected: false, ready: false, lastSeenAt: null },
-      audio: { expected: false, ready: false, lastSeenAt: null }
+      audio: { expected: false, ready: false, lastSeenAt: null },
     },
     outputs: {
       rtmp: { expected: false, ready: false, url: null },
-      rtsp: { expected: false, ready: false, url: null }
+      rtsp: { expected: false, ready: false, url: null },
     },
     lastHeartbeatAt: null,
     lastError: null,
-    log: []
+    log: [],
   };
 }
 
-function inputStateFor(source: VideoSource | null, pipelineType: PipelineType): Record<InputKind, EndpointState> {
+function inputStateFor(
+  source: VideoSource | null,
+  pipelineType: PipelineType,
+): Record<InputKind, EndpointState> {
   const expected = pipelineType !== "slate-only" && Boolean(source);
   return {
     video: { expected, ready: pipelineType === "slate-only", lastSeenAt: null },
-    audio: { expected, ready: pipelineType === "slate-only", lastSeenAt: null }
+    audio: { expected, ready: pipelineType === "slate-only", lastSeenAt: null },
   };
 }
 
-function outputStateFor(config: GStreamerConfig, pipelineType: PipelineType): Record<OutputKind, EndpointState> {
+function outputStateFor(
+  config: GStreamerConfig,
+  pipelineType: PipelineType,
+): Record<OutputKind, EndpointState> {
   return {
     rtmp: { expected: true, ready: pipelineType === "slate-only", url: config.rtmpUrl },
-    rtsp: { expected: Boolean(config.webrtcRtspUrl) && pipelineType !== "slate-only", ready: false, url: config.webrtcRtspUrl || null }
+    rtsp: {
+      expected: Boolean(config.webrtcRtspUrl) && pipelineType !== "slate-only",
+      ready: false,
+      url: config.webrtcRtspUrl || null,
+    },
   };
 }
 
-function markOutputs(outputs: Record<OutputKind, EndpointState>, readyOutputs: OutputKind[]): Record<OutputKind, EndpointState> {
+function markOutputs(
+  outputs: Record<OutputKind, EndpointState>,
+  readyOutputs: OutputKind[],
+): Record<OutputKind, EndpointState> {
   const next = structuredClone(outputs);
   for (const output of readyOutputs) {
     if (next[output]) next[output].ready = true;
@@ -654,13 +745,26 @@ function markOutputs(outputs: Record<OutputKind, EndpointState>, readyOutputs: O
 
 const defaultRunner = {
   spawn,
-  async nixBuild(packages: readonly string[], cwd: string, options: RunnerOptions = {}): Promise<string[]> {
-    const args = ["build", ...(options.impure ? ["--impure"] : []), "--no-link", "--print-out-paths", ...packages];
+  async nixBuild(
+    packages: readonly string[],
+    cwd: string,
+    options: RunnerOptions = {},
+  ): Promise<string[]> {
+    const args = [
+      "build",
+      ...(options.impure ? ["--impure"] : []),
+      "--no-link",
+      "--print-out-paths",
+      ...packages,
+    ];
     const { stdout } = await execFileAsync("nix", args, {
       cwd,
       env: options.env,
-      maxBuffer: 1024 * 1024 * 20
+      maxBuffer: 1024 * 1024 * 20,
     });
-    return stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  }
+    return stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+  },
 };

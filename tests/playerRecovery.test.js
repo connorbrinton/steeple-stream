@@ -16,43 +16,68 @@ function harness({ native = false, mse = !native, autoplay = true } = {}) {
     return id;
   };
   const video = Object.assign(new EventTarget(), {
-    currentTime: 0, paused: false, seeking: false, ended: false,
-    canPlayType: () => native ? "maybe" : "",
+    currentTime: 0,
+    paused: false,
+    seeking: false,
+    ended: false,
+    canPlayType: () => (native ? "maybe" : ""),
     play: async () => {},
-    reloads: 0
+    reloads: 0,
   });
-  Object.defineProperty(video, "src", { set() { video.reloads++; } });
+  Object.defineProperty(video, "src", {
+    set() {
+      video.reloads++;
+    },
+  });
   const container = {
     isConnected: true,
-    contains: element => element === video,
-    querySelector: selector => selector === ".playback-status" ? overlay : null
+    contains: (element) => element === video,
+    querySelector: (selector) => (selector === ".playback-status" ? overlay : null),
   };
   const instances = [];
   class Hls {
-    static isSupported() { return mse; }
+    static isSupported() {
+      return mse;
+    }
     static Events = { ERROR: "error" };
-    constructor() { instances.push(this); }
+    constructor() {
+      instances.push(this);
+    }
     loadSource() {}
-    attachMedia(media) { this.media = media; }
-    on(_event, handler) { this.error = handler; }
-    destroy() { this.destroyed = true; }
-    stopLoad() { this.stopped = true; }
+    attachMedia(media) {
+      this.media = media;
+    }
+    on(_event, handler) {
+      this.error = handler;
+    }
+    destroy() {
+      this.destroyed = true;
+    }
+    stopLoad() {
+      this.stopped = true;
+    }
   }
   const document = { hidden: false };
   const context = vm.createContext({
-    window: { Hls }, document,
+    window: { Hls },
+    document,
     performance: { now: () => now },
     setTimeout: (fn, delay) => schedule(fn, delay),
     setInterval: (fn, delay) => schedule(fn, delay, true),
-    clearTimeout: id => timers.delete(id),
-    clearInterval: id => timers.delete(id)
+    clearTimeout: (id) => timers.delete(id),
+    clearInterval: (id) => timers.delete(id),
   });
   vm.runInContext(source, context);
   context.showPlaybackStatus = (_container, title) => {
-    overlay = { title, remove() { overlay = null; } };
+    overlay = {
+      title,
+      remove() {
+        overlay = null;
+      },
+    };
   };
   context.attachHls(container, video, "/live.m3u8", { autoplay });
-  const advance = milliseconds => {
+  const advance = (milliseconds) => {
     const end = now + milliseconds;
     while (true) {
       const next = [...timers].sort((a, b) => a[1].at - b[1].at)[0];
@@ -65,9 +90,16 @@ function harness({ native = false, mse = !native, autoplay = true } = {}) {
     }
     now = end;
   };
-  return { video, container, document, instances, advance, context,
+  return {
+    video,
+    container,
+    document,
+    instances,
+    advance,
+    context,
     status: () => overlay?.title,
-    emit: name => video.dispatchEvent(new Event(name)) };
+    emit: (name) => video.dispatchEvent(new Event(name)),
+  };
 }
 
 test("nonfatal HLS stalls reconnect on the same media element", () => {

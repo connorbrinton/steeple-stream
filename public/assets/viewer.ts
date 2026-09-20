@@ -46,7 +46,7 @@ async function registerViewer(name) {
   await fetch("/api/viewers", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name, sessionId })
+    body: JSON.stringify({ name, sessionId }),
   });
   viewerName = name;
   await refresh();
@@ -61,7 +61,11 @@ async function refresh() {
     statusLabel.textContent = "Connection interrupted";
     details.textContent = "Reconnecting to the broadcast service.";
     if (!frame.querySelector("video")) {
-      window.SteeplePlayer.renderSlate(frame, "Unable to connect", "The broadcast service is temporarily unavailable. Retrying automatically.");
+      window.SteeplePlayer.renderSlate(
+        frame,
+        "Unable to connect",
+        "The broadcast service is temporarily unavailable. Retrying automatically.",
+      );
     }
     console.error(error);
   }
@@ -74,14 +78,21 @@ function render(state) {
   details.textContent = detailsFor(broadcast, state.viewerCount);
 
   if (!viewerName) {
-    window.SteeplePlayer.renderSlate(frame, "Name Required", "Enter your name to watch the broadcast.");
+    window.SteeplePlayer.renderSlate(
+      frame,
+      "Name Required",
+      "Enter your name to watch the broadcast.",
+    );
     return;
   }
 
   if (broadcast.status === "replay" && broadcast.playback?.recordingUrl) {
     startPlaybackSession(broadcast);
     updatePlayback({ transport: "recording" });
-    window.SteeplePlayer.renderRecording(frame, broadcast.playback.recordingUrl, { autoplay: true, onVideo: observeVideo });
+    window.SteeplePlayer.renderRecording(frame, broadcast.playback.recordingUrl, {
+      autoplay: true,
+      onVideo: observeVideo,
+    });
     return;
   }
 
@@ -96,22 +107,38 @@ function render(state) {
         streamKey: broadcast.id,
         timeoutMs: 8000,
         onVideo: observeVideo,
-        onTransport: ({ transport, candidateType, fallbackReason }) => updatePlayback({ transport, candidateType, fallbackReason, startupMs: Math.round(performance.now() - started) })
+        onTransport: ({ transport, candidateType, fallbackReason }) =>
+          updatePlayback({
+            transport,
+            candidateType,
+            fallbackReason,
+            startupMs: Math.round(performance.now() - started),
+          }),
       });
     }
     return;
   }
 
-  window.SteeplePlayer.renderSlate(frame, "Broadcast Offline", "The meeting broadcast is not currently active.");
+  window.SteeplePlayer.renderSlate(
+    frame,
+    "Broadcast Offline",
+    "The meeting broadcast is not currently active.",
+  );
 }
 
 function startPlaybackSession(broadcast) {
   if (playback?.broadcastId === broadcast.id) return;
   playback = {
-    id: crypto.randomUUID(), viewerId: sessionId, viewerName,
-    broadcastId: broadcast.id, startedAt: new Date().toISOString(),
-    transport: null, watchSeconds: 0, bufferingMs: 0,
-    bufferingCount: 0, reconnectCount: 0
+    id: crypto.randomUUID(),
+    viewerId: sessionId,
+    viewerName,
+    broadcastId: broadcast.id,
+    startedAt: new Date().toISOString(),
+    transport: null,
+    watchSeconds: 0,
+    bufferingMs: 0,
+    bufferingCount: 0,
+    reconnectCount: 0,
   };
   reportPlayback();
 }
@@ -126,24 +153,49 @@ function reportPlayback(beacon = false) {
   if (!playback) return;
   playback.watchSeconds = Math.max(0, (Date.now() - new Date(playback.startedAt).getTime()) / 1000);
   const body = JSON.stringify(playback);
-  if (beacon) navigator.sendBeacon("/api/playback-sessions", new Blob([body], { type: "application/json" }));
-  else fetch("/api/playback-sessions", { method: "POST", headers: { "content-type": "application/json" }, body, keepalive: true }).catch(() => {});
+  if (beacon)
+    navigator.sendBeacon("/api/playback-sessions", new Blob([body], { type: "application/json" }));
+  else
+    fetch("/api/playback-sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+      keepalive: true,
+    }).catch(() => {});
 }
 
 function observeVideo(video) {
   const listeners = new AbortController();
   const options = { signal: listeners.signal };
   let waitingAt: number | null = null;
-  video.addEventListener("waiting", () => {
-    waitingAt = performance.now();
-    if (playback) playback.bufferingCount += 1;
-  }, options);
-  video.addEventListener("playing", () => {
-    if (waitingAt !== null && playback) playback.bufferingMs += performance.now() - waitingAt;
-    waitingAt = null;
-  }, options);
-  video.addEventListener("stalled", () => { if (playback) playback.reconnectCount += 1; }, options);
-  video.addEventListener("error", () => updatePlayback({ terminalError: video.error?.message || "Media playback error" }), options);
+  video.addEventListener(
+    "waiting",
+    () => {
+      waitingAt = performance.now();
+      if (playback) playback.bufferingCount += 1;
+    },
+    options,
+  );
+  video.addEventListener(
+    "playing",
+    () => {
+      if (waitingAt !== null && playback) playback.bufferingMs += performance.now() - waitingAt;
+      waitingAt = null;
+    },
+    options,
+  );
+  video.addEventListener(
+    "stalled",
+    () => {
+      if (playback) playback.reconnectCount += 1;
+    },
+    options,
+  );
+  video.addEventListener(
+    "error",
+    () => updatePlayback({ terminalError: video.error?.message || "Media playback error" }),
+    options,
+  );
   return () => listeners.abort();
 }
 

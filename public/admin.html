@@ -1,16 +1,18 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Steeple Stream Operator</title>
-    <link rel="stylesheet" href="/build/app.css?v=__ASSET_VERSION__">
+    <link rel="stylesheet" href="/build/app.css?v=__ASSET_VERSION__" />
   </head>
   <body>
     <main class="shell">
       <header class="topbar">
         <div class="brand">Steeple Stream Operator</div>
-        <div class="status"><span id="status-dot" class="dot"></span><span id="status-label">Loading</span></div>
+        <div class="status">
+          <span id="status-dot" class="dot"></span><span id="status-label">Loading</span>
+        </div>
       </header>
       <section class="layout admin-grid">
         <div class="panel preview-panel">
@@ -35,7 +37,9 @@
               <div class="control-label">Available Sources</div>
               <div class="meta" id="source-discovery-status">Checking sources.</div>
             </div>
-            <button class="button compact" id="open-manual-source" type="button">Add Manual Source</button>
+            <button class="button compact" id="open-manual-source" type="button">
+              Add Manual Source
+            </button>
           </div>
           <div class="source-list" id="source-list"></div>
 
@@ -50,8 +54,16 @@
         <div class="panel" id="obs-credentials-panel" hidden>
           <h2>OBS Control Credentials</h2>
           <form id="obs-credential-form" class="source-form">
-            <label>Unit name<input id="obs-unit-name" required></label>
-            <label>WebSocket port<input id="obs-port" type="number" min="1024" max="65535" value="4455" required></label>
+            <label>Unit name<input id="obs-unit-name" required /></label>
+            <label
+              >WebSocket port<input
+                id="obs-port"
+                type="number"
+                min="1024"
+                max="65535"
+                value="4455"
+                required
+            /></label>
             <button class="button primary" type="submit">Create Credential</button>
           </form>
           <div class="list" id="obs-credentials"></div>
@@ -77,11 +89,11 @@
           <div class="source-fields" data-source-fields="ndi">
             <label>
               NDI source name
-              <input id="add-ndi-source-name" placeholder="HOST (Source name)">
+              <input id="add-ndi-source-name" placeholder="HOST (Source name)" />
             </label>
             <label>
               Direct address
-              <input id="add-ndi-url-address" placeholder="Optional host:port">
+              <input id="add-ndi-url-address" placeholder="Optional host:port" />
             </label>
           </div>
 
@@ -95,13 +107,17 @@
             </label>
             <label>
               Source URI
-              <input id="network-uri" placeholder="rtsp://encoder.local/stream">
+              <input id="network-uri" placeholder="rtsp://encoder.local/stream" />
             </label>
           </div>
 
           <label>
             Notes
-            <textarea id="source-notes" rows="3" placeholder="Setup notes for this location"></textarea>
+            <textarea
+              id="source-notes"
+              rows="3"
+              placeholder="Setup notes for this location"
+            ></textarea>
           </label>
 
           <div class="modal-actions">

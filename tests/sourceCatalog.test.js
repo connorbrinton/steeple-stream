@@ -8,14 +8,14 @@ test("source catalog exposes discovered NDI sources without manual configuration
     manualSources: [],
     discoveredNdiSources: [
       { name: "CHAPEL CAMERA", urlAddress: "192.0.2.10:5961", source: "gstreamer" },
-      { name: "Steeple Stream Synthetic", urlAddress: "127.0.0.1:5961", source: "gstreamer" }
+      { name: "Steeple Stream Synthetic", urlAddress: "127.0.0.1:5961", source: "gstreamer" },
     ],
     ingestStatus: {
       ready: true,
       status: "running",
-      inputs: { video: { ready: true }, audio: { ready: true } }
+      inputs: { video: { ready: true }, audio: { ready: true } },
     },
-    backendHealth: { ready: true }
+    backendHealth: { ready: true },
   });
 
   assert.equal(catalog.sources.length, 2);
@@ -28,11 +28,14 @@ test("source catalog exposes discovered NDI sources without manual configuration
 
 test("source catalog includes manual and active-only sources when not discovered", () => {
   const catalog = buildSourceCatalog({
-    activeSource: { type: "ndi", ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.0.2.10:5961" } },
+    activeSource: {
+      type: "ndi",
+      ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.0.2.10:5961" },
+    },
     manualSources: [
-      { type: "network", network: { protocol: "rtsp", uri: "rtsp://encoder.local/live" } }
+      { type: "network", network: { protocol: "rtsp", uri: "rtsp://encoder.local/live" } },
     ],
-    discoveredNdiSources: []
+    discoveredNdiSources: [],
   });
 
   assert.equal(catalog.sources.length, 2);
@@ -47,11 +50,15 @@ test("source catalog merges a manual NDI source with a discovered source", () =>
   const catalog = buildSourceCatalog({
     activeSource: { type: "ndi", ndi: { sourceName: "Backup Camera", urlAddress: "" } },
     manualSources: [
-      { type: "ndi", ndi: { sourceName: "Backup Camera", urlAddress: "192.0.2.10:5961" }, notes: "Saved fallback" }
+      {
+        type: "ndi",
+        ndi: { sourceName: "Backup Camera", urlAddress: "192.0.2.10:5961" },
+        notes: "Saved fallback",
+      },
     ],
     discoveredNdiSources: [
-      { name: "Backup Camera", urlAddress: "192.0.2.11:5961", source: "gstreamer" }
-    ]
+      { name: "Backup Camera", urlAddress: "192.0.2.11:5961", source: "gstreamer" },
+    ],
   });
 
   assert.equal(catalog.sources.length, 1);
@@ -63,10 +70,13 @@ test("source catalog merges a manual NDI source with a discovered source", () =>
 test("source catalog marks separate stream and camera control sources", () => {
   const catalog = buildSourceCatalog({
     activeSource: { type: "network", network: { protocol: "rtsp", uri: "rtsp://encoder/live" } },
-    cameraControlSource: { type: "ndi", ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.0.2.20:5961" } },
+    cameraControlSource: {
+      type: "ndi",
+      ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.0.2.20:5961" },
+    },
     discoveredNdiSources: [
-      { name: "CHAPEL CAMERA", urlAddress: "192.0.2.20:5961", source: "gstreamer" }
-    ]
+      { name: "CHAPEL CAMERA", urlAddress: "192.0.2.20:5961", source: "gstreamer" },
+    ],
   });
 
   assert.equal(catalog.activeSourceId, "network:rtsp:rtsp://encoder/live");

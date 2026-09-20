@@ -2,7 +2,13 @@ import path from "node:path";
 
 const dataDir = process.env.STEEPLE_DATA_DIR || path.resolve("data");
 const publicBaseUrl = process.env.STEEPLE_PUBLIC_BASE_URL || "http://localhost:8080";
-const csv = (value: string | undefined) => new Set(String(value || "").split(",").map((entry) => entry.trim().toLowerCase()).filter(Boolean));
+const csv = (value: string | undefined) =>
+  new Set(
+    String(value || "")
+      .split(",")
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(Boolean),
+  );
 const profile = process.env.STEEPLE_PROFILE || "broadcast";
 const host = process.env.STEEPLE_HOST || "127.0.0.1";
 const channelId = process.env.STEEPLE_CHANNEL_ID || "stakecenter";
@@ -21,7 +27,7 @@ const capabilities = {
   publicViewer: profile === "broadcast",
   hlsScrub: profile === "broadcast",
   recording: profile === "broadcast",
-  obsControl: profile === "broadcast"
+  obsControl: profile === "broadcast",
 };
 
 export const config = {
@@ -50,7 +56,7 @@ export const config = {
     publicBaseUrl,
     host,
     trustedProxy: process.env.STEEPLE_TRUSTED_PROXY === "1",
-    requireProductionConfig: process.env.STEEPLE_AUTH_REQUIRE_PRODUCTION !== "0"
+    requireProductionConfig: process.env.STEEPLE_AUTH_REQUIRE_PRODUCTION !== "0",
   },
   ptz: {
     transport: process.env.STEEPLE_PTZ_TRANSPORT || "ndi",
@@ -61,10 +67,10 @@ export const config = {
     smoothDurationMs: Number(process.env.STEEPLE_PTZ_SMOOTH_DURATION_MS || 1400),
     ndiHelper: process.env.STEEPLE_NDI_PTZ_HELPER || null,
     ndiPresetSpeed: Number(process.env.STEEPLE_NDI_PTZ_PRESET_SPEED || 1),
-    ndiSettleMs: Number(process.env.STEEPLE_NDI_PTZ_SETTLE_MS || 750)
+    ndiSettleMs: Number(process.env.STEEPLE_NDI_PTZ_SETTLE_MS || 750),
   },
   discovery: {
-    ndiIntervalMs: Number(process.env.STEEPLE_NDI_DISCOVERY_INTERVAL_MS || 7000)
+    ndiIntervalMs: Number(process.env.STEEPLE_NDI_DISCOVERY_INTERVAL_MS || 7000),
   },
   ingest: {
     autoStart: process.env.STEEPLE_INGEST_AUTO_START !== "0",
@@ -74,11 +80,15 @@ export const config = {
     audioBitrate: Number(process.env.STEEPLE_INGEST_AUDIO_BITRATE || 128000),
     frameRate: Number(process.env.STEEPLE_INGEST_FRAME_RATE || 30),
     transitionDurationMs: Number(process.env.STEEPLE_TRANSITION_DURATION_MS || 600),
-    rtmpUrl: process.env.STEEPLE_INGEST_RTMP_URL || `rtmp://127.0.0.1:1935/${process.env.STEEPLE_CHANNEL_ID || "stakecenter"}`,
-    webrtcRtspUrl: process.env.STEEPLE_INGEST_WEBRTC_RTSP_URL || `rtsp://127.0.0.1:8554/${process.env.STEEPLE_CHANNEL_ID || "stakecenter"}-webrtc`,
+    rtmpUrl:
+      process.env.STEEPLE_INGEST_RTMP_URL ||
+      `rtmp://127.0.0.1:1935/${process.env.STEEPLE_CHANNEL_ID || "stakecenter"}`,
+    webrtcRtspUrl:
+      process.env.STEEPLE_INGEST_WEBRTC_RTSP_URL ||
+      `rtsp://127.0.0.1:8554/${process.env.STEEPLE_CHANNEL_ID || "stakecenter"}-webrtc`,
     gstLaunchBinary: process.env.STEEPLE_GST_LAUNCH_BINARY || null,
     ndiRuntimeDir: process.env.STEEPLE_NDI_RUNTIME_DIR || null,
-    ndiNixPackage: process.env.STEEPLE_NDI_NIX_PACKAGE || "nixpkgs#ndi"
+    ndiNixPackage: process.env.STEEPLE_NDI_NIX_PACKAGE || "nixpkgs#ndi",
   },
   mediamtx: {
     channelId: process.env.STEEPLE_CHANNEL_ID || "stakecenter",
@@ -97,6 +107,6 @@ export const config = {
     hlsProxyBaseUrl: process.env.STEEPLE_HLS_PROXY_BASE_URL || "http://localhost:8888",
     playbackBaseUrl: process.env.STEEPLE_PLAYBACK_BASE_URL || "http://127.0.0.1:9996",
     webrtcBaseUrl: process.env.STEEPLE_WEBRTC_BASE_URL || "/webrtc",
-    publicWebRtc: process.env.STEEPLE_PUBLIC_WEBRTC !== "0"
-  }
+    publicWebRtc: process.env.STEEPLE_PUBLIC_WEBRTC !== "0",
+  },
 };

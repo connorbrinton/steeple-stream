@@ -58,34 +58,49 @@ interface SourceFlags {
 
 export function sourceId(source?: Partial<VideoSource> | null): string {
   if (source?.type === "ndi") return source.ndi?.sourceName ? `ndi:${source.ndi.sourceName}` : "";
-  if (source?.type === "network") return source.network?.uri ? `network:${source.network.protocol || "rtsp"}:${source.network.uri}` : "";
+  if (source?.type === "network")
+    return source.network?.uri
+      ? `network:${source.network.protocol || "rtsp"}:${source.network.uri}`
+      : "";
   return "";
 }
 
-export function buildSourceCatalog({ activeSource, cameraControlSource = null, manualSources = [], discoveredNdiSources = [], discoveryStatus = {}, ingestStatus = null, backendHealth = null }: CatalogOptions) {
+export function buildSourceCatalog({
+  activeSource,
+  cameraControlSource = null,
+  manualSources = [],
+  discoveredNdiSources = [],
+  discoveryStatus = {},
+  ingestStatus = null,
+  backendHealth = null,
+}: CatalogOptions) {
   const sources = new Map<string, CatalogSource>();
   const activeSourceId = sourceId(activeSource);
   const cameraControlSourceId = sourceId(cameraControlSource);
 
   for (const ndi of discoveredNdiSources || []) {
-    upsertSource(sources, {
-      type: "ndi",
-      ndi: { sourceName: ndi.name || "", urlAddress: ndi.urlAddress || "", discoveryServer: "" },
-      capture: { videoDevice: "", audioDevice: "", resolution: "1920x1080", frameRate: 30 },
-      network: { uri: "", protocol: "rtsp" },
-      notes: ""
-    }, {
-      origin: "discovered",
-      available: ndi.available !== false,
-      discoveryMethod: ndi.source || "ndi"
-    });
+    upsertSource(
+      sources,
+      {
+        type: "ndi",
+        ndi: { sourceName: ndi.name || "", urlAddress: ndi.urlAddress || "", discoveryServer: "" },
+        capture: { videoDevice: "", audioDevice: "", resolution: "1920x1080", frameRate: 30 },
+        network: { uri: "", protocol: "rtsp" },
+        notes: "",
+      },
+      {
+        origin: "discovered",
+        available: ndi.available !== false,
+        discoveryMethod: ndi.source || "ndi",
+      },
+    );
   }
 
   for (const source of manualSources || []) {
     upsertSource(sources, source, {
       origin: "manual",
       configured: true,
-      available: source.type === "network"
+      available: source.type === "network",
     });
   }
 
@@ -93,7 +108,7 @@ export function buildSourceCatalog({ activeSource, cameraControlSource = null, m
     upsertSource(sources, activeSource, {
       origin: "active",
       activeOnly: true,
-      available: false
+      available: false,
     });
   }
 
@@ -101,7 +116,7 @@ export function buildSourceCatalog({ activeSource, cameraControlSource = null, m
     upsertSource(sources, cameraControlSource, {
       origin: "camera-control",
       activeOnly: true,
-      available: false
+      available: false,
     });
   }
 
@@ -115,15 +130,21 @@ export function buildSourceCatalog({ activeSource, cameraControlSource = null, m
     activeSourceId: activeSourceId || null,
     cameraControlSourceId: cameraControlSourceId || null,
     sources: [...sources.values()].sort(compareSources),
-    discovery: discoveryStatus
+    discovery: discoveryStatus,
   };
 }
 
-function upsertSource(sources: Map<string, CatalogSource>, source: VideoSource, flags: SourceFlags = {}) {
+function upsertSource(
+  sources: Map<string, CatalogSource>,
+  source: VideoSource,
+  flags: SourceFlags = {},
+) {
   const id = sourceId(source);
   if (!id) return;
   const existing = sources.get(id);
-  const merged = mergeSource(existing?.source, source, { preferPreviousNdiAddress: Boolean(existing?.available && flags.origin !== "discovered") });
+  const merged = mergeSource(existing?.source, source, {
+    preferPreviousNdiAddress: Boolean(existing?.available && flags.origin !== "discovered"),
+  });
   sources.set(id, {
     id,
     type: merged.type,
@@ -131,15 +152,23 @@ function upsertSource(sources: Map<string, CatalogSource>, source: VideoSource, 
     detail: sourceDetail(merged),
     source: merged,
     origin: bestOrigin(existing?.origin, flags.origin),
-    origins: unique([...(existing?.origins || []), flags.origin].filter((origin): origin is string => Boolean(origin))),
+    origins: unique(
+      [...(existing?.origins || []), flags.origin].filter((origin): origin is string =>
+        Boolean(origin),
+      ),
+    ),
     configured: Boolean(existing?.configured || flags.configured),
     activeOnly: Boolean(flags.activeOnly && !existing),
     available: Boolean(existing?.available || flags.available),
-    discoveryMethod: existing?.discoveryMethod || flags.discoveryMethod || null
+    discoveryMethod: existing?.discoveryMethod || flags.discoveryMethod || null,
   });
 }
 
-function mergeSource(previous: VideoSource | undefined, next: VideoSource, { preferPreviousNdiAddress = false }: { preferPreviousNdiAddress?: boolean } = {}): VideoSource {
+function mergeSource(
+  previous: VideoSource | undefined,
+  next: VideoSource,
+  { preferPreviousNdiAddress = false }: { preferPreviousNdiAddress?: boolean } = {},
+): VideoSource {
   if (!previous) return structuredClone(next);
   return {
     ...previous,
@@ -149,13 +178,13 @@ function mergeSource(previous: VideoSource | undefined, next: VideoSource, { pre
       ...next.ndi,
       urlAddress: preferPreviousNdiAddress
         ? previous.ndi?.urlAddress || next.ndi?.urlAddress || ""
-        : next.ndi?.urlAddress || previous.ndi?.urlAddress || ""
+        : next.ndi?.urlAddress || previous.ndi?.urlAddress || "",
     },
     network: {
       ...previous.network,
-      ...next.network
+      ...next.network,
     },
-    notes: next.notes || previous.notes || ""
+    notes: next.notes || previous.notes || "",
   };
 }
 
@@ -171,14 +200,21 @@ function sourceDetail(source: VideoSource): string {
   return "";
 }
 
-function sourceHealth(source: CatalogSource, { activeSource, ingestStatus, backendHealth }: Pick<CatalogOptions, "activeSource" | "ingestStatus" | "backendHealth">) {
+function sourceHealth(
+  source: CatalogSource,
+  {
+    activeSource,
+    ingestStatus,
+    backendHealth,
+  }: Pick<CatalogOptions, "activeSource" | "ingestStatus" | "backendHealth">,
+) {
   if (!source.selected) {
     return {
       ingestReady: null,
       previewReady: null,
       status: source.available ? "available" : "unavailable",
       message: source.available ? "Available" : "Saved source not currently discovered",
-      error: null
+      error: null,
     };
   }
   const inputVideoReady = Boolean(ingestStatus?.inputs?.video?.ready);
@@ -190,11 +226,17 @@ function sourceHealth(source: CatalogSource, { activeSource, ingestStatus, backe
     previewReady,
     status: ingestReady && previewReady ? "healthy" : ingestStatus?.status || "selected",
     message: selectedMessage({ source, activeSource, ingestStatus, ingestReady, previewReady }),
-    error: ingestStatus?.lastError?.message || null
+    error: ingestStatus?.lastError?.message || null,
   };
 }
 
-function selectedMessage({ source, activeSource, ingestStatus, ingestReady, previewReady }: {
+function selectedMessage({
+  source,
+  activeSource,
+  ingestStatus,
+  ingestReady,
+  previewReady,
+}: {
   source: CatalogSource;
   activeSource: VideoSource;
   ingestStatus?: IngestStatus | null;
@@ -202,7 +244,8 @@ function selectedMessage({ source, activeSource, ingestStatus, ingestReady, prev
   previewReady: boolean;
 }): string {
   if (ingestStatus?.lastError?.message) return ingestStatus.lastError.message;
-  if (!source.available && activeSource?.type === "ndi") return "Selected, but not currently discovered";
+  if (!source.available && activeSource?.type === "ndi")
+    return "Selected, but not currently discovered";
   if (ingestReady && previewReady) return "Receiving audio, video, and preview";
   if (ingestReady) return "Receiving input, waiting for preview";
   if (ingestStatus?.status === "starting") return "Starting ingest";

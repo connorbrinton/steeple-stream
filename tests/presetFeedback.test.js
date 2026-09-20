@@ -9,29 +9,38 @@ function button() {
   const classes = new Set();
   const attributes = new Map();
   return {
-    classList: { add: name => classes.add(name), remove: (...names) => names.forEach(name => classes.delete(name)) },
+    classList: {
+      add: (name) => classes.add(name),
+      remove: (...names) => names.forEach((name) => classes.delete(name)),
+    },
     setAttribute: (name, value) => attributes.set(name, value),
-    removeAttribute: name => attributes.delete(name),
-    classes, attributes, offsetWidth: 100
+    removeAttribute: (name) => attributes.delete(name),
+    classes,
+    attributes,
+    offsetWidth: 100,
   };
 }
 
 function harness() {
   const buttons = [button(), button()];
-  const controls = { querySelectorAll: () => buttons, contains: b => buttons.includes(b) };
+  const controls = { querySelectorAll: () => buttons, contains: (b) => buttons.includes(b) };
   const requests = [];
   const alerts = [];
   const context = vm.createContext({
-    document: { querySelector: id => id === "#ptz-controls" ? controls : { addEventListener() {} } },
+    document: {
+      querySelector: (id) => (id === "#ptz-controls" ? controls : { addEventListener() {} }),
+    },
     fetch(url) {
       if (url === "/api/session") return new Promise(() => {});
       return new Promise((resolve, reject) => requests.push({ resolve, reject }));
     },
-    alert: message => alerts.push(message), console, setInterval() {}
+    alert: (message) => alerts.push(message),
+    console,
+    setInterval() {},
   });
   vm.runInContext(source, context);
   context.refresh = async () => {};
-  const resolve = index => requests[index].resolve({ ok: true, json: async () => ({}) });
+  const resolve = (index) => requests[index].resolve({ ok: true, json: async () => ({}) });
   return { context, buttons, requests, resolve, alerts };
 }
 

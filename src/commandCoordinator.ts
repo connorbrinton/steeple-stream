@@ -2,9 +2,17 @@ import { EventEmitter } from "node:events";
 import type { BroadcastService } from "./broadcastService.js";
 import type { Actor, SceneMode } from "./domain.js";
 
-type CoordinatedService = Pick<BroadcastService,
-  "start" | "end" | "setMode" | "updateSource" | "updateCameraControlSource" |
-  "addManualSource" | "recallPreset" | "capturePreset" | "summary"
+type CoordinatedService = Pick<
+  BroadcastService,
+  | "start"
+  | "end"
+  | "setMode"
+  | "updateSource"
+  | "updateCameraControlSource"
+  | "addManualSource"
+  | "recallPreset"
+  | "capturePreset"
+  | "summary"
 >;
 type PublicState = Awaited<ReturnType<BroadcastService["summary"]>>;
 

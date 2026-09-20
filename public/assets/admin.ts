@@ -16,14 +16,21 @@ let latestHealth: { ingest?: unknown } | null = null;
 let latestState: unknown = null;
 let latestPreviewSignature = "";
 let obsCredentialsLoaded = false;
-let sourceCatalog: { sources?: Array<{ selected?: boolean; cameraControl?: boolean }>; discovery?: unknown } | null = null;
+let sourceCatalog: {
+  sources?: Array<{ selected?: boolean; cameraControl?: boolean }>;
+  discovery?: unknown;
+} | null = null;
 let selectingSourceId: string | null = null;
 let selectingCameraControlSourceId: string | null = null;
 let csrfToken = "development";
 
 openManualSource.addEventListener("click", () => openManualSourceModal());
-document.querySelector("#cancel-manual-source")!.addEventListener("click", () => closeManualSourceModal());
-document.querySelector("#cancel-manual-source-x")!.addEventListener("click", () => closeManualSourceModal());
+document
+  .querySelector("#cancel-manual-source")!
+  .addEventListener("click", () => closeManualSourceModal());
+document
+  .querySelector("#cancel-manual-source-x")!
+  .addEventListener("click", () => closeManualSourceModal());
 sourceModal.addEventListener("click", (event) => {
   if (event.target === sourceModal) closeManualSourceModal();
 });
@@ -42,9 +49,10 @@ obsForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const result = await post("/api/obs-credentials", {
     unitName: document.querySelector("#obs-unit-name")!.value,
-    port: Number(document.querySelector("#obs-port")!.value)
+    port: Number(document.querySelector("#obs-port")!.value),
   });
-  document.querySelector("#obs-new-password")!.textContent = `Password for ${result.unitName}: ${result.password}. This password is shown once.`;
+  document.querySelector("#obs-new-password")!.textContent =
+    `Password for ${result.unitName}: ${result.password}. This password is shown once.`;
   await loadObsCredentials();
 });
 
@@ -52,7 +60,7 @@ async function post(url, body = {}, method = "POST") {
   const response = await fetch(url, {
     method,
     headers: { "content-type": "application/json", "x-steeple-csrf": csrfToken },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({ error: response.statusText }));
@@ -67,7 +75,7 @@ async function post(url, body = {}, method = "POST") {
 async function refresh() {
   const [state, healthState] = await Promise.all([
     fetch("/api/state").then((response) => response.json()),
-    fetch("/api/health").then((response) => response.json())
+    fetch("/api/health").then((response) => response.json()),
   ]);
   latestHealth = healthState;
   renderState(state);
@@ -78,14 +86,17 @@ function renderState(state) {
   latestState = state;
   const broadcast = state.broadcast;
   const capabilities = state.capabilities || {};
-  document.querySelector("#obs-credentials-panel")!.hidden = window.steepleRole !== "administrator" || !capabilities.obsControl;
+  document.querySelector("#obs-credentials-panel")!.hidden =
+    window.steepleRole !== "administrator" || !capabilities.obsControl;
   if (window.steepleRole === "administrator" && capabilities.obsControl && !obsCredentialsLoaded) {
     obsCredentialsLoaded = true;
     loadObsCredentials().catch(console.error);
   }
   statusDot.className = `dot ${broadcast.status === "live" ? broadcast.mode : ""}`;
   statusLabel.textContent = capabilities.broadcastControls
-    ? broadcast.status === "live" ? `${broadcast.mode} live` : broadcast.status
+    ? broadcast.status === "live"
+      ? `${broadcast.mode} live`
+      : broadcast.status
     : "camera control";
   renderPreview(state);
   renderSource(state.source);
@@ -103,13 +114,13 @@ function readSourceForm() {
     ndi: {
       sourceName: document.querySelector("#add-ndi-source-name")!.value,
       urlAddress: document.querySelector("#add-ndi-url-address")!.value,
-      discoveryServer: ""
+      discoveryServer: "",
     },
     network: {
       protocol: document.querySelector("#network-protocol")!.value,
-      uri: document.querySelector("#network-uri")!.value
+      uri: document.querySelector("#network-uri")!.value,
     },
-    notes: document.querySelector("#source-notes")!.value
+    notes: document.querySelector("#source-notes")!.value,
   };
 }
 
@@ -137,7 +148,8 @@ async function loadSources({ silent = false } = {}) {
   try {
     sourceCatalog = await fetch("/api/sources").then((result) => result.json());
   } catch (error) {
-    if (!silent) sourceDiscoveryStatus.textContent = `Refresh failed: ${error instanceof Error ? error.message : String(error)}`;
+    if (!silent)
+      sourceDiscoveryStatus.textContent = `Refresh failed: ${error instanceof Error ? error.message : String(error)}`;
     return;
   }
   renderSourceCatalog();
@@ -234,7 +246,8 @@ function sourceActions(source) {
   const actions = document.createElement("div");
   actions.className = "source-actions-inline";
   if (!source.selected) actions.append(streamActionButton(source));
-  if (source.type === "ndi" && !source.cameraControl) actions.append(cameraControlActionButton(source));
+  if (source.type === "ndi" && !source.cameraControl)
+    actions.append(cameraControlActionButton(source));
   return actions.childElementCount ? actions : null;
 }
 
@@ -253,7 +266,8 @@ function cameraControlActionButton(source) {
   button.type = "button";
   button.className = "source-action-label secondary";
   button.disabled = source.id === selectingCameraControlSourceId;
-  button.textContent = source.id === selectingCameraControlSourceId ? "Saving..." : "Use for Camera";
+  button.textContent =
+    source.id === selectingCameraControlSourceId ? "Saving..." : "Use for Camera";
   button.addEventListener("click", () => selectCameraControlSource(source));
   return button;
 }
@@ -309,7 +323,9 @@ function renderSourceDiscoveryStatus(discovery) {
     sourceDiscoveryStatus.textContent = `Last refresh failed: ${ndi.lastError.message}`;
     return;
   }
-  const completed = ndi.lastCompletedAt ? new Date(ndi.lastCompletedAt).toLocaleTimeString() : "not yet";
+  const completed = ndi.lastCompletedAt
+    ? new Date(ndi.lastCompletedAt).toLocaleTimeString()
+    : "not yet";
   sourceDiscoveryStatus.textContent = ndi.refreshing
     ? `Refreshing, ${ndi.sourceCount} found`
     : `Last refreshed ${completed}, ${ndi.sourceCount} found`;
@@ -372,7 +388,7 @@ function renderPreview(state) {
       controls: false,
       timeline: false,
       timeoutMs: 4000,
-      streamKey
+      streamKey,
     });
     return;
   }
@@ -382,9 +398,13 @@ function renderPreview(state) {
       controls: false,
       timeoutMs: 4000,
       streamKey,
-      retry: true
+      retry: true,
     }).catch(() => {
-      window.SteeplePlayer.renderSlate(adminPreview, "Preview Waiting", "No playable stream is available yet.");
+      window.SteeplePlayer.renderSlate(
+        adminPreview,
+        "Preview Waiting",
+        "No playable stream is available yet.",
+      );
     });
     return;
   }
@@ -392,11 +412,15 @@ function renderPreview(state) {
     window.SteeplePlayer.renderHls(adminPreview, hlsUrl, {
       autoplay: true,
       controls: false,
-      streamKey
+      streamKey,
     });
     return;
   }
-  window.SteeplePlayer.renderSlate(adminPreview, "Preview Unavailable", "No local preview URL is configured.");
+  window.SteeplePlayer.renderSlate(
+    adminPreview,
+    "Preview Unavailable",
+    "No local preview URL is configured.",
+  );
 }
 
 function previewStreamKey(ingest) {
@@ -406,7 +430,7 @@ function previewStreamKey(ingest) {
     ready: Boolean(ingest.ready),
     startedAt: ingest.startedAt || null,
     sourceName: ingest.sourceName || null,
-    error: ingest.lastError?.message || null
+    error: ingest.lastError?.message || null,
   });
 }
 
@@ -417,17 +441,39 @@ function renderHealth(payload) {
   health.className = "health-grid";
 
   health.append(
-    healthItem("MediaMTX", backend.ok && backend.ready ? "ok" : "warn", backend.ok ? `Ready, ${backend.readers} readers` : backend.message),
-    healthItem("Engine", statusLevel(ingest?.status), ingest ? `${ingest.status}: ${ingest.message}` : "No ingest status"),
+    healthItem(
+      "MediaMTX",
+      backend.ok && backend.ready ? "ok" : "warn",
+      backend.ok ? `Ready, ${backend.readers} readers` : backend.message,
+    ),
+    healthItem(
+      "Engine",
+      statusLevel(ingest?.status),
+      ingest ? `${ingest.status}: ${ingest.message}` : "No ingest status",
+    ),
     healthItem("Scene", ingest?.scene?.transitioning ? "warn" : "ok", sceneSummary(ingest)),
-    healthItem("Input video", inputLevel(ingest?.inputs?.video), inputSummary(ingest?.inputs?.video)),
-    healthItem("Input audio", inputLevel(ingest?.inputs?.audio), inputSummary(ingest?.inputs?.audio)),
+    healthItem(
+      "Input video",
+      inputLevel(ingest?.inputs?.video),
+      inputSummary(ingest?.inputs?.video),
+    ),
+    healthItem(
+      "Input audio",
+      inputLevel(ingest?.inputs?.audio),
+      inputSummary(ingest?.inputs?.audio),
+    ),
     healthItem("RTMP", outputLevel(ingest?.outputs?.rtmp), outputSummary(ingest?.outputs?.rtmp)),
-    healthItem("RTSP/WebRTC", outputLevel(ingest?.outputs?.rtsp), outputSummary(ingest?.outputs?.rtsp))
+    healthItem(
+      "RTSP/WebRTC",
+      outputLevel(ingest?.outputs?.rtsp),
+      outputSummary(ingest?.outputs?.rtsp),
+    ),
   );
 
   if (ingest?.lastError) {
-    health.append(healthItem("Last error", "bad", `${ingest.lastError.category}: ${ingest.lastError.message}`));
+    health.append(
+      healthItem("Last error", "bad", `${ingest.lastError.category}: ${ingest.lastError.message}`),
+    );
   }
 }
 
@@ -476,7 +522,9 @@ function sceneSummary(ingest) {
   const scene = ingest?.scene;
   if (!scene) return "Unknown";
   const observed = scene.observed ? `observed ${scene.observed}` : "not observed";
-  return scene.transitioning ? `Transitioning to ${scene.requested}` : `${scene.requested || "none"}, ${observed}`;
+  return scene.transitioning
+    ? `Transitioning to ${scene.requested}`
+    : `${scene.requested || "none"}, ${observed}`;
 }
 
 async function initialize() {

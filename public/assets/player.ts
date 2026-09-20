@@ -1,17 +1,25 @@
 window.SteeplePlayer = {
   renderPreviewStatus(container, source, audience = "broadcaster") {
-    const configured = source?.type === "ndi" ? Boolean(source.ndi?.sourceName)
-      : source?.type === "capture" ? Boolean(source.capture?.videoDevice && source.capture?.audioDevice)
-      : Boolean(source?.network?.uri);
+    const configured =
+      source?.type === "ndi"
+        ? Boolean(source.ndi?.sourceName)
+        : source?.type === "capture"
+          ? Boolean(source.capture?.videoDevice && source.capture?.audioDevice)
+          : Boolean(source?.network?.uri);
     if (configured) return false;
-    this.renderSlate(container, "Camera preview not configured", audience === "admin"
-      ? "No video source is selected."
-      : "An administrator needs to select a video source.");
+    this.renderSlate(
+      container,
+      "Camera preview not configured",
+      audience === "admin"
+        ? "No video source is selected."
+        : "An administrator needs to select a video source.",
+    );
     return true;
   },
   async renderWebRtc(container, whepUrl, options: any = {}) {
     const sourceKey = options.streamKey ? `webrtc:${whepUrl}:${options.streamKey}` : whepUrl;
-    if (container.steepleSrc === sourceKey && container.querySelector("video")) return container.querySelector("video");
+    if (container.steepleSrc === sourceKey && container.querySelector("video"))
+      return container.querySelector("video");
     destroy(container);
     container.steepleSrc = sourceKey;
     const video = getVideo(container);
@@ -27,22 +35,28 @@ window.SteeplePlayer = {
         await attachWebRtc(container, video, whepUrl, options);
       } catch {
         if (container.steepleGeneration !== generation) return;
-        showPlaybackStatus(container, "Waiting for video", "The video is temporarily unavailable. Retrying automatically.");
+        showPlaybackStatus(
+          container,
+          "Waiting for video",
+          "The video is temporarily unavailable. Retrying automatically.",
+        );
         container.steeplePeer?.close();
         if (container.steepleWhepResource) {
           fetch(container.steepleWhepResource, { method: "DELETE" }).catch(() => {});
           container.steepleWhepResource = null;
         }
-        if (options.retry !== false) container.steepleRetryTimer = setTimeout(() => {
-          if (container.isConnected && container.steepleGeneration === generation) connect();
-        }, options.retryDelayMs || 5000);
+        if (options.retry !== false)
+          container.steepleRetryTimer = setTimeout(() => {
+            if (container.isConnected && container.steepleGeneration === generation) connect();
+          }, options.retryDelayMs || 5000);
       }
     };
     await connect();
     return video;
   },
   renderRecording(container, url, options: any = {}) {
-    if (container.steepleSrc === url && container.querySelector("video")) return container.querySelector("video");
+    if (container.steepleSrc === url && container.querySelector("video"))
+      return container.querySelector("video");
     destroy(container);
     container.steepleSrc = url;
     const video = getVideo(container);
@@ -58,7 +72,8 @@ window.SteeplePlayer = {
   renderHls(container, hlsUrl, options: any = {}) {
     if (options.controls === "live") return this.renderHybridLive(container, { hlsUrl }, options);
     const sourceKey = options.streamKey ? `hls:${hlsUrl}:${options.streamKey}` : hlsUrl;
-    if (container.steepleSrc === sourceKey && container.querySelector("video")) return container.querySelector("video");
+    if (container.steepleSrc === sourceKey && container.querySelector("video"))
+      return container.querySelector("video");
     destroy(container);
     container.steepleSrc = sourceKey;
     const video = getVideo(container);
@@ -77,7 +92,8 @@ window.SteeplePlayer = {
     const webrtcUrl = playback?.webrtcUrl;
     const timelineEnabled = options.timeline !== false;
     const key = `hybrid:${webrtcUrl || ""}:${hlsUrl || ""}:${timelineEnabled}:${options.timelineStartAt || ""}:${options.streamKey || ""}`;
-    if (container.steepleSrc === key && container.querySelector("video")) return container.querySelector("video");
+    if (container.steepleSrc === key && container.querySelector("video"))
+      return container.querySelector("video");
     if (!hlsUrl && !webrtcUrl) {
       destroy(container);
       container.steepleSrc = null;
@@ -98,7 +114,7 @@ window.SteeplePlayer = {
     container.steepleSrc = null;
     container.steepleSlate = slateKey;
     renderMessage(container, title, message);
-  }
+  },
 };
 
 function destroy(container) {
@@ -116,7 +132,7 @@ function destroy(container) {
 // Keep the element (and its browser playback permission) for this container,
 // including across offline slates. Transports and controls have shorter lives.
 function getVideo(container) {
-  return container.steepleVideo ||= document.createElement("video");
+  return (container.steepleVideo ||= document.createElement("video"));
 }
 
 function renderHybridPlayer(container, playback, options: any = {}) {
@@ -133,11 +149,13 @@ function renderHybridPlayer(container, playback, options: any = {}) {
   const subscribers = new Set<() => void>();
   const startedAt = Date.parse(options.timelineStartAt || "") || Date.now();
   const elapsed = () => Math.max(0, (Date.now() - startedAt) / 1000);
-  const notify = () => { for (const callback of subscribers) callback(); };
+  const notify = () => {
+    for (const callback of subscribers) callback();
+  };
   const hlsOffset = () => {
     const hls = container.steepleHls;
     const fragments = hls?.levels?.[hls.currentLevel]?.details?.fragments;
-    const anchor = fragments?.find(fragment => Number.isFinite(fragment.programDateTime));
+    const anchor = fragments?.find((fragment) => Number.isFinite(fragment.programDateTime));
     if (anchor) return (anchor.programDateTime - startedAt) / 1000 - anchor.start;
     const range = getLiveWindow(video);
     return range && advertised ? advertised.end - range.end : null;
@@ -153,8 +171,12 @@ function renderHybridPlayer(container, playback, options: any = {}) {
       end,
       current: clamp(current, 0, end),
       live: followingLive,
-      available: Boolean(available && advertisedWindow && advertisedWindow.end > Math.max(0, advertisedWindow.start) + 1),
-      busy: requestedTime !== null
+      available: Boolean(
+        available &&
+        advertisedWindow &&
+        advertisedWindow.end > Math.max(0, advertisedWindow.start) + 1,
+      ),
+      busy: requestedTime !== null,
     };
   };
   const switchMedia = (transport) => {
@@ -232,7 +254,7 @@ function renderHybridPlayer(container, playback, options: any = {}) {
       if (!value.available || !advertised) return;
       showHls(clamp(time, value.start, Math.min(value.end, advertised.end) - 0.5));
     },
-    goLive
+    goLive,
   };
   video.steepleTimeline = options.timeline === false ? null : timeline;
   video.steepleIsLive = true;
@@ -262,15 +284,17 @@ function renderHybridPlayer(container, playback, options: any = {}) {
       }
       if (stopped) return;
       const range = hlsPlaylistWindow(text);
-      if (range) advertised = {
-        start: (range.start - startedAt) / 1000,
-        end: (range.end - startedAt) / 1000,
-        updatedAt: Date.now()
-      };
+      if (range)
+        advertised = {
+          start: (range.start - startedAt) / 1000,
+          end: (range.end - startedAt) / 1000,
+          updatedAt: Date.now(),
+        };
       seekHls();
       notify();
-    } catch { /* Keep the last range briefly; then disable unavailable seeking. */ }
-    finally {
+    } catch {
+      /* Keep the last range briefly; then disable unavailable seeking. */
+    } finally {
       clearTimeout(timeout);
       if (!stopped) refreshTimer = setTimeout(refreshWindow, 3000);
     }
@@ -289,9 +313,9 @@ function renderHybridPlayer(container, playback, options: any = {}) {
 
 // Return the first advertised variant; media playlists have no variant tag.
 function hlsVariant(text) {
-  const lines = text.split(/\r?\n/).map(line => line.trim());
-  const index = lines.findIndex(line => line.startsWith("#EXT-X-STREAM-INF:"));
-  return index < 0 ? null : lines.slice(index + 1).find(line => line && !line.startsWith("#"));
+  const lines = text.split(/\r?\n/).map((line) => line.trim());
+  const index = lines.findIndex((line) => line.startsWith("#EXT-X-STREAM-INF:"));
+  return index < 0 ? null : lines.slice(index + 1).find((line) => line && !line.startsWith("#"));
 }
 
 function hlsPlaylistWindow(text) {
@@ -299,13 +323,20 @@ function hlsPlaylistWindow(text) {
   let duration: number | null = null;
   let start: number | null = null;
   let end: number | null = null;
-  for (const line of text.split(/\r?\n/).map(line => line.trim())) {
+  for (const line of text.split(/\r?\n/).map((line) => line.trim())) {
     if (line.startsWith("#EXT-X-PROGRAM-DATE-TIME:")) {
       const parsed = Date.parse(line.slice("#EXT-X-PROGRAM-DATE-TIME:".length));
       date = Number.isFinite(parsed) ? parsed : null;
     } else if (line.startsWith("#EXTINF:")) {
       duration = Number.parseFloat(line.slice(8));
-    } else if (line && !line.startsWith("#") && date !== null && duration !== null && Number.isFinite(duration) && duration > 0) {
+    } else if (
+      line &&
+      !line.startsWith("#") &&
+      date !== null &&
+      duration !== null &&
+      Number.isFinite(duration) &&
+      duration > 0
+    ) {
       start ??= date;
       date += duration * 1000;
       end = date;
@@ -355,8 +386,15 @@ async function selectedCandidateType(pc) {
   const stats = await pc.getStats();
   let pair: (RTCStats & { remoteCandidateId?: string }) | undefined;
   for (const report of stats.values()) {
-    if (report.type === "transport" && report.selectedCandidatePairId) pair = stats.get(report.selectedCandidatePairId) as typeof pair;
-    if (!pair && report.type === "candidate-pair" && report.nominated && report.state === "succeeded") pair = report as typeof pair;
+    if (report.type === "transport" && report.selectedCandidatePairId)
+      pair = stats.get(report.selectedCandidatePairId) as typeof pair;
+    if (
+      !pair &&
+      report.type === "candidate-pair" &&
+      report.nominated &&
+      report.state === "succeeded"
+    )
+      pair = report as typeof pair;
   }
   const remote = pair?.remoteCandidateId ? stats.get(pair.remoteCandidateId) : undefined;
   return remote?.candidateType || "unknown";
@@ -384,7 +422,7 @@ async function attachWebRtc(container, video, whepUrl, options: any = {}) {
   const response = await fetch(whepUrl, {
     method: "POST",
     headers: { "content-type": "application/sdp" },
-    body: pc.localDescription!.sdp
+    body: pc.localDescription!.sdp,
   });
   const location = response.headers.get("location");
   const resource = location ? new URL(location, new URL(whepUrl, window.location.href)).href : null;
@@ -412,8 +450,13 @@ function attachHls(container, video, hlsUrl, options: any = {}) {
     if (container.steepleGeneration !== generation || !container.contains(video)) return;
     const denied = [401, 403].includes(data.response?.code);
     if (retryPending && !denied) return;
-    showPlaybackStatus(container, denied ? "Access expired" : "Waiting for video",
-      denied ? "Reload this page to sign in again." : "The video is temporarily unavailable. Retrying automatically.");
+    showPlaybackStatus(
+      container,
+      denied ? "Access expired" : "Waiting for video",
+      denied
+        ? "Reload this page to sign in again."
+        : "The video is temporarily unavailable. Retrying automatically.",
+    );
     clearTimeout(container.steepleRetryTimer);
     if (denied || options.retry === false) {
       container.steepleMediaCleanup?.();
@@ -437,14 +480,14 @@ function attachHls(container, video, hlsUrl, options: any = {}) {
       if (!retryPending) return;
       clearTimeout(container.steepleRetryTimer);
       retryPending = false;
-    }
+    },
   });
   // Native HLS support does not guarantee a seekable live window (Chromium
   // can play this stream while reporting no ranges). Prefer HLS.js for DVR.
   if (window.Hls?.isSupported()) {
     const hls = new window.Hls({
       lowLatencyMode: true,
-      backBufferLength: 30
+      backBufferLength: 30,
     });
     container.steepleHls = hls;
     hls.loadSource(hlsUrl);
@@ -461,7 +504,11 @@ function attachHls(container, video, hlsUrl, options: any = {}) {
     return video;
   }
 
-  showPlaybackStatus(container, "Video unavailable in this browser", "Try another browser to watch this video.");
+  showPlaybackStatus(
+    container,
+    "Video unavailable in this browser",
+    "Try another browser to watch this video.",
+  );
   return null;
 }
 
@@ -497,7 +544,6 @@ function removeCurrentMedia(container, video) {
   container.querySelector(".playback-status")?.remove();
 }
 
-
 function renderVideoFrame(container, video, transportLabel) {
   video.steepleIsLive = transportLabel !== "Replay";
   const wrapper = document.createElement("div");
@@ -513,11 +559,19 @@ let audioPreference = { volume: 1, muted: false };
 function readAudioPreference() {
   try {
     const saved = JSON.parse(localStorage.getItem(volumeStorageKey) || "null");
-    if (saved && typeof saved.volume === "number" && Number.isFinite(saved.volume)
-        && saved.volume >= 0 && saved.volume <= 1 && typeof saved.muted === "boolean") {
+    if (
+      saved &&
+      typeof saved.volume === "number" &&
+      Number.isFinite(saved.volume) &&
+      saved.volume >= 0 &&
+      saved.volume <= 1 &&
+      typeof saved.muted === "boolean"
+    ) {
       audioPreference = { volume: saved.volume, muted: saved.muted };
     }
-  } catch { /* Storage can be unavailable; retain the preference for this page. */ }
+  } catch {
+    /* Storage can be unavailable; retain the preference for this page. */
+  }
   return audioPreference;
 }
 
@@ -527,7 +581,11 @@ function attachVolumeControls(wrapper, video) {
   video.muted = preference.muted;
   const save = () => {
     audioPreference = { volume: video.volume, muted: video.muted };
-    try { localStorage.setItem(volumeStorageKey, JSON.stringify(audioPreference)); } catch { /* Optional storage. */ }
+    try {
+      localStorage.setItem(volumeStorageKey, JSON.stringify(audioPreference));
+    } catch {
+      /* Optional storage. */
+    }
   };
   const dispose = window.SteepleComponent.mount(wrapper, video, preference);
   video.addEventListener("volumechange", save);
@@ -578,8 +636,10 @@ function showPlaybackStatus(container, title, message) {
     overlay.append(content);
     container.append(overlay);
   }
-  if (overlay.querySelector("h2").textContent !== title) overlay.querySelector("h2").textContent = title;
-  if (overlay.querySelector("p").textContent !== message) overlay.querySelector("p").textContent = message;
+  if (overlay.querySelector("h2").textContent !== title)
+    overlay.querySelector("h2").textContent = title;
+  if (overlay.querySelector("p").textContent !== message)
+    overlay.querySelector("p").textContent = message;
 }
 
 function monitorPlayback(container, video, options) {
@@ -590,7 +650,11 @@ function monitorPlayback(container, video, options) {
   let hasPlayed = false;
   let autoplayBlocked = false;
   if (!container.querySelector(".playback-status")) {
-    showPlaybackStatus(container, options.recording ? "Loading recording" : "Connecting to video", "");
+    showPlaybackStatus(
+      container,
+      options.recording ? "Loading recording" : "Connecting to video",
+      "",
+    );
   }
   const playing = () => {
     hasPlayed = true;
@@ -626,8 +690,14 @@ function monitorPlayback(container, video, options) {
     waitingSince ??= performance.now();
   };
   const error = () => {
-    if (container.contains(video)) showPlaybackStatus(container, options.recording ? "Recording unavailable" : "Video interrupted",
-      options.recording ? "This recording may have expired or could not be loaded." : "Waiting for the video connection to recover.");
+    if (container.contains(video))
+      showPlaybackStatus(
+        container,
+        options.recording ? "Recording unavailable" : "Video interrupted",
+        options.recording
+          ? "This recording may have expired or could not be loaded."
+          : "Waiting for the video connection to recover.",
+      );
   };
   video.addEventListener("playing", playing);
   video.addEventListener("loadeddata", loaded);
@@ -640,7 +710,12 @@ function monitorPlayback(container, video, options) {
   const timer = setInterval(() => {
     if (!container.contains(video)) return;
     const now = performance.now();
-    if (document.hidden || autoplayBlocked || video.ended || (video.paused && (hasPlayed || !options.autoplay))) {
+    if (
+      document.hidden ||
+      autoplayBlocked ||
+      video.ended ||
+      (video.paused && (hasPlayed || !options.autoplay))
+    ) {
       lastProgressAt = now;
       waitingSince = null;
       return;

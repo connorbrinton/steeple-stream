@@ -70,7 +70,7 @@ export class SourceDiscoveryService extends EventEmitter {
         this.lastCompletedAt = new Date().toISOString();
         this.lastError = {
           message: error.message,
-          at: this.lastCompletedAt
+          at: this.lastCompletedAt,
         };
         throw error;
       })
@@ -88,7 +88,7 @@ export class SourceDiscoveryService extends EventEmitter {
         name: configured,
         urlAddress: currentSource.ndi?.urlAddress || "",
         source: "configured",
-        available: false
+        available: false,
       });
     }
     return sources.sort((a, b) => a.name.localeCompare(b.name));
@@ -97,15 +97,20 @@ export class SourceDiscoveryService extends EventEmitter {
   resolveNdiSource(source: ConfiguredSource | null) {
     if (source?.type !== "ndi" || !source.ndi?.sourceName) return source;
     const match = this.sources.get(source.ndi.sourceName);
-    if (!match || match.available === false || !match.urlAddress || match.urlAddress === source.ndi.urlAddress) {
+    if (
+      !match ||
+      match.available === false ||
+      !match.urlAddress ||
+      match.urlAddress === source.ndi.urlAddress
+    ) {
       return source;
     }
     return {
       ...source,
       ndi: {
         ...source.ndi,
-        urlAddress: match.urlAddress
-      }
+        urlAddress: match.urlAddress,
+      },
     };
   }
 
@@ -117,8 +122,8 @@ export class SourceDiscoveryService extends EventEmitter {
         intervalMs: this.intervalMs,
         lastStartedAt: this.lastStartedAt,
         lastCompletedAt: this.lastCompletedAt,
-        lastError: this.lastError
-      }
+        lastError: this.lastError,
+      },
     };
   }
 
@@ -128,7 +133,7 @@ export class SourceDiscoveryService extends EventEmitter {
       if (!source?.name) continue;
       next.set(source.name, {
         ...source,
-        available: source.available !== false
+        available: source.available !== false,
       });
     }
     const changed = sourceSnapshot(this.sources) !== sourceSnapshot(next);

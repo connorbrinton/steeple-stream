@@ -7,7 +7,7 @@ import type { Readable as NodeReadable } from "node:stream";
 
 const uncachedHeaders = {
   "cache-control": "private, no-store",
-  "cdn-cache-control": "no-store"
+  "cdn-cache-control": "no-store",
 };
 
 export type JsonObject = Record<string, unknown>;
@@ -35,13 +35,18 @@ export async function parseJson(req: IncomingMessage): Promise<JsonObject> {
   return value as JsonObject;
 }
 
-export function sendJson(res: ServerResponse, status: number, payload: unknown, extraHeaders: Record<string, string | number> = {}) {
+export function sendJson(
+  res: ServerResponse,
+  status: number,
+  payload: unknown,
+  extraHeaders: Record<string, string | number> = {},
+) {
   const body = JSON.stringify(payload);
   res.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
     "content-length": Buffer.byteLength(body),
     ...uncachedHeaders,
-    ...extraHeaders
+    ...extraHeaders,
   });
   res.end(body);
 }
@@ -58,7 +63,7 @@ export async function sendStatic(res: ServerResponse, publicDir: string, filePat
     res.writeHead(200, {
       "content-type": contentType(absolute),
       "content-length": body.length,
-      ...uncachedHeaders
+      ...uncachedHeaders,
     });
     res.end(body);
   } catch (error) {
@@ -76,13 +81,17 @@ async function frontendVersion(publicDir: string) {
   // Read current contents so local development and packaged deployments agree.
   async function visit(relativeDir: string): Promise<void> {
     const entries = await fs.readdir(path.join(publicDir, relativeDir), { withFileTypes: true });
-    entries.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+    entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     for (const entry of entries) {
       const relative = path.join(relativeDir, entry.name);
       if (entry.isDirectory()) await visit(relative);
       else if (entry.isFile()) {
         hash.update(relative).update("\0");
-        hash.update(createHash("sha256").update(await fs.readFile(path.join(publicDir, relative))).digest());
+        hash.update(
+          createHash("sha256")
+            .update(await fs.readFile(path.join(publicDir, relative)))
+            .digest(),
+        );
       }
     }
   }
@@ -90,18 +99,26 @@ async function frontendVersion(publicDir: string) {
   return hash.digest("hex").slice(0, 20);
 }
 
-export async function proxyHttp(req: IncomingMessage, res: ServerResponse, baseUrl: string, targetPath: string, { locationPrefix = "" }: { locationPrefix?: string } = {}) {
+export async function proxyHttp(
+  req: IncomingMessage,
+  res: ServerResponse,
+  baseUrl: string,
+  targetPath: string,
+  { locationPrefix = "" }: { locationPrefix?: string } = {},
+) {
   const target = new URL(targetPath, baseUrl);
-  const body = ["GET", "HEAD"].includes(req.method || "GET") ? undefined : Buffer.concat(await readChunks(req));
+  const body = ["GET", "HEAD"].includes(req.method || "GET")
+    ? undefined
+    : Buffer.concat(await readChunks(req));
   const response = await fetch(target, {
     method: req.method,
     redirect: "follow",
     headers: {
       accept: req.headers.accept || "*/*",
       ...(req.headers["content-type"] ? { "content-type": req.headers["content-type"] } : {}),
-      "user-agent": req.headers["user-agent"] || "SteepleStream/0.1"
+      "user-agent": req.headers["user-agent"] || "SteepleStream/0.1",
     },
-    body
+    body,
   });
 
   const headers: Record<string, string> = {};
@@ -127,7 +144,8 @@ async function readChunks(stream: NodeReadable): Promise<Buffer[]> {
   let size = 0;
   for await (const chunk of stream) {
     size += chunk.length;
-    if (size > 2 * 1024 * 1024) throw Object.assign(new Error("Proxied request body is too large"), { status: 413 });
+    if (size > 2 * 1024 * 1024)
+      throw Object.assign(new Error("Proxied request body is too large"), { status: 413 });
     chunks.push(chunk);
   }
   return chunks;
@@ -150,6 +168,6 @@ function isHopByHopHeader(header: string) {
     "te",
     "trailer",
     "transfer-encoding",
-    "upgrade"
+    "upgrade",
   ].includes(header.toLowerCase());
 }

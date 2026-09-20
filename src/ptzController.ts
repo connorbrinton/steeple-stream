@@ -58,7 +58,7 @@ const presetIndexes: Record<string, number> = {
   "music-director": 8,
   choir: 12,
   piano: 13,
-  "pulpit-wide": 16
+  "pulpit-wide": 16,
 };
 const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -68,7 +68,11 @@ export class PtzController {
   declare socketFactory: SocketFactory;
   declare runner: PtzRunner;
 
-  constructor({ config, socketFactory = defaultSocketFactory, runner = defaultRunner }: PtzControllerOptions) {
+  constructor({
+    config,
+    socketFactory = defaultSocketFactory,
+    runner = defaultRunner,
+  }: PtzControllerOptions) {
     this.config = config;
     this.socketFactory = socketFactory;
     this.runner = runner;
@@ -92,8 +96,14 @@ export class PtzController {
         throw error;
       }
       const cameraPresetNumber = Number(preset.ndiPreset);
-      if (!Number.isInteger(cameraPresetNumber) || cameraPresetNumber < 1 || cameraPresetNumber > 100) {
-        const error = new Error(`Preset ${preset.name} does not have a valid NDI camera preset number`);
+      if (
+        !Number.isInteger(cameraPresetNumber) ||
+        cameraPresetNumber < 1 ||
+        cameraPresetNumber > 100
+      ) {
+        const error = new Error(
+          `Preset ${preset.name} does not have a valid NDI camera preset number`,
+        );
         error.status = 400;
         throw error;
       }
@@ -105,9 +115,16 @@ export class PtzController {
         presetIndex,
         speed: this.config.ndiPresetSpeed ?? 1,
         settleMs: this.config.ndiSettleMs ?? 750,
-        timeoutMs: this.config.timeoutMs || 1500
+        timeoutMs: this.config.timeoutMs || 1500,
       });
-      return { transport, status: "recalled", movement: "ndi-preset", sourceName, preset: presetIndex, cameraPreset: cameraPresetNumber };
+      return {
+        transport,
+        status: "recalled",
+        movement: "ndi-preset",
+        sourceName,
+        preset: presetIndex,
+        cameraPreset: cameraPresetNumber,
+      };
     }
     if (transport !== "visca-udp") {
       throw new Error(`Unsupported PTZ transport: ${transport}`);
@@ -115,7 +132,9 @@ export class PtzController {
 
     const host = this.config.host || inferHostFromSource(source);
     if (!host) {
-      const error = new Error("PTZ host is not configured and could not be inferred from the selected source");
+      const error = new Error(
+        "PTZ host is not configured and could not be inferred from the selected source",
+      );
       error.status = 409;
       throw error;
     }
@@ -130,11 +149,20 @@ export class PtzController {
     if (this.config.smooth && preset.position) {
       try {
         await smoothMove({
-          socketFactory: this.socketFactory, host, port: this.config.port || 52381,
-          timeoutMs: this.config.timeoutMs || 1500, target: preset.position,
-          durationMs: this.config.smoothDurationMs || 1400
+          socketFactory: this.socketFactory,
+          host,
+          port: this.config.port || 52381,
+          timeoutMs: this.config.timeoutMs || 1500,
+          target: preset.position,
+          durationMs: this.config.smoothDurationMs || 1400,
         });
-        return { transport, status: "recalled", movement: "smooth", host, port: this.config.port || 52381 };
+        return {
+          transport,
+          status: "recalled",
+          movement: "smooth",
+          host,
+          port: this.config.port || 52381,
+        };
       } catch {
         // Cameras without reliable position inquiry use their firmware preset.
       }
@@ -144,12 +172,18 @@ export class PtzController {
       host,
       port: this.config.port || 52381,
       timeoutMs: this.config.timeoutMs || 1500,
-      command: viscaRecallPresetCommand(presetIndex)
+      command: viscaRecallPresetCommand(presetIndex),
     });
 
-    return { transport, status: "recalled", movement: "firmware-preset", host, port: this.config.port || 52381, preset: presetIndex };
+    return {
+      transport,
+      status: "recalled",
+      movement: "firmware-preset",
+      host,
+      port: this.config.port || 52381,
+      preset: presetIndex,
+    };
   }
-
 
   async capturePosition({ source }: { source: PtzSource }): Promise<PtzPosition> {
     const host = this.config.host || inferHostFromSource(source);
@@ -158,7 +192,7 @@ export class PtzController {
       socketFactory: this.socketFactory,
       host,
       port: this.config.port || 52381,
-      timeoutMs: this.config.timeoutMs || 1500
+      timeoutMs: this.config.timeoutMs || 1500,
     });
   }
 }
@@ -167,10 +201,22 @@ export function viscaRecallPresetCommand(presetIndex: number): Buffer {
   return Buffer.from([0x81, 0x01, 0x04, 0x3f, 0x02, presetIndex, 0xff]);
 }
 
-export function viscaAbsolutePositionCommand({ pan, tilt, panSpeed = 12, tiltSpeed = 10 }: PtzPosition & { panSpeed?: number; tiltSpeed?: number }): Buffer {
+export function viscaAbsolutePositionCommand({
+  pan,
+  tilt,
+  panSpeed = 12,
+  tiltSpeed = 10,
+}: PtzPosition & { panSpeed?: number; tiltSpeed?: number }): Buffer {
   return Buffer.from([
-    0x81, 0x01, 0x06, 0x02, panSpeed, tiltSpeed,
-    ...nibbles(pan), ...nibbles(tilt), 0xff
+    0x81,
+    0x01,
+    0x06,
+    0x02,
+    panSpeed,
+    tiltSpeed,
+    ...nibbles(pan),
+    ...nibbles(tilt),
+    0xff,
   ]);
 }
 
@@ -179,12 +225,20 @@ export function viscaAbsoluteZoomCommand(zoom: number): Buffer {
 }
 
 export function inferHostFromSource(source: PtzSource): string | null {
-  const sourceName = source?.ndi?.urlAddress || source?.ndi?.sourceName || source?.network?.uri || "";
+  const sourceName =
+    source?.ndi?.urlAddress || source?.ndi?.sourceName || source?.network?.uri || "";
   const match = String(sourceName).match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/);
   return match?.[0] || null;
 }
 
-async function smoothMove({ socketFactory, host, port, timeoutMs, target, durationMs }: ViscaOptions & { target: PtzPosition; durationMs: number }): Promise<void> {
+async function smoothMove({
+  socketFactory,
+  host,
+  port,
+  timeoutMs,
+  target,
+  durationMs,
+}: ViscaOptions & { target: PtzPosition; durationMs: number }): Promise<void> {
   const start = await queryPosition({ socketFactory, host, port, timeoutMs });
   const steps = Math.max(2, Math.round(durationMs / 50));
   for (let index = 1; index <= steps; index += 1) {
@@ -193,26 +247,62 @@ async function smoothMove({ socketFactory, host, port, timeoutMs, target, durati
     const position = {
       pan: interpolate(start.pan, target.pan, eased),
       tilt: interpolate(start.tilt, target.tilt, eased),
-      zoom: interpolate(start.zoom, target.zoom, eased)
+      zoom: interpolate(start.zoom, target.zoom, eased),
     };
-    await sendViscaUdp({ socketFactory, host, port, timeoutMs, command: viscaAbsolutePositionCommand(position) });
-    await sendViscaUdp({ socketFactory, host, port, timeoutMs, command: viscaAbsoluteZoomCommand(position.zoom) });
+    await sendViscaUdp({
+      socketFactory,
+      host,
+      port,
+      timeoutMs,
+      command: viscaAbsolutePositionCommand(position),
+    });
+    await sendViscaUdp({
+      socketFactory,
+      host,
+      port,
+      timeoutMs,
+      command: viscaAbsoluteZoomCommand(position.zoom),
+    });
     if (index < steps) await new Promise((resolve) => setTimeout(resolve, 50));
   }
 }
 
-async function queryPosition({ socketFactory, host, port, timeoutMs }: ViscaOptions): Promise<PtzPosition> {
-  const panTilt = await sendViscaInquiry({ socketFactory, host, port, timeoutMs, command: Buffer.from([0x81, 0x09, 0x06, 0x12, 0xff]) });
-  const zoom = await sendViscaInquiry({ socketFactory, host, port, timeoutMs, command: Buffer.from([0x81, 0x09, 0x04, 0x47, 0xff]) });
-  if (panTilt.length < 11 || zoom.length < 7 || panTilt[1] !== 0x50 || zoom[1] !== 0x50) throw new Error("Camera returned an unsupported VISCA inquiry response");
+async function queryPosition({
+  socketFactory,
+  host,
+  port,
+  timeoutMs,
+}: ViscaOptions): Promise<PtzPosition> {
+  const panTilt = await sendViscaInquiry({
+    socketFactory,
+    host,
+    port,
+    timeoutMs,
+    command: Buffer.from([0x81, 0x09, 0x06, 0x12, 0xff]),
+  });
+  const zoom = await sendViscaInquiry({
+    socketFactory,
+    host,
+    port,
+    timeoutMs,
+    command: Buffer.from([0x81, 0x09, 0x04, 0x47, 0xff]),
+  });
+  if (panTilt.length < 11 || zoom.length < 7 || panTilt[1] !== 0x50 || zoom[1] !== 0x50)
+    throw new Error("Camera returned an unsupported VISCA inquiry response");
   return {
     pan: fromNibbles(panTilt.subarray(2, 6)),
     tilt: fromNibbles(panTilt.subarray(6, 10)),
-    zoom: fromNibbles(zoom.subarray(2, 6))
+    zoom: fromNibbles(zoom.subarray(2, 6)),
   };
 }
 
-async function sendViscaInquiry({ socketFactory, host, port, timeoutMs, command }: ViscaOptions & { command: Buffer }): Promise<Buffer> {
+async function sendViscaInquiry({
+  socketFactory,
+  host,
+  port,
+  timeoutMs,
+  command,
+}: ViscaOptions & { command: Buffer }): Promise<Buffer> {
   const socket = socketFactory();
   return new Promise<Buffer>((resolve, reject) => {
     let settled = false;
@@ -221,19 +311,29 @@ async function sendViscaInquiry({ socketFactory, host, port, timeoutMs, command 
       settled = true;
       clearTimeout(timer);
       socket.close();
-      if (error) reject(error); else resolve(message!);
+      if (error) reject(error);
+      else resolve(message!);
     };
-    const timer = setTimeout(() => finish(new Error(`VISCA inquiry timed out after ${timeoutMs}ms`)), timeoutMs);
+    const timer = setTimeout(
+      () => finish(new Error(`VISCA inquiry timed out after ${timeoutMs}ms`)),
+      timeoutMs,
+    );
     socket.once("error", (error) => finish(error));
     socket.once("message", (message) => finish(null, message));
-    if (typeof socket.bind === "function") socket.bind(0, () => socket.send(command, port, host, (error) => error && finish(error)));
+    if (typeof socket.bind === "function")
+      socket.bind(0, () => socket.send(command, port, host, (error) => error && finish(error)));
     else socket.send(command, port, host, (error) => error && finish(error));
   });
 }
 
 function nibbles(value: number): number[] {
   const normalized = Math.round(value) & 0xffff;
-  return [(normalized >> 12) & 0x0f, (normalized >> 8) & 0x0f, (normalized >> 4) & 0x0f, normalized & 0x0f];
+  return [
+    (normalized >> 12) & 0x0f,
+    (normalized >> 8) & 0x0f,
+    (normalized >> 4) & 0x0f,
+    normalized & 0x0f,
+  ];
 }
 
 function fromNibbles(bytes: Buffer) {
@@ -246,7 +346,13 @@ function interpolate(from: number, to: number, progress: number) {
   return Math.round(from + (to - from) * progress);
 }
 
-async function sendViscaUdp({ socketFactory, host, port, timeoutMs, command }: ViscaOptions & { command: Buffer }): Promise<void> {
+async function sendViscaUdp({
+  socketFactory,
+  host,
+  port,
+  timeoutMs,
+  command,
+}: ViscaOptions & { command: Buffer }): Promise<void> {
   const socket = socketFactory();
   await new Promise<void>((resolve, reject) => {
     let settled = false;
@@ -258,7 +364,10 @@ async function sendViscaUdp({ socketFactory, host, port, timeoutMs, command }: V
       if (error) reject(error);
       else resolve();
     };
-    const timer = setTimeout(() => finish(new Error(`VISCA UDP command timed out after ${timeoutMs}ms`)), timeoutMs);
+    const timer = setTimeout(
+      () => finish(new Error(`VISCA UDP command timed out after ${timeoutMs}ms`)),
+      timeoutMs,
+    );
     socket.once("error", finish);
     socket.send(command, port, host, finish);
   });
@@ -269,7 +378,15 @@ function defaultSocketFactory(): dgram.Socket {
 }
 
 const defaultRunner = {
-  async recallNdiPreset({ helper, sourceName, urlAddress, presetIndex, speed, settleMs, timeoutMs }: NdiRecallOptions): Promise<void> {
+  async recallNdiPreset({
+    helper,
+    sourceName,
+    urlAddress,
+    presetIndex,
+    speed,
+    settleMs,
+    timeoutMs,
+  }: NdiRecallOptions): Promise<void> {
     const command = helper || "python3";
     const args = [
       ...(helper ? [] : [path.resolve(__dirname, "ndi_ptz.py")]),
@@ -281,9 +398,9 @@ const defaultRunner = {
       "--speed",
       String(speed),
       "--settle-ms",
-      String(settleMs)
+      String(settleMs),
     ];
     if (urlAddress) args.push("--url-address", urlAddress);
     await execFileAsync(command, args, { timeout: timeoutMs + 3500 });
-  }
+  },
 };

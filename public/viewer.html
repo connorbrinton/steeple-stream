@@ -1,16 +1,18 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Steeple Stream</title>
-    <link rel="stylesheet" href="/build/app.css?v=__ASSET_VERSION__">
+    <link rel="stylesheet" href="/build/app.css?v=__ASSET_VERSION__" />
   </head>
   <body>
     <main class="shell">
       <header class="topbar">
         <div class="brand">Steeple Stream</div>
-        <div class="status"><span id="status-dot" class="dot"></span><span id="status-label">Checking stream</span></div>
+        <div class="status">
+          <span id="status-dot" class="dot"></span><span id="status-label">Checking stream</span>
+        </div>
       </header>
       <section class="layout viewer-layout">
         <div class="video-frame" id="video-frame">
@@ -24,10 +26,19 @@
         <div class="panel" id="name-panel">
           <h2>Viewing Broadcast</h2>
           <form class="name-form" id="name-form">
-            <input id="viewer-name" name="name" autocomplete="name" placeholder="Your name" required>
+            <input
+              id="viewer-name"
+              name="name"
+              autocomplete="name"
+              placeholder="Your name"
+              required
+            />
             <button class="button primary" type="submit">Continue</button>
           </form>
-          <p class="meta">Your name helps the broadcast operator understand who is connected. It is stored only for this broadcast system.</p>
+          <p class="meta">
+            Your name helps the broadcast operator understand who is connected. It is stored only
+            for this broadcast system.
+          </p>
         </div>
         <div class="panel">
           <h2>Status</h2>

@@ -8,25 +8,39 @@ import { SqliteStore } from "../src/sqliteStore.js";
 test("SQLite store imports legacy state and preserves a backup", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "steeple-sqlite-"));
   const legacy = path.join(dir, "state.json");
-  await fs.writeFile(legacy, JSON.stringify({
-    broadcast: { status: "live", mode: "chapel" },
-    ptz: {
-      presets: [
-        { id: "pulpit", name: "Pulpit", protocol: "manual" },
-        { id: "wide", name: "Wide", protocol: "manual" },
-        { id: "choir", name: "Choir", protocol: "manual" }
-      ]
-    }
-  }));
+  await fs.writeFile(
+    legacy,
+    JSON.stringify({
+      broadcast: { status: "live", mode: "chapel" },
+      ptz: {
+        presets: [
+          { id: "pulpit", name: "Pulpit", protocol: "manual" },
+          { id: "wide", name: "Wide", protocol: "manual" },
+          { id: "choir", name: "Choir", protocol: "manual" },
+        ],
+      },
+    }),
+  );
   const store = new SqliteStore(path.join(dir, "state.sqlite"), { legacyPath: legacy });
   const state = await store.load();
   assert.equal(state.broadcast.status, "live");
   assert.equal(state.source.type, "ndi");
-  assert.deepEqual(state.ptz.presets.map((preset) => [preset.id, preset.ndiPreset]), [
-    ["pulpit", 18], ["first-row", 12], ["stand-congregation", 13], ["pulpit-wide", 2],
-    ["music-leader", 8], ["choir", 1], ["piano", 16], ["organ", 9],
-    ["chapel", 4], ["overflow", 6], ["cultural-hall", 7]
-  ]);
+  assert.deepEqual(
+    state.ptz.presets.map((preset) => [preset.id, preset.ndiPreset]),
+    [
+      ["pulpit", 18],
+      ["first-row", 12],
+      ["stand-congregation", 13],
+      ["pulpit-wide", 2],
+      ["music-leader", 8],
+      ["choir", 1],
+      ["piano", 16],
+      ["organ", 9],
+      ["chapel", 4],
+      ["overflow", 6],
+      ["cultural-hall", 7],
+    ],
+  );
   await fs.access(`${legacy}.pre-sqlite`);
 });
 
@@ -35,9 +49,15 @@ test("playback sessions retain transport diagnostics", async () => {
   const store = new SqliteStore(path.join(dir, "state.sqlite"));
   await store.load();
   store.upsertPlaybackSession({
-    id: "session-1", viewerId: "viewer-1", viewerName: "Patron",
-    locationId: "stakecenter", transport: "webrtc-host",
-    candidateType: "host", watchSeconds: 45, ip: "192.0.2.1", userAgent: "Browser"
+    id: "session-1",
+    viewerId: "viewer-1",
+    viewerName: "Patron",
+    locationId: "stakecenter",
+    transport: "webrtc-host",
+    candidateType: "host",
+    watchSeconds: 45,
+    ip: "192.0.2.1",
+    userAgent: "Browser",
   });
   const row = store.db.prepare("SELECT * FROM playback_sessions WHERE id='session-1'").get();
   assert.equal(row.transport, "webrtc-host");

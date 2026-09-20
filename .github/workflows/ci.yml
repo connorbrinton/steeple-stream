@@ -24,12 +24,13 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
           cache: npm
       - uses: cachix/install-nix-action@v27
       - run: npm ci
       - name: Typecheck and build
         run: |
+          npm run format:check
           npm run typecheck
           npm run build
       - name: Build Nix package
@@ -50,7 +51,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
           cache: npm
           cache-dependency-path: |
             package-lock.json

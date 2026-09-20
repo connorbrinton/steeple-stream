@@ -6,14 +6,19 @@ test("source discovery service warms NDI cache on startup", async () => {
   const service = new SourceDiscoveryService({
     intervalMs: 0,
     discover: async () => [
-      { name: "CHAPEL CAMERA", urlAddress: "192.168.1.10:5961", source: "gstreamer" }
-    ]
+      { name: "CHAPEL CAMERA", urlAddress: "192.168.1.10:5961", source: "gstreamer" },
+    ],
   });
 
   await service.start();
 
   assert.deepEqual(service.listNdiSources(), [
-    { name: "CHAPEL CAMERA", urlAddress: "192.168.1.10:5961", source: "gstreamer", available: true }
+    {
+      name: "CHAPEL CAMERA",
+      urlAddress: "192.168.1.10:5961",
+      source: "gstreamer",
+      available: true,
+    },
   ]);
   assert.equal(service.status().ndi.sourceCount, 1);
   assert.equal(service.status().ndi.lastError, null);
@@ -23,7 +28,7 @@ test("source discovery service includes configured source when it is not current
   const service = new SourceDiscoveryService({ intervalMs: 0, discover: async () => [] });
   const currentSource = {
     type: "ndi",
-    ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.168.1.10:5962" }
+    ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.168.1.10:5962" },
   };
 
   assert.deepEqual(service.listNdiSources(currentSource), [
@@ -31,8 +36,8 @@ test("source discovery service includes configured source when it is not current
       name: "CHAPEL CAMERA",
       urlAddress: "192.168.1.10:5962",
       source: "configured",
-      available: false
-    }
+      available: false,
+    },
   ]);
 });
 
@@ -46,7 +51,7 @@ test("source discovery service triggerRefresh returns before discovery completes
     discover: async () => {
       await discoveryStarted;
       return [{ name: "CHAPEL CAMERA", urlAddress: "192.168.1.10:5961" }];
-    }
+    },
   });
 
   service.triggerRefresh();
@@ -61,14 +66,14 @@ test("source discovery service resolves stale NDI direct address from cache", as
   const service = new SourceDiscoveryService({
     intervalMs: 0,
     discover: async () => [
-      { name: "CHAPEL CAMERA", urlAddress: "192.168.1.10:5961", available: true }
-    ]
+      { name: "CHAPEL CAMERA", urlAddress: "192.168.1.10:5961", available: true },
+    ],
   });
   await service.start();
 
   const source = service.resolveNdiSource({
     type: "ndi",
-    ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.168.1.10:5962" }
+    ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.168.1.10:5962" },
   });
 
   assert.equal(source.ndi.urlAddress, "192.168.1.10:5961");

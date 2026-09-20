@@ -25,18 +25,36 @@ async function makeAuth(config = {}) {
       sessionHours: 12,
       channelId: "stakecenter",
       requireProductionConfig: true,
-      ...config
-    }
+      ...config,
+    },
   });
 }
 
 test("return paths are constrained to known same-origin routes", () => {
-  assert.equal(safeReturnPath("/broadcasts/stakecenter/broadcaster", "stakecenter"), "/broadcasts/stakecenter/broadcaster");
-  assert.equal(safeReturnPath("/broadcasts/stakecenter/admin?tab=sources", "stakecenter"), "/broadcasts/stakecenter/admin?tab=sources");
-  assert.equal(safeReturnPath("https://evil.example", "stakecenter"), "/broadcasts/stakecenter/broadcaster");
-  assert.equal(safeReturnPath("//evil.example/path", "stakecenter"), "/broadcasts/stakecenter/broadcaster");
-  assert.equal(safeReturnPath("/assets/app.css", "stakecenter"), "/broadcasts/stakecenter/broadcaster");
-  assert.equal(safeReturnPath("/broadcasts/other/admin", "stakecenter"), "/broadcasts/stakecenter/broadcaster");
+  assert.equal(
+    safeReturnPath("/broadcasts/stakecenter/broadcaster", "stakecenter"),
+    "/broadcasts/stakecenter/broadcaster",
+  );
+  assert.equal(
+    safeReturnPath("/broadcasts/stakecenter/admin?tab=sources", "stakecenter"),
+    "/broadcasts/stakecenter/admin?tab=sources",
+  );
+  assert.equal(
+    safeReturnPath("https://evil.example", "stakecenter"),
+    "/broadcasts/stakecenter/broadcaster",
+  );
+  assert.equal(
+    safeReturnPath("//evil.example/path", "stakecenter"),
+    "/broadcasts/stakecenter/broadcaster",
+  );
+  assert.equal(
+    safeReturnPath("/assets/app.css", "stakecenter"),
+    "/broadcasts/stakecenter/broadcaster",
+  );
+  assert.equal(
+    safeReturnPath("/broadcasts/other/admin", "stakecenter"),
+    "/broadcasts/stakecenter/broadcaster",
+  );
 });
 
 test("production auth config fails closed for public binds", async () => {
@@ -45,7 +63,7 @@ test("production auth config fails closed for public binds", async () => {
     publicBaseUrl: "https://broadcasts.example.org",
     clientId: "client",
     clientSecret: "secret",
-    sessionSecret: "short"
+    sessionSecret: "short",
   });
 
   assert.throws(() => auth.validateStartupConfig(), /STEEPLE_SESSION_SECRET/);
@@ -57,7 +75,7 @@ test("production auth config fails closed for public tunnel base URL", async () 
     publicBaseUrl: "https://broadcasts.example.org",
     clientId: "",
     clientSecret: "",
-    sessionSecret: "0123456789abcdef0123456789abcdef"
+    sessionSecret: "0123456789abcdef0123456789abcdef",
   });
 
   assert.throws(() => auth.validateStartupConfig(), /STEEPLE_GOOGLE_CLIENT_ID/);
@@ -77,16 +95,35 @@ test("authorization requires a constant-time CSRF match for mutations", async ()
   const auth = await makeAuth({
     clientId: "client",
     clientSecret: "secret",
-    sessionSecret: "0123456789abcdef0123456789abcdef"
+    sessionSecret: "0123456789abcdef0123456789abcdef",
   });
   const token = "session-token";
-  auth.store.db.prepare("INSERT INTO auth_sessions(token_hash, email, role, created_at, expires_at) VALUES(?, ?, ?, ?, ?)")
-    .run(hash(token), "operator@example.org", "operator", new Date().toISOString(), new Date(Date.now() + 60_000).toISOString());
+  auth.store.db
+    .prepare(
+      "INSERT INTO auth_sessions(token_hash, email, role, created_at, expires_at) VALUES(?, ?, ?, ?, ?)",
+    )
+    .run(
+      hash(token),
+      "operator@example.org",
+      "operator",
+      new Date().toISOString(),
+      new Date(Date.now() + 60_000).toISOString(),
+    );
   const req = { headers: { cookie: `steeple_session=${encodeURIComponent(token)}` } };
 
-  assert.throws(() => auth.authorize(req, "operator", { csrfRequired: true }), /Invalid CSRF token/);
+  assert.throws(
+    () => auth.authorize(req, "operator", { csrfRequired: true }),
+    /Invalid CSRF token/,
+  );
   const principal = auth.authenticate(req);
-  assert.equal(auth.authorize({ headers: { ...req.headers, "x-steeple-csrf": principal.csrfToken } }, "operator", { csrfRequired: true }).email, "operator@example.org");
+  assert.equal(
+    auth.authorize(
+      { headers: { ...req.headers, "x-steeple-csrf": principal.csrfToken } },
+      "operator",
+      { csrfRequired: true },
+    ).email,
+    "operator@example.org",
+  );
 });
 
 function hash(value) {
@@ -94,11 +131,14 @@ function hash(value) {
 }
 
 test("trusted proxy authenticates only assigned loopback identities and preserves role and CSRF checks", async () => {
-  const auth = await makeAuth({ mode: "trusted-proxy", publicBaseUrl: "https://broadcasts.example.org" });
+  const auth = await makeAuth({
+    mode: "trusted-proxy",
+    publicBaseUrl: "https://broadcasts.example.org",
+  });
   await auth.initialize();
   const request = (email, address = "127.0.0.1") => ({
     socket: { remoteAddress: address },
-    headers: { "cf-access-authenticated-user-email": email }
+    headers: { "cf-access-authenticated-user-email": email },
   });
   const req = request(" ADMIN@EXAMPLE.ORG ");
   assert.equal(auth.authorize(req).role, "administrator");
@@ -107,8 +147,14 @@ test("trusted proxy authenticates only assigned loopback identities and preserve
   assert.equal(auth.authenticate(request("unknown@example.org")), null);
   assert.equal(auth.authenticate(request("admin@example.org", "192.168.1.2")), null);
   assert.equal(auth.authenticate(request(["admin@example.org"])), null);
-  assert.equal(auth.authenticate(request("admin@example.org", "::ffff:127.0.0.1")).role, "administrator");
-  assert.throws(() => auth.authorize(request("operator@example.org"), "administrator"), /Administrator/);
+  assert.equal(
+    auth.authenticate(request("admin@example.org", "::ffff:127.0.0.1")).role,
+    "administrator",
+  );
+  assert.throws(
+    () => auth.authorize(request("operator@example.org"), "administrator"),
+    /Administrator/,
+  );
   assert.throws(() => auth.authorize(req, "operator", { csrfRequired: true }), /CSRF/);
   req.headers["x-steeple-csrf"] = auth.authenticate(req).csrfToken;
   assert.equal(auth.authorize(req, "operator", { csrfRequired: true }).role, "administrator");
@@ -122,9 +168,14 @@ test("trusted proxy requires explicit safe startup configuration even with produ
   for (const overrides of [
     { host: "0.0.0.0" },
     { adminEmails: new Set() },
-    { publicBaseUrl: "http://localhost:8080" }
+    { publicBaseUrl: "http://localhost:8080" },
   ]) {
-    const auth = await makeAuth({ mode: "trusted-proxy", publicBaseUrl: "https://broadcasts.example.org", requireProductionConfig: false, ...overrides });
+    const auth = await makeAuth({
+      mode: "trusted-proxy",
+      publicBaseUrl: "https://broadcasts.example.org",
+      requireProductionConfig: false,
+      ...overrides,
+    });
     assert.throws(() => auth.validateStartupConfig(), /Trusted-proxy/);
   }
   const auth = await makeAuth({ mode: "typo" });

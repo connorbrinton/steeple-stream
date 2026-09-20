@@ -12,8 +12,8 @@ class FakeBackend {
       hlsUrl: `http://media/${channelId}/index.m3u8`,
       webrtcUrl: `http://media/${channelId}`,
       publish: {
-        rtmpUrl: `rtmp://media/${channelId}`
-      }
+        rtmpUrl: `rtmp://media/${channelId}`,
+      },
     };
   }
 }
@@ -26,9 +26,9 @@ async function makeService(retentionHours = 24, overrides = {}) {
     mediaBackend: new FakeBackend(),
     config: {
       channelId: "stakecenter",
-      retentionHours
+      retentionHours,
     },
-    ...overrides
+    ...overrides,
   });
 }
 
@@ -73,7 +73,10 @@ test("retention cleanup removes expired recordings and returns broadcast offline
   assert.equal(result.deleted, 1);
   assert.equal(result.state.broadcast.status, "offline");
   assert.equal(result.state.recordings.length, 0);
-  assert.equal(result.state.auditLog.some((entry) => entry.event === "recording.delete"), true);
+  assert.equal(
+    result.state.auditLog.some((entry) => entry.event === "recording.delete"),
+    true,
+  );
 });
 
 test("viewer registration validates names without retaining duplicate PII", async () => {
@@ -92,7 +95,12 @@ test("ptz recall records audit event", async () => {
 
   assert.equal(result.preset.name, "Pulpit");
   assert.equal(state.ptz.lastRecalledPresetId, null);
-  assert.equal(state.auditLog.some((entry) => entry.event === "ptz.recall" && entry.details.presetId === "pulpit"), true);
+  assert.equal(
+    state.auditLog.some(
+      (entry) => entry.event === "ptz.recall" && entry.details.presetId === "pulpit",
+    ),
+    true,
+  );
 });
 
 test("source configuration is normalized and persisted", async () => {
@@ -103,15 +111,15 @@ test("source configuration is normalized and persisted", async () => {
     ndi: {
       sourceName: "ClearTouch RL500",
       urlAddress: "192.168.1.25:5961",
-      discoveryServer: "192.168.1.25"
+      discoveryServer: "192.168.1.25",
     },
     capture: {
       videoDevice: "/dev/video0",
       audioDevice: "alsa_input.usb",
       resolution: "1280x720",
-      frameRate: 60
+      frameRate: 60,
     },
-    notes: "Temporary chapel camera source"
+    notes: "Temporary chapel camera source",
   });
 
   assert.equal(state.source.type, "ndi");
@@ -125,19 +133,22 @@ test("manual sources are stored separately from active source", async () => {
   const service = await makeService();
   await service.updateSource({
     type: "ndi",
-    ndi: { sourceName: "Active Camera", urlAddress: "192.0.2.10:5961" }
+    ndi: { sourceName: "Active Camera", urlAddress: "192.0.2.10:5961" },
   });
 
   const state = await service.addManualSource({
     type: "ndi",
     ndi: { sourceName: "Backup Camera", urlAddress: "192.0.2.11:5961" },
-    notes: "Remembered without selecting"
+    notes: "Remembered without selecting",
   });
 
   assert.equal(state.source.ndi.sourceName, "Active Camera");
   assert.equal(state.manualSources.length, 1);
   assert.equal(state.manualSources[0].ndi.sourceName, "Backup Camera");
-  assert.equal(state.auditLog.some((entry) => entry.event === "source.manual.save"), true);
+  assert.equal(
+    state.auditLog.some((entry) => entry.event === "source.manual.save"),
+    true,
+  );
 });
 
 test("ptz recall uses camera control source when stream source is network", async () => {
@@ -147,11 +158,17 @@ test("ptz recall uses camera control source when stream source is network", asyn
       async recallPreset({ source }) {
         calls.push(source);
         return { transport: "ndi", status: "recalled" };
-      }
-    }
+      },
+    },
   });
-  await service.updateSource({ type: "network", network: { protocol: "rtsp", uri: "rtsp://encoder/live" } });
-  await service.updateCameraControlSource({ type: "ndi", ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.0.2.20:5961" } });
+  await service.updateSource({
+    type: "network",
+    network: { protocol: "rtsp", uri: "rtsp://encoder/live" },
+  });
+  await service.updateCameraControlSource({
+    type: "ndi",
+    ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.0.2.20:5961" },
+  });
 
   await service.recallPreset("pulpit");
 
@@ -166,10 +183,13 @@ test("ptz recall falls back to active NDI source when camera control source is u
       async recallPreset({ source }) {
         calls.push(source);
         return { transport: "ndi", status: "recalled" };
-      }
-    }
+      },
+    },
   });
-  await service.updateSource({ type: "ndi", ndi: { sourceName: "ACTIVE CAMERA", urlAddress: "192.0.2.21:5961" } });
+  await service.updateSource({
+    type: "ndi",
+    ndi: { sourceName: "ACTIVE CAMERA", urlAddress: "192.0.2.21:5961" },
+  });
 
   await service.recallPreset("pulpit");
 
