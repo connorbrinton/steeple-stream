@@ -102,7 +102,7 @@ export class JsonStore {
   }
 }
 
-export function migrateState(state: any = {}): ApplicationState {
+export function migrateState(state: unknown = {}): ApplicationState {
   const migrated = mergeState(defaultState, state);
   migrated.source = migrateSource(migrated.source);
   migrated.cameraControlSource = migrated.cameraControlSource ? migrateSource(migrated.cameraControlSource) : null;
@@ -112,13 +112,15 @@ export function migrateState(state: any = {}): ApplicationState {
   return migrated;
 }
 
-function migratePtz(ptz: any = {}): ApplicationState["ptz"] {
+function migratePtz(value: unknown = {}): ApplicationState["ptz"] {
+  const ptz = asRecord(value);
   const defaultPresets = new Map(defaultState.ptz.presets.map((preset) => [preset.id, preset]));
-  const savedPresets: PtzPreset[] = Array.isArray(ptz.presets) && ptz.presets.length ? ptz.presets : defaultState.ptz.presets;
+  const candidates = Array.isArray(ptz.presets) && ptz.presets.length ? ptz.presets.filter(isPresetCandidate) : defaultState.ptz.presets;
+  const savedPresets = candidates.filter(isPtzPreset);
   const legacyIds = new Set(["pulpit", "wide", "choir", "full-stand", "music-director", "piano", "pulpit-wide",
     ...Array.from({ length: 18 }, (_, index) => `ndi-raw-${index + 1}`)]);
-  const replaceCatalog = isLegacyDefaultPresetList(savedPresets)
-    || savedPresets.some((preset) => ["full-stand", "music-director"].includes(preset.id) || /^ndi-raw-\d+$/.test(preset.id));
+  const replaceCatalog = isLegacyDefaultPresetList(candidates)
+    || candidates.some((preset) => ["full-stand", "music-director"].includes(preset.id) || /^ndi-raw-\d+$/.test(preset.id));
   // Replace the unverified catalog without carrying positions across changed camera mappings.
   const presets = replaceCatalog
     ? [...structuredClone(defaultState.ptz.presets), ...savedPresets.filter((preset) => !legacyIds.has(preset.id) && !defaultPresets.has(preset.id))]
@@ -133,38 +135,67 @@ function migratePtz(ptz: any = {}): ApplicationState["ptz"] {
   return {
     ...ptz,
     presets: mergedPresets,
-    lastRecalledPresetId: replaceCatalog ? null : ptz.lastRecalledPresetId || null
+    lastRecalledPresetId: replaceCatalog ? null : typeof ptz.lastRecalledPresetId === "string" ? ptz.lastRecalledPresetId : null
   };
 }
 
-function isLegacyDefaultPresetList(presets: PtzPreset[]) {
+function isLegacyDefaultPresetList(presets: Array<{ id: string }>) {
   return JSON.stringify(presets.map((preset) => preset.id)) === JSON.stringify(["pulpit", "wide", "choir"]);
 }
 
-function migrateSource(source: any = {}): VideoSource {
-  const type = ["ndi", "network"].includes(source.type) ? source.type : "ndi";
+function migrateSource(value: unknown = {}): VideoSource {
+  const source = asRecord(value);
+  const ndi = asRecord(source.ndi);
+  const capture = asRecord(source.capture);
+  const network = asRecord(source.network);
+  const type = source.type === "network" ? "network" : "ndi";
   return {
     ...source,
     type,
     ndi: {
-      sourceName: String(source.ndi?.sourceName || ""),
-      urlAddress: String(source.ndi?.urlAddress || ""),
-      discoveryServer: String(source.ndi?.discoveryServer || "")
-    }
+      sourceName: String(ndi.sourceName || ""),
+      urlAddress: String(ndi.urlAddress || ""),
+      discoveryServer: String(ndi.discoveryServer || "")
+    },
+    capture: {
+      videoDevice: String(capture.videoDevice || ""),
+      audioDevice: String(capture.audioDevice || ""),
+      resolution: String(capture.resolution || "1920x1080"),
+      frameRate: Number(capture.frameRate || 30)
+    },
+    network: {
+      uri: String(network.uri || ""),
+      protocol: network.protocol === "srt" ? "srt" : "rtsp"
+    },
+    notes: String(source.notes || "")
   };
 }
 
-function migrateManualSources(manualSources: any[] = [], configuredSources: any[] = []): VideoSource[] {
+function migrateManualSources(manualSources: unknown = [], configuredSources: unknown = []): VideoSource[] {
   const sources = Array.isArray(manualSources) && manualSources.length ? manualSources : configuredSources;
   return Array.isArray(sources) ? sources.map(migrateSource) : [];
 }
 
-export function mergeState(base: any, override: any): any {
-  if (Array.isArray(base)) return Array.isArray(override) ? override : structuredClone(base);
-  if (!base || typeof base !== "object") return override ?? base;
-  const merged = structuredClone(base);
-  for (const [key, value] of Object.entries(override || {})) {
-    merged[key] = mergeState(base[key], value);
+export function mergeState<T>(base: T, override: unknown): T {
+  if (Array.isArray(base)) return (Array.isArray(override) ? override : structuredClone(base)) as T;
+  if (!base || typeof base !== "object") return (override ?? base) as T;
+  const baseRecord = base as Record<string, unknown>;
+  const merged = structuredClone(baseRecord);
+  for (const [key, value] of Object.entries(asRecord(override))) {
+    merged[key] = mergeState(baseRecord[key], value);
   }
-  return merged;
+  return merged as T;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function isPtzPreset(value: unknown): value is PtzPreset {
+  const preset = asRecord(value);
+  return typeof preset.id === "string" && typeof preset.name === "string" && typeof preset.ndiPreset === "number";
+}
+
+function isPresetCandidate(value: unknown): value is { id: string } {
+  return typeof asRecord(value).id === "string";
 }

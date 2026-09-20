@@ -14,7 +14,12 @@ interface IngestStatus {
   lastError?: { message?: string };
 }
 
-interface BackendHealth { ready?: boolean }
+interface BackendHealth {
+  ok?: boolean;
+  backend?: string;
+  ready?: boolean;
+  message?: string;
+}
 
 interface CatalogSource {
   id: string;

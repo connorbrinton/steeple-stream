@@ -155,7 +155,7 @@ export class BroadcastService {
     });
   }
 
-  async registerViewer({ name, sessionId }: { name: any; sessionId: any; userAgent?: unknown; ip?: unknown }) {
+  async registerViewer({ name, sessionId }: { name: unknown; sessionId: unknown; userAgent?: unknown; ip?: unknown }) {
     const viewerName = String(name || "").trim().slice(0, 80);
     if (!viewerName) {
       const error = new Error("Viewer name is required");
@@ -272,27 +272,35 @@ function auditActor(actor: Actor | null): { type: string; id: string | null; nam
   return { type: actor.type || "user", id: actor.id || actor.email || null, name: actor.name || actor.email || null };
 }
 
-function normalizeSource(source: any = {}): VideoSource {
-  const type = ["ndi", "network"].includes(source.type) ? source.type : "ndi";
+function normalizeSource(value: unknown = {}): VideoSource {
+  const source = asRecord(value);
+  const ndi = asRecord(source.ndi);
+  const capture = asRecord(source.capture);
+  const network = asRecord(source.network);
+  const type = source.type === "network" ? "network" : "ndi";
   return {
     type,
     ndi: {
-      sourceName: String(source.ndi?.sourceName || "").trim().slice(0, 160),
-      urlAddress: String(source.ndi?.urlAddress || "").trim().slice(0, 160),
-      discoveryServer: String(source.ndi?.discoveryServer || "").trim().slice(0, 160)
+      sourceName: String(ndi.sourceName || "").trim().slice(0, 160),
+      urlAddress: String(ndi.urlAddress || "").trim().slice(0, 160),
+      discoveryServer: String(ndi.discoveryServer || "").trim().slice(0, 160)
     },
     capture: {
-      videoDevice: String(source.capture?.videoDevice || "").trim().slice(0, 160),
-      audioDevice: String(source.capture?.audioDevice || "").trim().slice(0, 160),
-      resolution: String(source.capture?.resolution || "1920x1080").trim().slice(0, 40),
-      frameRate: Number(source.capture?.frameRate || 30)
+      videoDevice: String(capture.videoDevice || "").trim().slice(0, 160),
+      audioDevice: String(capture.audioDevice || "").trim().slice(0, 160),
+      resolution: String(capture.resolution || "1920x1080").trim().slice(0, 40),
+      frameRate: Number(capture.frameRate || 30)
     },
     network: {
-      uri: String(source.network?.uri || "").trim().slice(0, 500),
-      protocol: ["rtsp", "srt"].includes(source.network?.protocol) ? source.network.protocol : "rtsp"
+      uri: String(network.uri || "").trim().slice(0, 500),
+      protocol: network.protocol === "srt" ? "srt" : "rtsp"
     },
     notes: String(source.notes || "").trim().slice(0, 1000)
   };
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
 export function appendAudit(state: ApplicationState, event: string, details: Record<string, unknown> = {}): void {

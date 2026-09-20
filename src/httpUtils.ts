@@ -10,7 +10,9 @@ const uncachedHeaders = {
   "cdn-cache-control": "no-store"
 };
 
-export async function parseJson(req: IncomingMessage): Promise<Record<string, any>> {
+export type JsonObject = Record<string, unknown>;
+
+export async function parseJson(req: IncomingMessage): Promise<JsonObject> {
   const limit = 1024 * 1024;
   const chunks: Buffer[] = [];
   let size = 0;
@@ -24,7 +26,13 @@ export async function parseJson(req: IncomingMessage): Promise<Record<string, an
     chunks.push(chunk);
   }
   if (!chunks.length) return {};
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  const value: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    const error = new Error("Request body must be a JSON object");
+    error.status = 400;
+    throw error;
+  }
+  return value as JsonObject;
 }
 
 export function sendJson(res: ServerResponse, status: number, payload: unknown, extraHeaders: Record<string, string | number> = {}) {

@@ -30,7 +30,7 @@ export class SqliteStore {
   }
 
   migrate() {
-    const version = Number(this.db.prepare("PRAGMA user_version").get().user_version);
+    const version = Number(asRecord(this.db.prepare("PRAGMA user_version").get()).user_version);
     if (version >= 1) return;
     this.db.exec(`
       BEGIN;
@@ -115,7 +115,7 @@ export class SqliteStore {
 
   async read() {
     if (!this.loaded) await this.load();
-    const state = migrateState(JSON.parse(String(this.db.prepare("SELECT document FROM app_state WHERE id=1").get().document)));
+    const state = migrateState(parseStateDocument(this.db.prepare("SELECT document FROM app_state WHERE id=1").get()));
     return structuredClone(state);
   }
 
@@ -123,7 +123,7 @@ export class SqliteStore {
     if (!this.loaded) await this.load();
     this.db.exec("BEGIN IMMEDIATE");
     try {
-      const state = migrateState(JSON.parse(String(this.db.prepare("SELECT document FROM app_state WHERE id=1").get().document)));
+      const state = migrateState(parseStateDocument(this.db.prepare("SELECT document FROM app_state WHERE id=1").get()));
       const result = await mutator(state);
       this.db.prepare("UPDATE app_state SET document=?, updated_at=? WHERE id=1")
         .run(JSON.stringify(state), new Date().toISOString());
@@ -190,11 +190,13 @@ export class SqliteStore {
   activePlaybackCount(broadcastId: string | null, referenceDate = new Date()) {
     if (!broadcastId) return 0;
     const cutoff = new Date(referenceDate.getTime() - 45_000).toISOString();
-    return Number(this.db.prepare("SELECT COUNT(*) AS count FROM playback_sessions WHERE broadcast_id=? AND last_seen_at>=?").get(broadcastId, cutoff).count);
+    return Number(asRecord(this.db.prepare("SELECT COUNT(*) AS count FROM playback_sessions WHERE broadcast_id=? AND last_seen_at>=?").get(broadcastId, cutoff)).count);
   }
 
   listObsCredentials(): ObsCredential[] {
-    return this.db.prepare("SELECT id, unit_name AS unitName, port, salt, secret, enabled, created_at AS createdAt FROM obs_credentials ORDER BY unit_name").all() as unknown as ObsCredential[];
+    return this.db.prepare("SELECT id, unit_name AS unitName, port, salt, secret, enabled, created_at AS createdAt FROM obs_credentials ORDER BY unit_name")
+      .all()
+      .map(obsCredentialFromRow);
   }
 
   createObsCredential({ unitName, port }: { unitName: string; port: number }) {
@@ -206,4 +208,27 @@ export class SqliteStore {
       .run(id, String(unitName).trim().slice(0, 80), Number(port), salt, secret, new Date().toISOString());
     return { id, unitName, port: Number(port), password };
   }
+}
+
+function parseStateDocument(row: unknown): unknown {
+  const document = asRecord(row).document;
+  if (typeof document !== "string") throw new Error("Application state row is missing its document");
+  return JSON.parse(document) as unknown;
+}
+
+function obsCredentialFromRow(value: unknown): ObsCredential {
+  const row = asRecord(value);
+  return {
+    id: String(row.id || ""),
+    unitName: String(row.unitName || ""),
+    port: Number(row.port),
+    salt: String(row.salt || ""),
+    secret: String(row.secret || ""),
+    enabled: row.enabled === true || Number(row.enabled) === 1,
+    createdAt: String(row.createdAt || "")
+  };
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }

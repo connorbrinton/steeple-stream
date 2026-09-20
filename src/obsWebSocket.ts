@@ -1,17 +1,38 @@
 import crypto from "node:crypto";
+import type { IncomingMessage, Server } from "node:http";
+import type { Duplex } from "node:stream";
+import type { BroadcastService } from "./broadcastService.js";
+import type { Actor, Broadcast, ObsCredential, SceneMode } from "./domain.js";
 
 const OPCODE_TEXT = 0x1;
 const OPCODE_CLOSE = 0x8;
 
-export class ObsWebSocketServer {
-  declare server: any;
-  declare service: any;
-  declare coordinator: any;
-  declare credential: any;
-  declare actor: any;
-  declare clients: Set<any>;
+type ObsService = Pick<BroadcastService, "summary" | "setMode" | "start" | "end">;
+interface ObsCoordinator {
+  setMode(mode: SceneMode, actor?: Actor | null): Promise<unknown>;
+  start(actor?: Actor | null): Promise<unknown>;
+  end(actor?: Actor | null): Promise<unknown>;
+}
+type ObsSocket = Duplex & { buffer: Buffer; authenticated: boolean; challenge: string };
+type RequestData = Record<string, unknown>;
 
-  constructor({ server, service, coordinator = null, credential = null, actor = null }) {
+interface ObsWebSocketOptions {
+  server: Server;
+  service: ObsService;
+  coordinator?: ObsCoordinator | null;
+  credential?: ObsCredential | null;
+  actor?: Actor | null;
+}
+
+export class ObsWebSocketServer {
+  declare server: Server;
+  declare service: ObsService;
+  declare coordinator: ObsCoordinator | null;
+  declare credential: ObsCredential | null;
+  declare actor: Actor | null;
+  declare clients: Set<ObsSocket>;
+
+  constructor({ server, service, coordinator = null, credential = null, actor = null }: ObsWebSocketOptions) {
     this.server = server;
     this.service = service;
     this.coordinator = coordinator;
@@ -24,7 +45,8 @@ export class ObsWebSocketServer {
     });
   }
 
-  handleUpgrade(req, socket) {
+  handleUpgrade(req: IncomingMessage, rawSocket: Duplex): void {
+    const socket = rawSocket as ObsSocket;
     const key = req.headers["sec-websocket-key"];
     if (!key) {
       socket.destroy();
@@ -59,7 +81,7 @@ export class ObsWebSocketServer {
     });
   }
 
-  async handleData(socket, chunk) {
+  async handleData(socket: ObsSocket, chunk: Buffer): Promise<void> {
     socket.buffer = Buffer.concat([socket.buffer, chunk]);
     while (socket.buffer.length >= 2) {
       const frame = readFrame(socket.buffer);
@@ -71,7 +93,7 @@ export class ObsWebSocketServer {
       }
       if (frame.opcode !== OPCODE_TEXT) continue;
       try {
-        const payload = JSON.parse(frame.payload.toString("utf8"));
+        const payload: unknown = JSON.parse(frame.payload.toString("utf8"));
         await this.handleMessage(socket, payload);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -80,11 +102,13 @@ export class ObsWebSocketServer {
     }
   }
 
-  async handleMessage(socket, message) {
+  async handleMessage(socket: ObsSocket, value: unknown): Promise<void> {
+    const message = asRecord(value);
+    const data = asRecord(message.d);
     if (message.op === 1) {
       if (this.credential) {
         const expected = crypto.createHash("sha256").update(this.credential.secret + socket.challenge).digest("base64");
-        if (!safeEqual(message.d?.authentication, expected)) {
+        if (!safeEqual(data.authentication, expected)) {
           socket.end(encodeCloseFrame(4009, "Authentication failed"));
           return;
         }
@@ -95,8 +119,9 @@ export class ObsWebSocketServer {
     }
 
     if (message.op !== 6 || !socket.authenticated) return;
-    const { requestType, requestId, requestData = {} } = message.d || {};
-    const response = await this.handleRequest(requestType, requestData);
+    const requestType = String(data.requestType || "");
+    const requestId = data.requestId;
+    const response = await this.handleRequest(requestType, asRecord(data.requestData));
     this.send(socket, {
       op: 7,
       d: {
@@ -108,7 +133,7 @@ export class ObsWebSocketServer {
     });
   }
 
-  async handleRequest(requestType, requestData) {
+  async handleRequest(requestType: string, requestData: RequestData): Promise<Record<string, unknown>> {
     switch (requestType) {
       case "GetSceneList": {
         const state = await this.service.summary();
@@ -153,7 +178,7 @@ export class ObsWebSocketServer {
     }
   }
 
-  send(socket, payload) {
+  send(socket: ObsSocket, payload: unknown): void {
     if (socket.destroyed) return;
     const data = Buffer.from(JSON.stringify(payload));
     const header = encodeHeader(data.length);
@@ -161,24 +186,24 @@ export class ObsWebSocketServer {
   }
 }
 
-function safeEqual(actual, expected) {
+function safeEqual(actual: unknown, expected: string): boolean {
   const a = Buffer.from(String(actual || ""));
   const b = Buffer.from(String(expected));
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-function encodeCloseFrame(code, reason) {
+function encodeCloseFrame(code: number, reason: string): Buffer {
   const payload = Buffer.alloc(2 + Buffer.byteLength(reason));
   payload.writeUInt16BE(code, 0);
   payload.write(reason, 2);
   return Buffer.concat([Buffer.from([0x88, payload.length]), payload]);
 }
 
-function sceneFromState(broadcast) {
+function sceneFromState(broadcast: Broadcast): string {
   return broadcast.mode === "sacrament" ? "Sacrament" : "Chapel";
 }
 
-function readFrame(buffer) {
+function readFrame(buffer: Buffer): { opcode: number; payload: Buffer; bytesRead: number } | null {
   const first = buffer[0];
   const second = buffer[1];
   const opcode = first & 0x0f;
@@ -211,7 +236,7 @@ function readFrame(buffer) {
   return { opcode, payload, bytesRead: offset + length };
 }
 
-function encodeHeader(length) {
+function encodeHeader(length: number): Buffer {
   if (length < 126) return Buffer.from([0x80 | OPCODE_TEXT, length]);
   if (length < 65536) {
     const header = Buffer.alloc(4);
@@ -225,4 +250,8 @@ function encodeHeader(length) {
   header[1] = 127;
   header.writeBigUInt64BE(BigInt(length), 2);
   return header;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }

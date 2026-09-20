@@ -1,14 +1,28 @@
 import http from "node:http";
 import { ObsWebSocketServer } from "./obsWebSocket.js";
+import type { BroadcastService } from "./broadcastService.js";
+import type { LocationCommandCoordinator } from "./commandCoordinator.js";
+import type { ObsCredential } from "./domain.js";
+
+interface ObsStore {
+  listObsCredentials(): ObsCredential[];
+}
+
+interface ObsEndpointOptions {
+  store: ObsStore;
+  service: BroadcastService;
+  coordinator: LocationCommandCoordinator;
+  host?: string;
+}
 
 export class ObsEndpointManager {
-  declare store: any;
-  declare service: any;
-  declare coordinator: any;
+  declare store: ObsStore;
+  declare service: BroadcastService;
+  declare coordinator: LocationCommandCoordinator;
   declare host: string;
   declare servers: Map<string, http.Server>;
 
-  constructor({ store, service, coordinator, host = "127.0.0.1" }) {
+  constructor({ store, service, coordinator, host = "127.0.0.1" }: ObsEndpointOptions) {
     this.store = store;
     this.service = service;
     this.coordinator = coordinator;
@@ -25,7 +39,7 @@ export class ObsEndpointManager {
         service: this.service,
         coordinator: this.coordinator,
         credential,
-        actor: { type: "unit", id: credential.id, name: credential.unitName, role: "operator" }
+        actor: { type: "unit", id: credential.id, name: credential.unitName }
       });
       await new Promise<void>((resolve, reject) => {
         server.once("error", reject);
