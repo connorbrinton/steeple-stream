@@ -10,13 +10,25 @@ media-controller.component-player {
   --media-range-track-background: rgb(255 255 255 / 30%);
   --media-control-hover-background: rgb(255 255 255 / 16%);
   color: white;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: block;
+  position: relative;
+  overflow: hidden;
+  contain: size layout paint;
   font:
     500 13px/1.2 system-ui,
     sans-serif;
 }
 media-controller video {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
   object-fit: contain;
 }
 .player-bar {
