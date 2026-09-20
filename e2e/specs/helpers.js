@@ -7,6 +7,22 @@ export async function expectProgress(page) {
     .poll(() => video(page).evaluate((element) => element.currentTime), { timeout: 20_000 })
     .toBeGreaterThan(initial + 0.3);
 }
+export async function expectContainedVideo(page) {
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const container = document.querySelector("#player").getBoundingClientRect();
+        const media = document.querySelector("#player video").getBoundingClientRect();
+        return (
+          media.width > 0 &&
+          media.height > 0 &&
+          media.width <= container.width + 1 &&
+          media.height <= container.height + 1
+        );
+      }),
+    )
+    .toBe(true);
+}
 export async function startPlayback(page) {
   await expect
     .poll(() => video(page).evaluate((element) => element.readyState))
@@ -18,6 +34,7 @@ export async function startPlayback(page) {
       .click();
   }
   await expectProgress(page);
+  await expectContainedVideo(page);
   await page.locator("#player").hover();
   await page.locator("media-mute-button").focus();
 }
