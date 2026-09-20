@@ -6,6 +6,7 @@ import type {
   BroadcastSchedule,
   ObsCredential,
   PlaybackSession,
+  PersonAccess,
   ScheduleException,
   StateMutator,
   Unit,
@@ -150,6 +151,26 @@ export class SqliteStore {
           PRIMARY KEY(schedule_id, local_date)
         );
         PRAGMA user_version=2;
+        COMMIT;
+      `);
+    }
+    if (version < 3) {
+      this.db.exec(`
+        BEGIN;
+        CREATE TABLE people (
+          email TEXT PRIMARY KEY COLLATE NOCASE,
+          role TEXT NOT NULL CHECK(role IN ('broadcaster', 'administrator')),
+          enabled INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE TABLE person_units (
+          email TEXT NOT NULL COLLATE NOCASE REFERENCES people(email) ON DELETE CASCADE,
+          unit_id TEXT NOT NULL REFERENCES units(id) ON DELETE CASCADE,
+          PRIMARY KEY(email, unit_id)
+        );
+        CREATE INDEX person_units_unit ON person_units(unit_id);
+        PRAGMA user_version=3;
         COMMIT;
       `);
     }
@@ -428,6 +449,51 @@ export class SqliteStore {
       )
       .run(scheduleId, localDate);
     return { scheduleId, localDate, action: "cancel" };
+  }
+
+  listManagedPeople(): PersonAccess[] {
+    const units = this.db
+      .prepare("SELECT email, unit_id AS unitId FROM person_units ORDER BY unit_id")
+      .all()
+      .map(asRecord);
+    return this.db
+      .prepare("SELECT email, role, enabled FROM people ORDER BY email")
+      .all()
+      .map((value) => {
+        const row = asRecord(value);
+        const email = String(row.email);
+        return {
+          email,
+          role: String(row.role) as PersonAccess["role"],
+          enabled: Number(row.enabled) === 1,
+          unitIds: units
+            .filter((entry) => String(entry.email).toLowerCase() === email.toLowerCase())
+            .map((entry) => String(entry.unitId)),
+          source: "managed" as const,
+        };
+      });
+  }
+
+  saveManagedPerson(person: Omit<PersonAccess, "source">): PersonAccess {
+    const now = new Date().toISOString();
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      this.db
+        .prepare(`
+          INSERT INTO people(email, role, enabled, created_at, updated_at) VALUES(?, ?, ?, ?, ?)
+          ON CONFLICT(email) DO UPDATE SET role=excluded.role, enabled=excluded.enabled,
+            updated_at=excluded.updated_at
+        `)
+        .run(person.email, person.role, person.enabled ? 1 : 0, now, now);
+      this.db.prepare("DELETE FROM person_units WHERE email = ?").run(person.email);
+      const insert = this.db.prepare("INSERT INTO person_units(email, unit_id) VALUES(?, ?)");
+      for (const unitId of person.unitIds) insert.run(person.email, unitId);
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+    return this.listManagedPeople().find((entry) => entry.email === person.email)!;
   }
 }
 

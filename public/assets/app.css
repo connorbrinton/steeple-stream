@@ -416,6 +416,19 @@ body {
   gap: 8px;
   font-size: 14px;
 }
+.unit-picker {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+.unit-picker legend {
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+}
 .form-actions {
   display: flex;
   justify-content: flex-end;
