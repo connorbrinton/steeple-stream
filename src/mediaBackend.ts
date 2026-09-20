@@ -1,3 +1,5 @@
+import type { Playback } from "./domain.js";
+
 interface MediaMtxBackendOptions {
   apiBaseUrl: string;
   hls?: boolean;
@@ -6,6 +8,16 @@ interface MediaMtxBackendOptions {
   webrtcBaseUrl?: string;
 }
 
+interface MediaMtxPathResponse {
+  ready?: boolean;
+  readers?: unknown[];
+  source?: unknown;
+}
+
+export type MediaBackendHealth =
+  | { ok: true; backend: "mediamtx"; ready: boolean; readers: number; source: unknown }
+  | { ok: false; backend: "mediamtx"; message: string };
+
 export class MediaMtxBackend {
   declare options: MediaMtxBackendOptions;
 
@@ -13,9 +25,9 @@ export class MediaMtxBackend {
     this.options = options;
   }
 
-  getPlayback(channelId: string) {
+  getPlayback(channelId: string): Playback {
     const encoded = encodeURIComponent(channelId);
-    const playback: any = {
+    const playback: Playback = {
       publish: {
         rtmpUrl: `rtmp://localhost:1935/${encoded}`,
         rtspUrl: `rtsp://localhost:8554/${encoded}`,
@@ -31,7 +43,7 @@ export class MediaMtxBackend {
     return playback;
   }
 
-  async getHealth(channelId: string) {
+  async getHealth(channelId: string): Promise<MediaBackendHealth> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 1500);
     try {
@@ -41,7 +53,8 @@ export class MediaMtxBackend {
       if (!response.ok) {
         return { ok: false, backend: "mediamtx", message: `MediaMTX API returned ${response.status}` };
       }
-      const body: any = await response.json();
+      const value: unknown = await response.json();
+      const body: MediaMtxPathResponse = value && typeof value === "object" ? value as MediaMtxPathResponse : {};
       return {
         ok: true,
         backend: "mediamtx",

@@ -1,9 +1,10 @@
 import http from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
 import { SqliteStore } from "./sqliteStore.js";
-import { MediaMtxBackend } from "./mediaBackend.js";
+import { MediaMtxBackend, type MediaBackendHealth } from "./mediaBackend.js";
 import { MediaMtxManager } from "./mediamtxManager.js";
 import { BroadcastService } from "./broadcastService.js";
 import { IngestManager } from "./ingestManager.js";
@@ -15,6 +16,7 @@ import { AuthService } from "./authService.js";
 import { ObsEndpointManager } from "./obsEndpointManager.js";
 import { buildSourceCatalog } from "./sourceCatalog.js";
 import { AppRateLimiter, clientIp } from "./rateLimit.js";
+import type { PlaybackSession, SceneMode } from "./domain.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.resolve(__dirname, "..", "public");
@@ -33,9 +35,9 @@ const coordinator = new LocationCommandCoordinator({ service, ingestManager, med
 const auth = new AuthService({ store, config: config.auth });
 const rateLimiter = new AppRateLimiter();
 const obsEndpoints = new ObsEndpointManager({ store, service, coordinator, host: config.obsHost });
-let latestBackendHealth = null;
+let latestBackendHealth: MediaBackendHealth | null = null;
 
-const server = http.createServer(async (req, res) => {
+const server = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
   try {
     applySecurityHeaders(res);
     await route(req, res);
@@ -79,7 +81,7 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000).unref();
 
-async function route(req, res) {
+async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
   const method = req.method || "GET";
 
@@ -139,7 +141,7 @@ async function route(req, res) {
       connection: "keep-alive"
     });
     const sendState = async () => res.write(`event: state\ndata: ${JSON.stringify(await service.summary())}\n\n`);
-    const sendHealth = async (options) => res.write(`event: health\ndata: ${JSON.stringify(await healthSummary(options))}\n\n`);
+    const sendHealth = async (options: HealthOptions) => res.write(`event: health\ndata: ${JSON.stringify(await healthSummary(options))}\n\n`);
     const stateListener = () => sendState().catch(() => {});
     const healthListener = () => sendHealth({ refreshBackend: false }).catch(() => {});
     coordinator.on("changed", stateListener);
@@ -178,7 +180,7 @@ async function route(req, res) {
     requireCapability("sceneControls");
     const actor = auth.authorize(req, "operator", { csrfRequired: true });
     const body = await parseJson(req);
-    sendJson(res, 200, await coordinator.setMode(body.mode, actor));
+    sendJson(res, 200, await coordinator.setMode(sceneMode(body.mode), actor));
     return;
   }
 
@@ -247,14 +249,25 @@ async function route(req, res) {
       return;
     }
     store.upsertPlaybackSession({
-      ...body,
       id: String(body.id),
       viewerId: String(body.viewerId),
       viewerName: String(body.viewerName).trim().slice(0, 80),
       locationId: config.channelId,
+      broadcastId: optionalString(body.broadcastId),
+      transport: optionalString(body.transport),
+      candidateType: optionalString(body.candidateType),
+      startedAt: optionalString(body.startedAt) || undefined,
+      endedAt: optionalString(body.endedAt),
+      watchSeconds: optionalNumber(body.watchSeconds),
+      startupMs: optionalNumber(body.startupMs),
+      bufferingMs: optionalNumber(body.bufferingMs),
+      bufferingCount: optionalNumber(body.bufferingCount),
+      reconnectCount: optionalNumber(body.reconnectCount),
+      fallbackReason: optionalString(body.fallbackReason),
+      terminalError: optionalString(body.terminalError),
       ip: clientIp(req, config.auth),
       userAgent: req.headers["user-agent"] || null
-    });
+    } satisfies PlaybackSession);
     sendJson(res, 202, { accepted: true });
     return;
   }
@@ -262,14 +275,14 @@ async function route(req, res) {
   if (method === "POST" && url.pathname === "/api/ptz/recall") {
     const actor = auth.authorize(req, "operator", { csrfRequired: true });
     const body = await parseJson(req);
-    sendJson(res, 200, await coordinator.recallPreset(body.presetId, actor));
+    sendJson(res, 200, await coordinator.recallPreset(String(body.presetId || ""), actor));
     return;
   }
 
   if (method === "POST" && url.pathname === "/api/ptz/capture") {
     const actor = auth.authorize(req, "administrator", { csrfRequired: true });
     const body = await parseJson(req);
-    sendJson(res, 200, await coordinator.capturePreset(body.presetId, actor));
+    sendJson(res, 200, await coordinator.capturePreset(String(body.presetId || ""), actor));
     return;
   }
 
@@ -295,7 +308,7 @@ async function route(req, res) {
       sendJson(res, 400, { error: "Unit name and a port from 1024 through 65535 are required" });
       return;
     }
-    const credential = store.createObsCredential({ unitName: body.unitName, port: Number(body.port) });
+    const credential = store.createObsCredential({ unitName: String(body.unitName), port: Number(body.port) });
     await obsEndpoints.reload();
     sendJson(res, 201, credential);
     return;
@@ -400,24 +413,27 @@ async function route(req, res) {
   sendJson(res, 404, { error: "Not found" });
 }
 
-async function rateLimitedError(req, error) {
+async function rateLimitedError(req: IncomingMessage, value: unknown): Promise<Error> {
+  const error = asError(value);
   if (error.status !== 401 || !(req.url || "").startsWith("/api/")) return error;
   try {
     await rateLimiter.unauthenticatedApiFor(req, config.auth);
     return error;
   } catch (rateLimitError) {
-    return rateLimitError;
+    return asError(rateLimitError);
   }
 }
 
-function requireCapability(name) {
+type CapabilityName = Exclude<keyof typeof config.capabilities, "profile">;
+
+function requireCapability(name: CapabilityName): void {
   if (config.capabilities[name]) return;
   const error = new Error(`Capability is disabled in ${config.profile} profile: ${name}`);
   error.status = 404;
   throw error;
 }
 
-function applySecurityHeaders(res) {
+function applySecurityHeaders(res: ServerResponse): void {
   res.setHeader("x-content-type-options", "nosniff");
   res.setHeader("x-frame-options", "DENY");
   res.setHeader("referrer-policy", "same-origin");
@@ -425,7 +441,9 @@ function applySecurityHeaders(res) {
   res.setHeader("content-security-policy", "default-src 'self'; connect-src 'self'; media-src 'self' blob:; img-src 'self' data:; style-src 'self'; script-src 'self'");
 }
 
-async function healthSummary({ refreshBackend = true } = {}) {
+interface HealthOptions { refreshBackend?: boolean }
+
+async function healthSummary({ refreshBackend = true }: HealthOptions = {}) {
   let backend = latestBackendHealth;
   if (refreshBackend || !backend) {
     backend = await mediaBackend.getHealth(config.channelId);
@@ -440,7 +458,7 @@ async function healthSummary({ refreshBackend = true } = {}) {
   };
 }
 
-async function sourceCatalogSummary({ refreshBackend = true } = {}) {
+async function sourceCatalogSummary({ refreshBackend = true }: HealthOptions = {}) {
   const state = await service.summary();
   const health = await healthSummary({ refreshBackend });
   return buildSourceCatalog({
@@ -452,4 +470,25 @@ async function sourceCatalogSummary({ refreshBackend = true } = {}) {
     ingestStatus: health.ingest,
     backendHealth: health.backend
   });
+}
+
+function asError(value: unknown): Error {
+  return value instanceof Error ? value : new Error(String(value));
+}
+
+function optionalString(value: unknown): string | null {
+  return value === undefined || value === null || value === "" ? null : String(value);
+}
+
+function optionalNumber(value: unknown): number | null {
+  if (value === undefined || value === null || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function sceneMode(value: unknown): SceneMode {
+  if (value === "chapel" || value === "sacrament") return value;
+  const error = new Error("Mode must be chapel or sacrament");
+  error.status = 400;
+  throw error;
 }
