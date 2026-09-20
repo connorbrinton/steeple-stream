@@ -29,9 +29,13 @@ const service = new BroadcastService({ store, mediaBackend, config, ptzControlle
 const sourceDiscovery = new SourceDiscoveryService({ intervalMs: config.discovery.ndiIntervalMs });
 const ingestManager = new IngestManager({
   config: config.ingest,
-  ndiDiscovery: async (source) => sourceDiscovery.listNdiSources(source)
+  ndiDiscovery: async (source) => sourceDiscovery.listNdiSources(source),
 });
-const coordinator = new LocationCommandCoordinator({ service, ingestManager, mediaManager: mediamtxManager });
+const coordinator = new LocationCommandCoordinator({
+  service,
+  ingestManager,
+  mediaManager: mediamtxManager,
+});
 const auth = new AuthService({ store, config: config.auth });
 const rateLimiter = new AppRateLimiter();
 const obsEndpoints = new ObsEndpointManager({ store, service, coordinator, host: config.obsHost });
@@ -44,7 +48,9 @@ const server = http.createServer(async (req: IncomingMessage, res: ServerRespons
   } catch (error) {
     const finalError = await rateLimitedError(req, error);
     const status = finalError.status || 500;
-    const headers: Record<string, string> = finalError.retryAfter ? { "retry-after": String(finalError.retryAfter) } : {};
+    const headers: Record<string, string> = finalError.retryAfter
+      ? { "retry-after": String(finalError.retryAfter) }
+      : {};
     sendJson(res, status, { error: finalError.message }, headers);
   }
 });
@@ -58,7 +64,8 @@ await ingestManager.startForState(await service.summary());
 server.listen(config.port, config.host, () => {
   console.log(`Steeple Stream listening on http://${config.host}:${config.port}`);
   console.log(`Profile: ${config.profile}`);
-  if (config.capabilities.obsControl) console.log(`OBS WebSocket unit endpoints active: ${store.listObsCredentials().length}`);
+  if (config.capabilities.obsControl)
+    console.log(`OBS WebSocket unit endpoints active: ${store.listObsCredentials().length}`);
 });
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
@@ -72,14 +79,21 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
   });
 }
 
-setInterval(() => {
-  if (config.capabilities.recording) {
-    service.cleanupExpired().catch((error) => console.error("retention cleanup failed", error));
-  }
-  if (config.capabilities.publicViewer) {
-    try { store.aggregatePlaybackSessions(); } catch (error) { console.error("metrics aggregation failed", error); }
-  }
-}, 5 * 60 * 1000).unref();
+setInterval(
+  () => {
+    if (config.capabilities.recording) {
+      service.cleanupExpired().catch((error) => console.error("retention cleanup failed", error));
+    }
+    if (config.capabilities.publicViewer) {
+      try {
+        store.aggregatePlaybackSessions();
+      } catch (error) {
+        console.error("metrics aggregation failed", error);
+      }
+    }
+  },
+  5 * 60 * 1000,
+).unref();
 
 async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
@@ -93,7 +107,9 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
       return;
     }
     await rateLimiter.authStartFor(req, config.auth);
-    const target = await auth.begin(url.searchParams.get("returnTo") || `/broadcasts/${config.channelId}/broadcaster`);
+    const target = await auth.begin(
+      url.searchParams.get("returnTo") || `/broadcasts/${config.channelId}/broadcaster`,
+    );
     res.writeHead(302, { location: target.href });
     res.end();
     return;
@@ -102,7 +118,10 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (method === "GET" && url.pathname === "/auth/google/callback") {
     await rateLimiter.authCallbackFor(req, config.auth);
     const result = await auth.complete(new URL(req.url || "/", config.publicBaseUrl).href);
-    res.writeHead(302, { location: result.returnTo, "set-cookie": auth.sessionCookie(result.token) });
+    res.writeHead(302, {
+      location: result.returnTo,
+      "set-cookie": auth.sessionCookie(result.token),
+    });
     res.end();
     return;
   }
@@ -117,7 +136,11 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
 
   if (method === "GET" && url.pathname === "/api/session") {
     const principal = auth.authenticate(req);
-    sendJson(res, principal ? 200 : 401, principal || { error: "Authentication required", loginUrl: "/auth/login" });
+    sendJson(
+      res,
+      principal ? 200 : 401,
+      principal || { error: "Authentication required", loginUrl: "/auth/login" },
+    );
     return;
   }
 
@@ -138,10 +161,12 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     res.writeHead(200, {
       "content-type": "text/event-stream",
       "cache-control": "no-cache, no-transform",
-      connection: "keep-alive"
+      connection: "keep-alive",
     });
-    const sendState = async () => res.write(`event: state\ndata: ${JSON.stringify(await service.summary())}\n\n`);
-    const sendHealth = async (options: HealthOptions) => res.write(`event: health\ndata: ${JSON.stringify(await healthSummary(options))}\n\n`);
+    const sendState = async () =>
+      res.write(`event: state\ndata: ${JSON.stringify(await service.summary())}\n\n`);
+    const sendHealth = async (options: HealthOptions) =>
+      res.write(`event: health\ndata: ${JSON.stringify(await healthSummary(options))}\n\n`);
     const stateListener = () => sendState().catch(() => {});
     const healthListener = () => sendHealth({ refreshBackend: false }).catch(() => {});
     coordinator.on("changed", stateListener);
@@ -198,7 +223,10 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     return;
   }
 
-  if (method === "POST" && (url.pathname === "/api/sources/manual" || url.pathname === "/api/sources/configured")) {
+  if (
+    method === "POST" &&
+    (url.pathname === "/api/sources/manual" || url.pathname === "/api/sources/configured")
+  ) {
     const actor = auth.authorize(req, "administrator", { csrfRequired: true });
     const body = await parseJson(req);
     sendJson(res, 201, await coordinator.addManualSource(body, actor));
@@ -217,14 +245,16 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     sourceDiscovery.triggerRefresh();
     const catalog = await sourceCatalogSummary({ refreshBackend: false });
     sendJson(res, 200, {
-      sources: catalog.sources.filter((source) => source.type === "ndi").map((source) => ({
-        name: source.source.ndi.sourceName,
-        urlAddress: source.source.ndi.urlAddress,
-        source: source.discoveryMethod || source.origin,
-        configured: source.configured,
-        available: source.available
-      })),
-      discovery: catalog.discovery
+      sources: catalog.sources
+        .filter((source) => source.type === "ndi")
+        .map((source) => ({
+          name: source.source.ndi.sourceName,
+          urlAddress: source.source.ndi.urlAddress,
+          source: source.discoveryMethod || source.origin,
+          configured: source.configured,
+          available: source.available,
+        })),
+      discovery: catalog.discovery,
     });
     return;
   }
@@ -232,12 +262,16 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (method === "POST" && url.pathname === "/api/viewers") {
     requireCapability("publicViewer");
     const body = await parseJson(req);
-    sendJson(res, 200, await service.registerViewer({
-      name: body.name,
-      sessionId: body.sessionId,
-      userAgent: req.headers["user-agent"],
-      ip: clientIp(req, config.auth)
-    }));
+    sendJson(
+      res,
+      200,
+      await service.registerViewer({
+        name: body.name,
+        sessionId: body.sessionId,
+        userAgent: req.headers["user-agent"],
+        ip: clientIp(req, config.auth),
+      }),
+    );
     return;
   }
 
@@ -266,7 +300,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
       fallbackReason: optionalString(body.fallbackReason),
       terminalError: optionalString(body.terminalError),
       ip: clientIp(req, config.auth),
-      userAgent: req.headers["user-agent"] || null
+      userAgent: req.headers["user-agent"] || null,
     } satisfies PlaybackSession);
     sendJson(res, 202, { accepted: true });
     return;
@@ -296,7 +330,9 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (method === "GET" && url.pathname === "/api/obs-credentials") {
     requireCapability("obsControl");
     auth.authorize(req, "administrator");
-    sendJson(res, 200, { credentials: store.listObsCredentials().map(({ secret, salt, ...entry }) => entry) });
+    sendJson(res, 200, {
+      credentials: store.listObsCredentials().map(({ secret, salt, ...entry }) => entry),
+    });
     return;
   }
 
@@ -304,11 +340,19 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     requireCapability("obsControl");
     auth.authorize(req, "administrator", { csrfRequired: true });
     const body = await parseJson(req);
-    if (!String(body.unitName || "").trim() || !Number.isInteger(Number(body.port)) || Number(body.port) < 1024 || Number(body.port) > 65535) {
+    if (
+      !String(body.unitName || "").trim() ||
+      !Number.isInteger(Number(body.port)) ||
+      Number(body.port) < 1024 ||
+      Number(body.port) > 65535
+    ) {
       sendJson(res, 400, { error: "Unit name and a port from 1024 through 65535 are required" });
       return;
     }
-    const credential = store.createObsCredential({ unitName: String(body.unitName), port: Number(body.port) });
+    const credential = store.createObsCredential({
+      unitName: String(body.unitName),
+      port: Number(body.port),
+    });
     await obsEndpoints.reload();
     sendJson(res, 201, credential);
     return;
@@ -365,17 +409,31 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
       sendJson(res, 404, { error: "Broadcast is not live" });
       return;
     }
-    await proxyHttp(req, res, config.mediamtx.hlsProxyBaseUrl, url.pathname.replace(/^\/hls/, "") + url.search);
+    await proxyHttp(
+      req,
+      res,
+      config.mediamtx.hlsProxyBaseUrl,
+      url.pathname.replace(/^\/hls/, "") + url.search,
+    );
     return;
   }
 
-  if (["POST", "PATCH", "DELETE", "OPTIONS"].includes(method) && url.pathname.startsWith("/webrtc/")) {
+  if (
+    ["POST", "PATCH", "DELETE", "OPTIONS"].includes(method) &&
+    url.pathname.startsWith("/webrtc/")
+  ) {
     const state = await service.summary();
     if (state.broadcast.status !== "live" && !auth.authenticate(req)) {
       sendJson(res, 404, { error: "Broadcast is not live" });
       return;
     }
-    await proxyHttp(req, res, "http://127.0.0.1:8889", url.pathname.replace(/^\/webrtc/, "") + url.search, { locationPrefix: "/webrtc" });
+    await proxyHttp(
+      req,
+      res,
+      "http://127.0.0.1:8889",
+      url.pathname.replace(/^\/webrtc/, "") + url.search,
+      { locationPrefix: "/webrtc" },
+    );
     return;
   }
 
@@ -383,29 +441,48 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     requireCapability("recording");
     const id = decodeURIComponent(url.pathname.slice("/recordings/".length));
     const state = await service.summary();
-    const recording = state.recordings.find((entry) => entry.id === id && entry.status === "available");
-    if (!recording || !recording.startedAt || !recording.endedAt || new Date(recording.expiresAt) <= new Date()) {
+    const recording = state.recordings.find(
+      (entry) => entry.id === id && entry.status === "available",
+    );
+    if (
+      !recording ||
+      !recording.startedAt ||
+      !recording.endedAt ||
+      new Date(recording.expiresAt) <= new Date()
+    ) {
       sendJson(res, 404, { error: "Recording not found" });
       return;
     }
-    const duration = Math.max(1, (new Date(recording.endedAt).getTime() - new Date(recording.startedAt).getTime()) / 1000);
+    const duration = Math.max(
+      1,
+      (new Date(recording.endedAt).getTime() - new Date(recording.startedAt).getTime()) / 1000,
+    );
     const query = new URLSearchParams({
       path: config.channelId,
       start: recording.startedAt,
       duration: String(duration),
-      format: "mp4"
+      format: "mp4",
     });
     await proxyHttp(req, res, config.mediamtx.playbackBaseUrl, `/get?${query}`);
     return;
   }
 
-  if (method === "GET" && (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/build/") || url.pathname.startsWith("/vendor/"))) {
+  if (
+    method === "GET" &&
+    (url.pathname.startsWith("/assets/") ||
+      url.pathname.startsWith("/build/") ||
+      url.pathname.startsWith("/vendor/"))
+  ) {
     await sendStatic(res, publicDir, url.pathname);
     return;
   }
 
   if (method === "GET" && url.pathname === "/") {
-    res.writeHead(302, { location: config.capabilities.publicViewer ? `/broadcasts/${config.channelId}` : `/broadcasts/${config.channelId}/broadcaster` });
+    res.writeHead(302, {
+      location: config.capabilities.publicViewer
+        ? `/broadcasts/${config.channelId}`
+        : `/broadcasts/${config.channelId}/broadcaster`,
+    });
     res.end();
     return;
   }
@@ -438,10 +515,15 @@ function applySecurityHeaders(res: ServerResponse): void {
   res.setHeader("x-frame-options", "DENY");
   res.setHeader("referrer-policy", "same-origin");
   res.setHeader("permissions-policy", "camera=(), microphone=(), geolocation=()");
-  res.setHeader("content-security-policy", "default-src 'self'; connect-src 'self'; media-src 'self' blob:; img-src 'self' data:; style-src 'self'; script-src 'self'");
+  res.setHeader(
+    "content-security-policy",
+    "default-src 'self'; connect-src 'self'; media-src 'self' blob:; img-src 'self' data:; style-src 'self'; script-src 'self'",
+  );
 }
 
-interface HealthOptions { refreshBackend?: boolean }
+interface HealthOptions {
+  refreshBackend?: boolean;
+}
 
 async function healthSummary({ refreshBackend = true }: HealthOptions = {}) {
   let backend = latestBackendHealth;
@@ -454,7 +536,7 @@ async function healthSummary({ refreshBackend = true }: HealthOptions = {}) {
     app: "steeple-stream",
     backend,
     ingest: ingestManager.status(),
-    discovery: sourceDiscovery.status()
+    discovery: sourceDiscovery.status(),
   };
 }
 
@@ -468,7 +550,7 @@ async function sourceCatalogSummary({ refreshBackend = true }: HealthOptions = {
     discoveredNdiSources: sourceDiscovery.listNdiSources(),
     discoveryStatus: sourceDiscovery.status(),
     ingestStatus: health.ingest,
-    backendHealth: health.backend
+    backendHealth: health.backend,
   });
 }
 

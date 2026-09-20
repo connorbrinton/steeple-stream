@@ -25,7 +25,9 @@ const execFileAsync = promisify(execFile);
 const mdnsAddress = "224.0.0.251";
 const mdnsPort = 5353;
 
-export async function discoverNdiSources(currentSource?: ConfiguredSource | null): Promise<NdiSource[]> {
+export async function discoverNdiSources(
+  currentSource?: ConfiguredSource | null,
+): Promise<NdiSource[]> {
   const discovered = new Map<string, NdiSource>();
 
   for (const name of envSources()) {
@@ -54,7 +56,7 @@ export async function discoverNdiSources(currentSource?: ConfiguredSource | null
       name: configured,
       urlAddress: currentSource.ndi?.urlAddress || "",
       source: "configured",
-      available: false
+      available: false,
     });
   }
 
@@ -125,7 +127,9 @@ async function discoverWithAvahi() {
 
 async function discoverWithDnsSd() {
   try {
-    const { stdout } = await execFileAsync("dns-sd", ["-B", "_ndi._tcp", "local"], { timeout: 2500 });
+    const { stdout } = await execFileAsync("dns-sd", ["-B", "_ndi._tcp", "local"], {
+      timeout: 2500,
+    });
     return stdout
       .split("\n")
       .map((line) => line.match(/\s+_ndi\._tcp\.\s+(.+)$/)?.[1])
@@ -141,7 +145,7 @@ async function discoverWithGStreamer() {
     const stdout = await collectOutput(
       "gst-device-monitor-1.0",
       ["-f", "Source/Network:application/x-ndi"],
-      3000
+      3000,
     );
     return parseGstDeviceMonitor(stdout);
   } catch {
@@ -181,7 +185,12 @@ export function parseGstDeviceMonitor(output: string): NdiSource[] {
         ? { name, urlAddress: urlAddress || "", source: "gstreamer", available: true }
         : null;
     })
-    .filter((source): source is { name: string; urlAddress: string; source: string; available: boolean } => source !== null);
+    .filter(
+      (
+        source,
+      ): source is { name: string; urlAddress: string; source: string; available: boolean } =>
+        source !== null,
+    );
 }
 
 function decodeMdnsName(name: string) {
@@ -190,7 +199,8 @@ function decodeMdnsName(name: string) {
 
 export function buildPtrQuery(name: string) {
   const labels = name.split(".");
-  const questionLength = labels.reduce((total, label) => total + 1 + Buffer.byteLength(label), 0) + 1 + 4;
+  const questionLength =
+    labels.reduce((total, label) => total + 1 + Buffer.byteLength(label), 0) + 1 + 4;
   const buffer = Buffer.alloc(12 + questionLength);
   let offset = 0;
   buffer.writeUInt16BE(Math.floor(Math.random() * 65536), offset);

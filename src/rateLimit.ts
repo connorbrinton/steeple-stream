@@ -15,19 +15,19 @@ export class AppRateLimiter {
       keyPrefix: "auth-start",
       points: authPoints,
       duration: 60,
-      blockDuration: 120
+      blockDuration: 120,
     });
     this.authCallback = new RateLimiterMemory({
       keyPrefix: "auth-callback",
       points: callbackPoints,
       duration: 60,
-      blockDuration: 120
+      blockDuration: 120,
     });
     this.apiUnauthenticated = new RateLimiterMemory({
       keyPrefix: "api-unauthenticated",
       points: apiUnauthPoints,
       duration: 60,
-      blockDuration: 120
+      blockDuration: 120,
     });
   }
 
@@ -60,9 +60,10 @@ async function consume(limiter: RateLimiterMemory, key: string) {
   } catch (result) {
     const error = new Error("Too many requests");
     error.status = 429;
-    const retry = typeof result === "object" && result !== null && "msBeforeNext" in result
-      ? Number(result.msBeforeNext)
-      : 1000;
+    const retry =
+      typeof result === "object" && result !== null && "msBeforeNext" in result
+        ? Number(result.msBeforeNext)
+        : 1000;
     error.retryAfter = Math.max(1, Math.ceil((retry || 1000) / 1000));
     throw error;
   }

@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import test from "node:test";
-import { defaultNdiNixPackage, gstPluginPackages, IngestManager, ndiToRtmpPipeline, sacramentSlateToRtmpPipeline, switchableNdiSlateToRtmpCommand } from "../src/ingestManager.js";
+import {
+  defaultNdiNixPackage,
+  gstPluginPackages,
+  IngestManager,
+  ndiToRtmpPipeline,
+  sacramentSlateToRtmpPipeline,
+  switchableNdiSlateToRtmpCommand,
+} from "../src/ingestManager.js";
 
 class FakeProcess extends EventEmitter {
   constructor() {
@@ -11,7 +18,7 @@ class FakeProcess extends EventEmitter {
     this.killedWith = null;
     this.stdin = {
       writes: [],
-      write: (chunk) => this.stdin.writes.push(chunk)
+      write: (chunk) => this.stdin.writes.push(chunk),
     };
   }
 
@@ -36,15 +43,15 @@ function makeRunner() {
         calls.push({ nixBuild: packages, cwd, options });
         if (packages.includes(defaultNdiNixPackage)) return ["/nix/store/ndi"];
         return ["/nix/store/gst-plugin-ndi", "/nix/store/gst-plugins-good"];
-      }
-    }
+      },
+    },
   };
 }
 
 function makeIngestManager(options) {
   return new IngestManager({
     ndiDiscovery: async () => [],
-    ...options
+    ...options,
   });
 }
 
@@ -54,7 +61,7 @@ test("NDI pipeline publishes audio and video to MediaMTX RTMP path", () => {
     rtmpUrl: "rtmp://127.0.0.1:1935/stakecenter",
     frameRate: 30,
     videoBitrateKbps: 4500,
-    audioBitrate: 128000
+    audioBitrate: 128000,
   });
 
   assert.equal(pipeline.includes("ndisrc"), true);
@@ -74,7 +81,7 @@ test("switchable NDI slate command uses the controller process", () => {
     frameRate: 30,
     videoBitrateKbps: 4500,
     audioBitrate: 128000,
-    mode: "sacrament"
+    mode: "sacrament",
   });
 
   assert.equal(command[0], "python3");
@@ -92,7 +99,7 @@ test("sacrament slate pipeline publishes generated video with silent audio", () 
     rtmpUrl: "rtmp://127.0.0.1:1935/stakecenter",
     frameRate: 30,
     videoBitrateKbps: 4500,
-    audioBitrate: 128000
+    audioBitrate: 128000,
   });
 
   assert.equal(pipeline.includes("videotestsrc"), true);
@@ -114,16 +121,16 @@ test("ingest manager starts NDI pipeline with system GStreamer runtime", async (
       frameRate: 30,
       videoBitrateKbps: 4500,
       audioBitrate: 128000,
-      ndiRuntimeDir: "/opt/ndi/lib"
-    }
+      ndiRuntimeDir: "/opt/ndi/lib",
+    },
   });
 
   await manager.startForState({
     broadcast: { mode: "chapel" },
     source: {
       type: "ndi",
-      ndi: { sourceName: "CHAPEL CAMERA" }
-    }
+      ndi: { sourceName: "CHAPEL CAMERA" },
+    },
   });
 
   assert.equal(calls.length, 1);
@@ -140,7 +147,7 @@ test("ingest manager refreshes stale NDI direct address before starting", async 
     cwd: "/project",
     runner,
     ndiDiscovery: async () => [
-      { name: "CHAPEL CAMERA", urlAddress: "192.0.2.10:5961", available: true }
+      { name: "CHAPEL CAMERA", urlAddress: "192.0.2.10:5961", available: true },
     ],
     config: {
       autoStart: true,
@@ -148,16 +155,16 @@ test("ingest manager refreshes stale NDI direct address before starting", async 
       rtmpUrl: "rtmp://127.0.0.1:1935/stakecenter",
       frameRate: 30,
       videoBitrateKbps: 4500,
-      audioBitrate: 128000
-    }
+      audioBitrate: 128000,
+    },
   });
 
   await manager.startForState({
     broadcast: { mode: "chapel" },
     source: {
       type: "ndi",
-      ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.0.2.10:5962" }
-    }
+      ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.0.2.10:5962" },
+    },
   });
 
   assert.equal(calls.length, 1);
@@ -178,16 +185,16 @@ test("ingest manager keeps saved NDI direct address when discovery has no match"
       rtmpUrl: "rtmp://127.0.0.1:1935/stakecenter",
       frameRate: 30,
       videoBitrateKbps: 4500,
-      audioBitrate: 128000
-    }
+      audioBitrate: 128000,
+    },
   });
 
   await manager.startForState({
     broadcast: { mode: "chapel" },
     source: {
       type: "ndi",
-      ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.0.2.10:5962" }
-    }
+      ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.0.2.10:5962" },
+    },
   });
 
   assert.equal(calls.length, 1);
@@ -205,12 +212,12 @@ test("ingest manager switches scene mode without restarting the controller", asy
       rtmpUrl: "rtmp://127.0.0.1:1935/stakecenter",
       frameRate: 30,
       videoBitrateKbps: 4500,
-      audioBitrate: 128000
-    }
+      audioBitrate: 128000,
+    },
   });
 
   const state = {
-    source: { type: "ndi", ndi: { sourceName: "CHAPEL CAMERA" } }
+    source: { type: "ndi", ndi: { sourceName: "CHAPEL CAMERA" } },
   };
 
   await manager.startForState({ ...state, broadcast: { mode: "chapel" } });
@@ -233,13 +240,13 @@ test("ingest manager ignores sacrament mode when scene controls are disabled", a
       rtmpUrl: "rtmp://127.0.0.1:1935/stakecenter",
       frameRate: 30,
       videoBitrateKbps: 4500,
-      audioBitrate: 128000
-    }
+      audioBitrate: 128000,
+    },
   });
 
   await manager.startForState({
     broadcast: { mode: "sacrament" },
-    source: { type: "ndi", ndi: { sourceName: "CHAPEL CAMERA" } }
+    source: { type: "ndi", ndi: { sourceName: "CHAPEL CAMERA" } },
   });
 
   assert.equal(calls.length, 1);
@@ -265,12 +272,12 @@ test("ingest manager switches from sacrament back to chapel without NDI rediscov
       rtmpUrl: "rtmp://127.0.0.1:1935/stakecenter",
       frameRate: 30,
       videoBitrateKbps: 4500,
-      audioBitrate: 128000
-    }
+      audioBitrate: 128000,
+    },
   });
 
   const state = {
-    source: { type: "ndi", ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.0.2.10:5962" } }
+    source: { type: "ndi", ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.0.2.10:5962" } },
   };
 
   await manager.startForState({ ...state, broadcast: { mode: "chapel" } });
@@ -280,10 +287,13 @@ test("ingest manager switches from sacrament back to chapel without NDI rediscov
 
   assert.equal(calls.length, 1);
   assert.equal(discoveryCalls, 1);
-  assert.deepEqual(child.stdin.writes.map((entry) => JSON.parse(entry)), [
-    { type: "set-mode", mode: "sacrament" },
-    { type: "set-mode", mode: "chapel" }
-  ]);
+  assert.deepEqual(
+    child.stdin.writes.map((entry) => JSON.parse(entry)),
+    [
+      { type: "set-mode", mode: "sacrament" },
+      { type: "set-mode", mode: "chapel" },
+    ],
+  );
 });
 
 test("ingest manager emits health changes for scene transitions", async () => {
@@ -297,23 +307,23 @@ test("ingest manager emits health changes for scene transitions", async () => {
       rtmpUrl: "rtmp://127.0.0.1:1935/stakecenter",
       frameRate: 30,
       videoBitrateKbps: 4500,
-      audioBitrate: 128000
-    }
+      audioBitrate: 128000,
+    },
   });
   const changes = [];
   manager.on("changed", (status) => changes.push(status.scene));
 
   await manager.startForState({
     broadcast: { mode: "chapel" },
-    source: { type: "ndi", ndi: { sourceName: "CHAPEL CAMERA" } }
+    source: { type: "ndi", ndi: { sourceName: "CHAPEL CAMERA" } },
   });
   changes.length = 0;
 
   await manager.startForState({
     broadcast: { mode: "sacrament" },
-    source: { type: "ndi", ndi: { sourceName: "CHAPEL CAMERA" } }
+    source: { type: "ndi", ndi: { sourceName: "CHAPEL CAMERA" } },
   });
-  child.stdout.emit("data", "{\"event\":\"transition-complete\",\"mode\":\"sacrament\"}\n");
+  child.stdout.emit("data", '{"event":"transition-complete","mode":"sacrament"}\n');
 
   assert.equal(changes[0].requested, "sacrament");
   assert.equal(changes[0].transitioning, true);
@@ -332,16 +342,22 @@ test("ingest manager reports running only after controller readiness", async () 
       webrtcRtspUrl: "rtsp://127.0.0.1:8554/live-webrtc",
       frameRate: 30,
       videoBitrateKbps: 4500,
-      audioBitrate: 128000
-    }
+      audioBitrate: 128000,
+    },
   });
-  await manager.startForState({ broadcast: { mode: "chapel" }, source: { type: "ndi", ndi: { sourceName: "CAMERA" } } });
+  await manager.startForState({
+    broadcast: { mode: "chapel" },
+    source: { type: "ndi", ndi: { sourceName: "CAMERA" } },
+  });
   assert.equal(manager.status().status, "starting");
   assert.equal(manager.status().inputs.video.expected, true);
   assert.equal(manager.status().outputs.rtmp.expected, true);
   assert.equal(manager.status().outputs.rtsp.expected, true);
   child.stdout.emit("data", `${JSON.stringify({ event: "input-ready", media: "video" })}\n`);
-  child.stdout.emit("data", `${JSON.stringify({ event: "ready", mode: "chapel", outputs: ["rtmp", "rtsp"] })}\n`);
+  child.stdout.emit(
+    "data",
+    `${JSON.stringify({ event: "ready", mode: "chapel", outputs: ["rtmp", "rtsp"] })}\n`,
+  );
   assert.equal(manager.status().status, "running");
   assert.equal(manager.status().observedMode, "chapel");
   assert.equal(manager.status().scene.observed, "chapel");
@@ -354,10 +370,23 @@ test("ingest manager records structured pipeline failures", async () => {
   const { runner, child } = makeRunner();
   const manager = makeIngestManager({
     runner,
-    config: { autoStart: true, runtime: "system", rtmpUrl: "rtmp://127.0.0.1/live", frameRate: 30, videoBitrateKbps: 4500, audioBitrate: 128000 }
+    config: {
+      autoStart: true,
+      runtime: "system",
+      rtmpUrl: "rtmp://127.0.0.1/live",
+      frameRate: 30,
+      videoBitrateKbps: 4500,
+      audioBitrate: 128000,
+    },
   });
-  await manager.startForState({ broadcast: { mode: "chapel" }, source: { type: "ndi", ndi: { sourceName: "CAMERA" } } });
-  child.stdout.emit("data", `${JSON.stringify({ event: "error", message: "RTMP sink failed", debug: "connection refused" })}\n`);
+  await manager.startForState({
+    broadcast: { mode: "chapel" },
+    source: { type: "ndi", ndi: { sourceName: "CAMERA" } },
+  });
+  child.stdout.emit(
+    "data",
+    `${JSON.stringify({ event: "error", message: "RTMP sink failed", debug: "connection refused" })}\n`,
+  );
 
   assert.equal(manager.status().status, "failed");
   assert.equal(manager.status().lastError.category, "pipeline");
@@ -376,13 +405,13 @@ test("ingest manager starts sacrament slate without requiring an NDI source", as
       rtmpUrl: "rtmp://127.0.0.1:1935/stakecenter",
       frameRate: 30,
       videoBitrateKbps: 4500,
-      audioBitrate: 128000
-    }
+      audioBitrate: 128000,
+    },
   });
 
   await manager.startForState({
     broadcast: { mode: "sacrament" },
-    source: { type: "ndi", ndi: { sourceName: "" } }
+    source: { type: "ndi", ndi: { sourceName: "" } },
   });
 
   assert.equal(calls.length, 1);
@@ -406,16 +435,16 @@ test("ingest manager can still start NDI pipeline through explicit Nix fallback"
       videoBitrateKbps: 4500,
       audioBitrate: 128000,
       ndiRuntimeDir: "/opt/ndi/lib",
-      ndiNixPackage: defaultNdiNixPackage
-    }
+      ndiNixPackage: defaultNdiNixPackage,
+    },
   });
 
   await manager.startForState({
     broadcast: { mode: "chapel" },
     source: {
       type: "ndi",
-      ndi: { sourceName: "CHAPEL CAMERA" }
-    }
+      ndi: { sourceName: "CHAPEL CAMERA" },
+    },
   });
 
   assert.deepEqual(calls[0].nixBuild, gstPluginPackages);
@@ -441,11 +470,14 @@ test("ingest manager waits when NDI source is not selected", async () => {
       rtmpUrl: "rtmp://127.0.0.1:1935/stakecenter",
       frameRate: 30,
       videoBitrateKbps: 4500,
-      audioBitrate: 128000
-    }
+      audioBitrate: 128000,
+    },
   });
 
-  await manager.startForState({ broadcast: { mode: "chapel" }, source: { type: "ndi", ndi: { sourceName: "" } } });
+  await manager.startForState({
+    broadcast: { mode: "chapel" },
+    source: { type: "ndi", ndi: { sourceName: "" } },
+  });
 
   assert.equal(calls.length, 0);
   assert.equal(manager.status().status, "waiting");

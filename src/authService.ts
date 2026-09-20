@@ -67,7 +67,10 @@ export class AuthService {
   }
 
   get enabled() {
-    return this.config.mode === "trusted-proxy" || Boolean(this.config.clientId && this.config.clientSecret);
+    return (
+      this.config.mode === "trusted-proxy" ||
+      Boolean(this.config.clientId && this.config.clientSecret)
+    );
   }
 
   async initialize() {
@@ -77,7 +80,7 @@ export class AuthService {
     this.oidc = await oidc.discovery(
       new URL("https://accounts.google.com"),
       this.config.clientId,
-      this.config.clientSecret
+      this.config.clientSecret,
     );
   }
 
@@ -89,8 +92,17 @@ export class AuthService {
     const state = oidc.randomState();
     const nonce = oidc.randomNonce();
     const safeReturnTo = safeReturnPath(returnTo, this.config.channelId);
-    this.store.db.prepare("INSERT INTO oauth_attempts(state_hash, verifier, nonce, return_to, expires_at) VALUES(?, ?, ?, ?, ?)")
-      .run(hash(state), verifier, nonce, safeReturnTo, new Date(Date.now() + 10 * 60_000).toISOString());
+    this.store.db
+      .prepare(
+        "INSERT INTO oauth_attempts(state_hash, verifier, nonce, return_to, expires_at) VALUES(?, ?, ?, ?, ?)",
+      )
+      .run(
+        hash(state),
+        verifier,
+        nonce,
+        safeReturnTo,
+        new Date(Date.now() + 10 * 60_000).toISOString(),
+      );
     return oidc.buildAuthorizationUrl(this.oidc, {
       redirect_uri: this.config.redirectUri,
       scope: "openid email profile",
@@ -98,7 +110,7 @@ export class AuthService {
       code_challenge_method: "S256",
       state,
       nonce,
-      prompt: "select_account"
+      prompt: "select_account",
     });
   }
 
@@ -106,22 +118,37 @@ export class AuthService {
     if (!this.oidc) throw httpError(503, "Google sign-in is not configured");
     const url = new URL(callbackUrl);
     const state = url.searchParams.get("state") || "";
-    const attempt = this.store.db.prepare("SELECT * FROM oauth_attempts WHERE state_hash=?").get(hash(state)) as unknown as OAuthAttempt | undefined;
-    if (!attempt || new Date(attempt.expires_at) <= new Date()) throw httpError(400, "Sign-in attempt expired or is invalid");
+    const attempt = this.store.db
+      .prepare("SELECT * FROM oauth_attempts WHERE state_hash=?")
+      .get(hash(state)) as unknown as OAuthAttempt | undefined;
+    if (!attempt || new Date(attempt.expires_at) <= new Date())
+      throw httpError(400, "Sign-in attempt expired or is invalid");
     this.store.db.prepare("DELETE FROM oauth_attempts WHERE state_hash=?").run(hash(state));
     const tokens = await oidc.authorizationCodeGrant(this.oidc, url, {
       pkceCodeVerifier: attempt.verifier,
       expectedState: state,
-      expectedNonce: attempt.nonce
+      expectedNonce: attempt.nonce,
     });
     const claims = tokens.claims();
-    const email = String(claims?.email || "").trim().toLowerCase();
-    if (!email || claims?.email_verified !== true) throw httpError(403, "Google account email is not verified");
+    const email = String(claims?.email || "")
+      .trim()
+      .toLowerCase();
+    if (!email || claims?.email_verified !== true)
+      throw httpError(403, "Google account email is not verified");
     const role = this.roleFor(email);
     if (!role) throw httpError(403, "This Google account is not authorized for Steeple Stream");
     const token = randomToken();
-    this.store.db.prepare("INSERT INTO auth_sessions(token_hash, email, role, created_at, expires_at) VALUES(?, ?, ?, ?, ?)")
-      .run(hash(token), email, role, new Date().toISOString(), new Date(Date.now() + this.config.sessionHours * 3600_000).toISOString());
+    this.store.db
+      .prepare(
+        "INSERT INTO auth_sessions(token_hash, email, role, created_at, expires_at) VALUES(?, ?, ?, ?, ?)",
+      )
+      .run(
+        hash(token),
+        email,
+        role,
+        new Date().toISOString(),
+        new Date(Date.now() + this.config.sessionHours * 3600_000).toISOString(),
+      );
     return { token, returnTo: attempt.return_to };
   }
 
@@ -133,7 +160,8 @@ export class AuthService {
 
   authenticate(req: IncomingMessage): AuthPrincipal | null {
     if (this.config.mode === "trusted-proxy") {
-      if (!["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress || "")) return null;
+      if (!["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress || ""))
+        return null;
       const header = req.headers["cf-access-authenticated-user-email"];
       if (typeof header !== "string") return null;
       const email = header.trim().toLowerCase();
@@ -146,23 +174,36 @@ export class AuthService {
     }
     const token = parseCookie(req.headers.cookie || "")[SESSION_COOKIE];
     if (!token) return null;
-    const session = this.store.db.prepare("SELECT email, role, expires_at FROM auth_sessions WHERE token_hash=?").get(hash(token)) as unknown as AuthSession | undefined;
+    const session = this.store.db
+      .prepare("SELECT email, role, expires_at FROM auth_sessions WHERE token_hash=?")
+      .get(hash(token)) as unknown as AuthSession | undefined;
     if (!session || new Date(session.expires_at) <= new Date()) return null;
     if (session.role !== "operator" && session.role !== "administrator") return null;
-    return { email: session.email, role: session.role, csrfToken: csrf(token, this.config.sessionSecret) };
+    return {
+      email: session.email,
+      role: session.role,
+      csrfToken: csrf(token, this.config.sessionSecret),
+    };
   }
 
-  authorize(req: IncomingMessage, role: AuthRole = "operator", { csrfRequired = false }: { csrfRequired?: boolean } = {}): AuthPrincipal {
+  authorize(
+    req: IncomingMessage,
+    role: AuthRole = "operator",
+    { csrfRequired = false }: { csrfRequired?: boolean } = {},
+  ): AuthPrincipal {
     const principal = this.authenticate(req);
     if (!principal) throw httpError(401, "Authentication required");
-    if (role === "administrator" && principal.role !== "administrator") throw httpError(403, "Administrator access required");
-    if (csrfRequired && !safeEqual(req.headers["x-steeple-csrf"], principal.csrfToken)) throw httpError(403, "Invalid CSRF token");
+    if (role === "administrator" && principal.role !== "administrator")
+      throw httpError(403, "Administrator access required");
+    if (csrfRequired && !safeEqual(req.headers["x-steeple-csrf"], principal.csrfToken))
+      throw httpError(403, "Invalid CSRF token");
     return principal;
   }
 
   logout(req: IncomingMessage): void {
     const token = parseCookie(req.headers.cookie || "")[SESSION_COOKIE];
-    if (token) this.store.db.prepare("DELETE FROM auth_sessions WHERE token_hash=?").run(hash(token));
+    if (token)
+      this.store.db.prepare("DELETE FROM auth_sessions WHERE token_hash=?").run(hash(token));
   }
 
   sessionCookie(token: string): string {
@@ -173,7 +214,7 @@ export class AuthService {
       httpOnly: true,
       secure: true,
       sameSite: "lax",
-      maxAge: this.config.sessionHours * 3600
+      maxAge: this.config.sessionHours * 3600,
     });
   }
 
@@ -185,7 +226,7 @@ export class AuthService {
       httpOnly: true,
       secure: true,
       sameSite: "lax",
-      maxAge: 0
+      maxAge: 0,
     });
   }
 
@@ -200,18 +241,23 @@ export class AuthService {
       throw new Error("Unsupported STEEPLE_AUTH_MODE");
     }
     if (this.config.mode === "trusted-proxy") {
-      if (!isLoopbackHost(this.config.host)) throw new Error("Trusted-proxy authentication requires a loopback STEEPLE_HOST");
-      if (!this.config.adminEmails?.size) throw new Error("Trusted-proxy authentication requires STEEPLE_ADMIN_EMAILS");
-      if (new URL(this.config.publicBaseUrl).protocol !== "https:") throw new Error("Trusted-proxy authentication requires an HTTPS STEEPLE_PUBLIC_BASE_URL");
+      if (!isLoopbackHost(this.config.host))
+        throw new Error("Trusted-proxy authentication requires a loopback STEEPLE_HOST");
+      if (!this.config.adminEmails?.size)
+        throw new Error("Trusted-proxy authentication requires STEEPLE_ADMIN_EMAILS");
+      if (new URL(this.config.publicBaseUrl).protocol !== "https:")
+        throw new Error("Trusted-proxy authentication requires an HTTPS STEEPLE_PUBLIC_BASE_URL");
       return;
     }
     if (!this.config.requireProductionConfig || !isProductionAuthContext(this.config)) return;
     const missing = [];
     if (!this.config.clientId) missing.push("STEEPLE_GOOGLE_CLIENT_ID");
     if (!this.config.clientSecret) missing.push("STEEPLE_GOOGLE_CLIENT_SECRET");
-    if (!this.config.publicBaseUrl || this.config.publicBaseUrl.startsWith("http://localhost")) missing.push("STEEPLE_PUBLIC_BASE_URL");
+    if (!this.config.publicBaseUrl || this.config.publicBaseUrl.startsWith("http://localhost"))
+      missing.push("STEEPLE_PUBLIC_BASE_URL");
     if (!this.config.adminEmails?.size) missing.push("STEEPLE_ADMIN_EMAILS");
-    if (!this.config.operatorEmails?.size && !this.config.adminEmails?.size) missing.push("STEEPLE_OPERATOR_EMAILS");
+    if (!this.config.operatorEmails?.size && !this.config.adminEmails?.size)
+      missing.push("STEEPLE_OPERATOR_EMAILS");
     if (!isStrongSecret(this.config.sessionSecret)) missing.push("STEEPLE_SESSION_SECRET");
     if (missing.length) {
       throw new Error(`Production auth configuration is incomplete: ${missing.join(", ")}`);
@@ -234,7 +280,8 @@ function csrf(token: string, secret: string | Buffer): string {
 export function safeReturnPath(value: unknown, channelId = "stakecenter"): string {
   const fallback = `/broadcasts/${channelId}/broadcaster`;
   const path = String(value || fallback);
-  if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\") || /%5c/i.test(path)) return fallback;
+  if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\") || /%5c/i.test(path))
+    return fallback;
   let parsed;
   try {
     parsed = new URL(path, "https://steeple.invalid");
@@ -248,7 +295,7 @@ export function safeReturnPath(value: unknown, channelId = "stakecenter"): strin
     "/broadcaster",
     `/broadcasts/${channelId}`,
     `/broadcasts/${channelId}/admin`,
-    `/broadcasts/${channelId}/broadcaster`
+    `/broadcasts/${channelId}/broadcaster`,
   ]);
   if (!allowed.has(parsed.pathname)) return fallback;
   return `${parsed.pathname}${parsed.search}`;

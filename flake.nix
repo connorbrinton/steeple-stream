@@ -60,7 +60,7 @@
                 let name = builtins.baseNameOf sourcePath;
                 in !builtins.elem name [ ".git" "data" "node_modules" "result" ];
             };
-            npmDepsHash = "sha256-JrlELdFD8t1yp908kOGOgfA0tN/uBIekXW/J7Ulie2U=";
+            npmDepsHash = "sha256-PIlTycWHTqVCtdxA083crOY9ajwJqrsMBEsJDe9D69w=";
             nativeBuildInputs = [ pkgs.makeWrapper ];
             preInstall = ''
               npm prune --omit=dev

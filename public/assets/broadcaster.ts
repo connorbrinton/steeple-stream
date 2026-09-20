@@ -13,15 +13,19 @@ let presetSignature = "";
 let latestRecall = 0;
 
 document.querySelector("#start")!.addEventListener("click", () => post("/api/broadcast/start"));
-document.querySelector("#chapel")!.addEventListener("click", () => post("/api/broadcast/mode", { mode: "chapel" }));
-document.querySelector("#sacrament")!.addEventListener("click", () => post("/api/broadcast/mode", { mode: "sacrament" }));
+document
+  .querySelector("#chapel")!
+  .addEventListener("click", () => post("/api/broadcast/mode", { mode: "chapel" }));
+document
+  .querySelector("#sacrament")!
+  .addEventListener("click", () => post("/api/broadcast/mode", { mode: "sacrament" }));
 document.querySelector("#end")!.addEventListener("click", () => post("/api/broadcast/end"));
 
 async function post(url, body = {}, method = "POST", refreshAfter = true) {
   const response = await fetch(url, {
     method,
     headers: { "content-type": "application/json", "x-steeple-csrf": csrfToken },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
   }).catch((error) => {
     alert("Could not send the request. Check your connection and try again.");
     throw error;
@@ -39,7 +43,7 @@ async function post(url, body = {}, method = "POST", refreshAfter = true) {
 async function refresh() {
   const [state, healthState] = await Promise.all([
     fetch("/api/state").then((response) => response.json()),
-    fetch("/api/health").then((response) => response.json())
+    fetch("/api/health").then((response) => response.json()),
   ]);
   latestHealth = healthState;
   renderState(state);
@@ -54,7 +58,9 @@ function renderState(state) {
   document.querySelector("#sacrament")!.hidden = !capabilities.sceneControls;
   statusDot.className = `dot ${broadcast.status === "live" ? broadcast.mode : ""}`;
   statusLabel.textContent = capabilities.broadcastControls
-    ? broadcast.status === "live" ? `${broadcast.mode} live` : broadcast.status
+    ? broadcast.status === "live"
+      ? `${broadcast.mode} live`
+      : broadcast.status
     : "camera control";
   details.textContent = `Status: ${broadcast.status}. Mode: ${broadcast.mode}. Started: ${format(broadcast.startedAt)}. Expires: ${format(broadcast.expiresAt)}.`;
   document.querySelector("#chapel")!.classList.toggle("active", broadcast.mode === "chapel");
@@ -64,8 +70,15 @@ function renderState(state) {
 }
 
 function renderPtzControls(state) {
-  const cameraReady = Boolean(state.cameraControlSource?.ndi?.sourceName || state.source?.type === "ndi" && state.source?.ndi?.sourceName);
-  const signature = JSON.stringify([state.ptz.presets, cameraReady, state.cameraControlSource || state.source]);
+  const cameraReady = Boolean(
+    state.cameraControlSource?.ndi?.sourceName ||
+    (state.source?.type === "ndi" && state.source?.ndi?.sourceName),
+  );
+  const signature = JSON.stringify([
+    state.ptz.presets,
+    cameraReady,
+    state.cameraControlSource || state.source,
+  ]);
   if (signature === presetSignature) return;
   presetSignature = signature;
   latestRecall++;
@@ -87,10 +100,13 @@ function renderPtzControls(state) {
     button.className = "button";
     button.textContent = preset.name;
     button.disabled = !cameraReady;
-    button.title = cameraReady ? `Camera preset ${preset.ndiPreset}` : "Camera control source is not configured";
+    button.title = cameraReady
+      ? `Camera preset ${preset.ndiPreset}`
+      : "Camera control source is not configured";
     button.addEventListener("click", () => recallPreset(button, preset.id));
     button.addEventListener("animationend", (event) => {
-      if (event.target === button && event.animationName.startsWith("preset-recent")) button.classList.remove("preset-recent");
+      if (event.target === button && event.animationName.startsWith("preset-recent"))
+        button.classList.remove("preset-recent");
     });
     groups.get(group).append(button);
   }
@@ -134,7 +150,7 @@ function renderPreview(state) {
       controls: false,
       timeline: false,
       timeoutMs: 4000,
-      streamKey
+      streamKey,
     });
     return;
   }
@@ -144,9 +160,13 @@ function renderPreview(state) {
       controls: false,
       timeoutMs: 4000,
       streamKey,
-      retry: true
+      retry: true,
     }).catch(() => {
-      window.SteeplePlayer.renderSlate(adminPreview, "Preview Waiting", "No playable stream is available yet.");
+      window.SteeplePlayer.renderSlate(
+        adminPreview,
+        "Preview Waiting",
+        "No playable stream is available yet.",
+      );
     });
     return;
   }
@@ -154,11 +174,15 @@ function renderPreview(state) {
     window.SteeplePlayer.renderHls(adminPreview, hlsUrl, {
       autoplay: true,
       controls: false,
-      streamKey
+      streamKey,
     });
     return;
   }
-  window.SteeplePlayer.renderSlate(adminPreview, "Preview Unavailable", "No local preview URL is configured.");
+  window.SteeplePlayer.renderSlate(
+    adminPreview,
+    "Preview Unavailable",
+    "No local preview URL is configured.",
+  );
 }
 
 function previewStreamKey(ingest) {
@@ -168,7 +192,7 @@ function previewStreamKey(ingest) {
     ready: Boolean(ingest.ready),
     startedAt: ingest.startedAt || null,
     sourceName: ingest.sourceName || null,
-    error: ingest.lastError?.message || null
+    error: ingest.lastError?.message || null,
   });
 }
 

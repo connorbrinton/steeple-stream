@@ -17,7 +17,14 @@
 
 body {
   margin: 0;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
   color: var(--ink);
   background: var(--paper);
 }
@@ -116,7 +123,8 @@ video {
     url("/assets/chapel.svg") center/cover;
 }
 
-.slate h1, .slate h2 {
+.slate h1,
+.slate h2 {
   margin: 0;
   font-size: 24px;
   font-weight: 760;
@@ -134,11 +142,21 @@ video {
   background: #11181d;
 }
 
-.slate > div { max-width: 36rem; min-width: 0; overflow-wrap: anywhere; }
+.slate > div {
+  max-width: 36rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 @media (max-width: 480px) {
-  .slate { padding: 16px; }
-  .slate h2 { font-size: 20px; }
-  .slate p { font-size: 14px; }
+  .slate {
+    padding: 16px;
+  }
+  .slate h2 {
+    font-size: 20px;
+  }
+  .slate p {
+    font-size: 14px;
+  }
 }
 
 .panel {
@@ -262,13 +280,19 @@ video {
   text-align: left;
   cursor: default;
   box-shadow: 0 1px 2px rgba(23, 32, 38, 0.06);
-  transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease, transform 80ms ease;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease,
+    transform 80ms ease;
 }
 
 .source-row:hover {
   border-color: var(--accent);
   background: #f3fafb;
-  box-shadow: 0 0 0 2px rgba(47, 111, 126, 0.16), 0 4px 12px rgba(23, 32, 38, 0.08);
+  box-shadow:
+    0 0 0 2px rgba(47, 111, 126, 0.16),
+    0 4px 12px rgba(23, 32, 38, 0.08);
 }
 
 .source-row:focus-visible {
@@ -492,21 +516,37 @@ video {
 }
 
 @keyframes preset-pending-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes preset-recent-fade {
-  from { background: var(--quiet); border-color: var(--accent); }
-  to { background: var(--panel); border-color: var(--line); }
+  from {
+    background: var(--quiet);
+    border-color: var(--accent);
+  }
+  to {
+    background: var(--panel);
+    border-color: var(--line);
+  }
 }
 
 @keyframes preset-recent-static {
-  from, to { background: var(--quiet); border-color: var(--accent); }
+  from,
+  to {
+    background: var(--quiet);
+    border-color: var(--accent);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .preset-pending::after { animation: none; }
-  .preset-recent { animation-name: preset-recent-static; }
+  .preset-pending::after {
+    animation: none;
+  }
+  .preset-recent {
+    animation-name: preset-recent-static;
+  }
 }
 
 .button {
@@ -725,9 +765,15 @@ video {
   .layout {
     padding: 12px;
   }
-
 }
 
 /* Media Chrome owns the complete responsive control surface. */
-.component-player { width: 100%; height: 100%; display: block; position: relative; }
-.playback-status { z-index: 5; }
+.component-player {
+  width: 100%;
+  height: 100%;
+  display: block;
+  position: relative;
+}
+.playback-status {
+  z-index: 5;
+}

@@ -98,7 +98,6 @@ Useful environment variables:
 
 `docker-compose.yml` is retained only as an optional development convenience.
 
-
 ## Ingest and Playback
 
 NDI is one supported ingest adapter, not a requirement of the media core.

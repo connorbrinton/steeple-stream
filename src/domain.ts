@@ -131,8 +131,7 @@ export interface ObsCredential {
   createdAt: string;
 }
 
-export type StateMutator<T = ApplicationState> =
-  (state: ApplicationState) => T | Promise<T>;
+export type StateMutator<T = ApplicationState> = (state: ApplicationState) => T | Promise<T>;
 
 export interface StateStore {
   load(): Promise<ApplicationState>;

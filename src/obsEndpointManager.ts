@@ -33,13 +33,16 @@ export class ObsEndpointManager {
   async reload() {
     await this.stop();
     for (const credential of this.store.listObsCredentials().filter((entry) => entry.enabled)) {
-      const server = http.createServer((_req, res) => { res.writeHead(404); res.end(); });
+      const server = http.createServer((_req, res) => {
+        res.writeHead(404);
+        res.end();
+      });
       new ObsWebSocketServer({
         server,
         service: this.service,
         coordinator: this.coordinator,
         credential,
-        actor: { type: "unit", id: credential.id, name: credential.unitName }
+        actor: { type: "unit", id: credential.id, name: credential.unitName },
       });
       await new Promise<void>((resolve, reject) => {
         server.once("error", reject);
@@ -50,7 +53,11 @@ export class ObsEndpointManager {
   }
 
   async stop() {
-    await Promise.all([...this.servers.values()].map((server) => new Promise<void>((resolve) => server.close(() => resolve()))));
+    await Promise.all(
+      [...this.servers.values()].map(
+        (server) => new Promise<void>((resolve) => server.close(() => resolve())),
+      ),
+    );
     this.servers.clear();
   }
 }

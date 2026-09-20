@@ -10,14 +10,13 @@
     "build:frontend": "vite build --config tools/player-ui/vite.config.ts",
     "build:server": "tsc --project tsconfig.json",
     "build:test-sources": "tsc --project tsconfig.test-sources.json",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
     "typecheck": "tsc --project tsconfig.json --noEmit && tsc --project tsconfig.frontend.json",
     "start": "node src/server.js",
     "ndi:synthetic": "bash scripts/synthetic-ndi-source.sh",
     "ndi:probe": "python3 scripts/probe-ndi-source.py",
     "test": "npm run build:server && npm run build:test-sources && node --test"
-  },
-  "engines": {
-    "node": ">=22.5"
   },
   "dependencies": {
     "cookie": "^2.0.1",
@@ -27,7 +26,11 @@
   "devDependencies": {
     "@types/node": "22.20.2",
     "media-chrome": "4.19.2",
+    "oxfmt": "0.68.0",
     "typescript": "7.0.2",
     "vite": "8.3.0"
+  },
+  "engines": {
+    "node": ">=22.12"
   }
 }
