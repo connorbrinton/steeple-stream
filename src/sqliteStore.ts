@@ -329,6 +329,14 @@ export class SqliteStore {
     return value;
   }
 
+  updateUnit(id: string, unit: Omit<Unit, "id" | "archivedAt">): Unit | null {
+    const result = this.db
+      .prepare("UPDATE units SET slug = ?, name = ?, type = ?, parent_unit_id = ? WHERE id = ?")
+      .run(unit.slug, unit.name, unit.type, unit.parentUnitId, id);
+    if (result.changes === 0) return null;
+    return this.listUnits().find((value) => value.id === id) || null;
+  }
+
   listBroadcastSchedules(): BroadcastSchedule[] {
     return this.db
       .prepare(`
@@ -373,6 +381,35 @@ export class SqliteStore {
         new Date().toISOString(),
       );
     return value;
+  }
+
+  updateBroadcastSchedule(
+    id: string,
+    schedule: Omit<BroadcastSchedule, "id" | "publicId">,
+  ): BroadcastSchedule | null {
+    const result = this.db
+      .prepare(`
+        UPDATE broadcast_schedules SET
+          channel_id = ?, unit_id = ?, title = ?, kind = ?, time_zone = ?, recurrence = ?,
+          weekday = ?, local_date = ?, local_start_time = ?, duration_minutes = ?, enabled = ?
+        WHERE id = ?
+      `)
+      .run(
+        schedule.channelId,
+        schedule.unitId,
+        schedule.title,
+        schedule.kind,
+        schedule.timeZone,
+        schedule.recurrence,
+        schedule.weekday,
+        schedule.localDate,
+        schedule.localStartTime,
+        schedule.durationMinutes,
+        schedule.enabled ? 1 : 0,
+        id,
+      );
+    if (result.changes === 0) return null;
+    return this.listBroadcastSchedules().find((value) => value.id === id) || null;
   }
 
   listScheduleExceptions(): ScheduleException[] {
