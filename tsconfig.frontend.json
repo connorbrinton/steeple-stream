@@ -4,6 +4,7 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
     "strict": false,
     "strictNullChecks": true,
     "noImplicitOverride": true,
@@ -26,5 +27,10 @@
     "moduleDetection": "force",
     "noEmit": true
   },
-  "include": ["public/assets/**/*.ts", "tools/player-ui/**/*.ts"]
+  "include": [
+    "frontend/**/*.ts",
+    "frontend/**/*.tsx",
+    "public/assets/**/*.ts",
+    "tools/player-ui/**/*.ts"
+  ]
 }

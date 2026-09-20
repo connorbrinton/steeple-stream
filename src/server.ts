@@ -482,12 +482,12 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   }
 
   if (method === "GET" && url.pathname === "/") {
-    res.writeHead(302, {
-      location: config.capabilities.publicViewer
-        ? `/broadcasts/${config.channelId}`
-        : `/broadcasts/${config.channelId}/broadcaster`,
-    });
-    res.end();
+    if (config.capabilities.publicViewer) {
+      await sendStatic(res, publicDir, "/index.html");
+    } else {
+      res.writeHead(302, { location: `/broadcasts/${config.channelId}/broadcaster` });
+      res.end();
+    }
     return;
   }
 

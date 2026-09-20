@@ -27,9 +27,14 @@
   },
   "devDependencies": {
     "@types/node": "22.20.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
     "media-chrome": "4.19.2",
     "oxfmt": "0.68.0",
     "oxlint": "1.83.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-router-dom": "7.18.4",
     "typescript": "7.0.2",
     "vite": "8.3.0"
   },
