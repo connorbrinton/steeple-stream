@@ -15,6 +15,7 @@ import { AuthService } from "./authService.js";
 import { ObsEndpointManager } from "./obsEndpointManager.js";
 import { buildSourceCatalog } from "./sourceCatalog.js";
 import { AppRateLimiter, clientIp } from "./rateLimit.js";
+import { ScheduleService } from "./scheduleService.js";
 import type { PlaybackSession, SceneMode } from "./domain.js";
 
 const publicDir = path.resolve(import.meta.dirname, "..", "public");
@@ -24,6 +25,7 @@ const mediamtxManager = new MediaMtxManager(config.mediamtx);
 const mediaBackend = new MediaMtxBackend(config.mediamtx);
 const ptzController = new PtzController({ config: config.ptz });
 const service = new BroadcastService({ store, mediaBackend, config, ptzController });
+const schedules = new ScheduleService(store);
 const sourceDiscovery = new SourceDiscoveryService({ intervalMs: config.discovery.ndiIntervalMs });
 const ingestManager = new IngestManager({
   config: config.ingest,
@@ -181,7 +183,22 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   }
 
   if (method === "GET" && url.pathname === "/api/public-state") {
-    sendJson(res, 200, await service.publicSummary());
+    sendJson(res, 200, {
+      ...(await service.publicSummary()),
+      upcoming: schedules.upcoming({ channelId: config.channelId }),
+    });
+    return;
+  }
+
+  const occurrenceMatch = /^\/api\/public-occurrences\/([^/]+)\/(\d{4}-\d{2}-\d{2})$/.exec(
+    url.pathname,
+  );
+  if (method === "GET" && occurrenceMatch) {
+    const occurrence = schedules.occurrence(
+      decodeURIComponent(occurrenceMatch[1] || ""),
+      occurrenceMatch[2] || "",
+    );
+    sendJson(res, occurrence ? 200 : 404, occurrence || { error: "Broadcast not found" });
     return;
   }
 
@@ -403,6 +420,12 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (method === "GET" && url.pathname === `/broadcasts/${config.channelId}`) {
     requireCapability("publicViewer");
     await sendStatic(res, publicDir, "/viewer.html");
+    return;
+  }
+
+  if (method === "GET" && /^\/broadcasts\/[^/]+\/\d{4}-\d{2}-\d{2}$/.test(url.pathname)) {
+    requireCapability("publicViewer");
+    await sendStatic(res, publicDir, "/index.html");
     return;
   }
 

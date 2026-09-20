@@ -64,3 +64,39 @@ test("playback sessions retain transport diagnostics", async () => {
   assert.equal(row.ip, "192.0.2.1");
   assert.equal(row.viewer_name, "Patron");
 });
+
+test("units, schedules and occurrence cancellations persist", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "steeple-schedules-"));
+  const store = new SqliteStore(path.join(dir, "state.sqlite"));
+  await store.load();
+  const unit = store.createUnit({
+    id: "unit-1",
+    slug: "harris-lake",
+    name: "Harris Lake Ward",
+    type: "ward",
+    parentUnitId: null,
+  });
+  const schedule = store.createBroadcastSchedule({
+    id: "schedule-1",
+    publicId: "public-schedule",
+    channelId: "stakecenter",
+    unitId: unit.id,
+    title: "Sacrament Meeting",
+    kind: "sacrament-meeting",
+    timeZone: "America/New_York",
+    recurrence: "weekly",
+    weekday: 0,
+    localDate: null,
+    localStartTime: "11:00",
+    durationMinutes: 90,
+    enabled: true,
+  });
+  store.cancelScheduleOccurrence(schedule.id, "2026-10-18");
+
+  assert.deepEqual(store.listUnits(), [unit]);
+  assert.deepEqual(store.listBroadcastSchedules(), [schedule]);
+  assert.deepEqual(store.listScheduleExceptions(), [
+    { scheduleId: schedule.id, localDate: "2026-10-18", action: "cancel" },
+  ]);
+  assert.equal(store.db.prepare("PRAGMA user_version").get().user_version, 2);
+});

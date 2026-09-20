@@ -17,6 +17,25 @@ interface PublicBroadcast {
 interface PublicState {
   broadcast: PublicBroadcast;
   viewerCount: number;
+  upcoming: UpcomingOccurrence[];
+}
+
+export interface UpcomingOccurrence {
+  key: string;
+  schedulePublicId: string;
+  channelId: string;
+  unit: {
+    id: string;
+    slug: string;
+    name: string;
+    type: "ward" | "branch" | "stake" | "other";
+  };
+  title: string;
+  kind: "sacrament-meeting" | "stake-conference" | "other";
+  scheduledStart: string;
+  scheduledEnd: string;
+  localDate: string;
+  href: string;
 }
 
 interface PublicStateResult {
@@ -78,7 +97,10 @@ export function App() {
             <p className="meta">Checking for broadcasts.</p>
           </BroadcastSection>
         ) : (
-          <CurrentBroadcast state={state} />
+          <>
+            <CurrentBroadcast state={state} />
+            <UpcomingBroadcasts occurrences={state.upcoming} />
+          </>
         )}
       </main>
     </div>
@@ -129,15 +151,44 @@ function BroadcastSection({ title, children }: { title: string; children: ReactN
   );
 }
 
+function UpcomingBroadcasts({ occurrences }: { occurrences: UpcomingOccurrence[] }) {
+  if (occurrences.length === 0) return null;
+  return (
+    <BroadcastSection title="Upcoming">
+      <div className="broadcast-list">
+        {occurrences.map((occurrence) => (
+          <a
+            className="broadcast-card broadcast-card-link"
+            href={occurrence.href}
+            key={occurrence.key}
+          >
+            <div>
+              <div className="broadcast-badge">Upcoming</div>
+              <h2>{occurrence.title}</h2>
+              <p>{occurrence.unit.name}</p>
+            </div>
+            <time dateTime={occurrence.scheduledStart}>
+              {formatDateTime(occurrence.scheduledStart)}
+            </time>
+          </a>
+        ))}
+      </div>
+    </BroadcastSection>
+  );
+}
+
 function broadcastSummary(broadcast: PublicBroadcast, viewerCount: number) {
-  const started = broadcast.startedAt
-    ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(
-        new Date(broadcast.startedAt),
-      )
-    : null;
+  const started = broadcast.startedAt ? formatDateTime(broadcast.startedAt) : null;
   if (broadcast.status === "live") {
     const viewers = `${viewerCount} ${viewerCount === 1 ? "viewer" : "viewers"}`;
     return started ? `Started ${started} · ${viewers}` : viewers;
   }
   return started ? `Recorded ${started}` : "Replay available";
+}
+
+export function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }

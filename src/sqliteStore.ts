@@ -2,7 +2,14 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import type { ObsCredential, PlaybackSession, StateMutator } from "./domain.js";
+import type {
+  BroadcastSchedule,
+  ObsCredential,
+  PlaybackSession,
+  ScheduleException,
+  StateMutator,
+  Unit,
+} from "./domain.js";
 import { migrateState } from "./store.js";
 
 export class SqliteStore {
@@ -36,8 +43,8 @@ export class SqliteStore {
 
   migrate() {
     const version = Number(asRecord(this.db.prepare("PRAGMA user_version").get()).user_version);
-    if (version >= 1) return;
-    this.db.exec(`
+    if (version < 1) {
+      this.db.exec(`
       BEGIN;
       CREATE TABLE app_state (
         id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -103,6 +110,49 @@ export class SqliteStore {
       PRAGMA user_version=1;
       COMMIT;
     `);
+    }
+    if (version < 2) {
+      this.db.exec(`
+        BEGIN;
+        CREATE TABLE units (
+          id TEXT PRIMARY KEY,
+          slug TEXT NOT NULL UNIQUE,
+          name TEXT NOT NULL,
+          type TEXT NOT NULL CHECK(type IN ('ward', 'branch', 'stake', 'other')),
+          parent_unit_id TEXT REFERENCES units(id),
+          archived_at TEXT
+        );
+        CREATE TABLE broadcast_schedules (
+          id TEXT PRIMARY KEY,
+          public_id TEXT NOT NULL UNIQUE,
+          channel_id TEXT NOT NULL,
+          unit_id TEXT NOT NULL REFERENCES units(id),
+          title TEXT NOT NULL,
+          kind TEXT NOT NULL CHECK(kind IN ('sacrament-meeting', 'stake-conference', 'other')),
+          time_zone TEXT NOT NULL,
+          recurrence TEXT NOT NULL CHECK(recurrence IN ('weekly', 'once')),
+          weekday INTEGER CHECK(weekday BETWEEN 0 AND 6),
+          local_date TEXT,
+          local_start_time TEXT NOT NULL,
+          duration_minutes INTEGER NOT NULL CHECK(duration_minutes > 0),
+          enabled INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT NOT NULL,
+          CHECK(
+            (recurrence = 'weekly' AND weekday IS NOT NULL AND local_date IS NULL) OR
+            (recurrence = 'once' AND weekday IS NULL AND local_date IS NOT NULL)
+          )
+        );
+        CREATE INDEX broadcast_schedules_channel ON broadcast_schedules(channel_id, enabled);
+        CREATE TABLE schedule_exceptions (
+          schedule_id TEXT NOT NULL REFERENCES broadcast_schedules(id) ON DELETE CASCADE,
+          local_date TEXT NOT NULL,
+          action TEXT NOT NULL CHECK(action = 'cancel'),
+          PRIMARY KEY(schedule_id, local_date)
+        );
+        PRAGMA user_version=2;
+        COMMIT;
+      `);
+    }
   }
 
   importLegacyState() {
@@ -261,6 +311,87 @@ export class SqliteStore {
       );
     return { id, unitName, port: Number(port), password };
   }
+
+  listUnits(): Unit[] {
+    return this.db
+      .prepare(
+        "SELECT id, slug, name, type, parent_unit_id AS parentUnitId, archived_at AS archivedAt FROM units ORDER BY name",
+      )
+      .all()
+      .map(unitFromRow);
+  }
+
+  createUnit(unit: Omit<Unit, "id" | "archivedAt"> & { id?: string }): Unit {
+    const value: Unit = { ...unit, id: unit.id || crypto.randomUUID(), archivedAt: null };
+    this.db
+      .prepare("INSERT INTO units(id, slug, name, type, parent_unit_id) VALUES(?, ?, ?, ?, ?)")
+      .run(value.id, value.slug, value.name, value.type, value.parentUnitId);
+    return value;
+  }
+
+  listBroadcastSchedules(): BroadcastSchedule[] {
+    return this.db
+      .prepare(`
+        SELECT id, public_id AS publicId, channel_id AS channelId, unit_id AS unitId,
+          title, kind, time_zone AS timeZone, recurrence, weekday, local_date AS localDate,
+          local_start_time AS localStartTime, duration_minutes AS durationMinutes, enabled
+        FROM broadcast_schedules ORDER BY title
+      `)
+      .all()
+      .map(broadcastScheduleFromRow);
+  }
+
+  createBroadcastSchedule(
+    schedule: Omit<BroadcastSchedule, "id" | "publicId"> & { id?: string; publicId?: string },
+  ): BroadcastSchedule {
+    const value: BroadcastSchedule = {
+      ...schedule,
+      id: schedule.id || crypto.randomUUID(),
+      publicId: schedule.publicId || crypto.randomBytes(9).toString("base64url"),
+    };
+    this.db
+      .prepare(`
+        INSERT INTO broadcast_schedules(
+          id, public_id, channel_id, unit_id, title, kind, time_zone, recurrence,
+          weekday, local_date, local_start_time, duration_minutes, enabled, created_at
+        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        value.id,
+        value.publicId,
+        value.channelId,
+        value.unitId,
+        value.title,
+        value.kind,
+        value.timeZone,
+        value.recurrence,
+        value.weekday,
+        value.localDate,
+        value.localStartTime,
+        value.durationMinutes,
+        value.enabled ? 1 : 0,
+        new Date().toISOString(),
+      );
+    return value;
+  }
+
+  listScheduleExceptions(): ScheduleException[] {
+    return this.db
+      .prepare(
+        "SELECT schedule_id AS scheduleId, local_date AS localDate, action FROM schedule_exceptions",
+      )
+      .all()
+      .map(scheduleExceptionFromRow);
+  }
+
+  cancelScheduleOccurrence(scheduleId: string, localDate: string): ScheduleException {
+    this.db
+      .prepare(
+        "INSERT OR REPLACE INTO schedule_exceptions(schedule_id, local_date, action) VALUES(?, ?, 'cancel')",
+      )
+      .run(scheduleId, localDate);
+    return { scheduleId, localDate, action: "cancel" };
+  }
 }
 
 function parseStateDocument(row: unknown): unknown {
@@ -280,6 +411,46 @@ function obsCredentialFromRow(value: unknown): ObsCredential {
     secret: String(row.secret || ""),
     enabled: row.enabled === true || Number(row.enabled) === 1,
     createdAt: String(row.createdAt || ""),
+  };
+}
+
+function unitFromRow(value: unknown): Unit {
+  const row = asRecord(value);
+  return {
+    id: String(row.id),
+    slug: String(row.slug),
+    name: String(row.name),
+    type: String(row.type) as Unit["type"],
+    parentUnitId: row.parentUnitId ? String(row.parentUnitId) : null,
+    archivedAt: row.archivedAt ? String(row.archivedAt) : null,
+  };
+}
+
+function broadcastScheduleFromRow(value: unknown): BroadcastSchedule {
+  const row = asRecord(value);
+  return {
+    id: String(row.id),
+    publicId: String(row.publicId),
+    channelId: String(row.channelId),
+    unitId: String(row.unitId),
+    title: String(row.title),
+    kind: String(row.kind) as BroadcastSchedule["kind"],
+    timeZone: String(row.timeZone),
+    recurrence: String(row.recurrence) as BroadcastSchedule["recurrence"],
+    weekday: row.weekday === null ? null : Number(row.weekday),
+    localDate: row.localDate === null ? null : String(row.localDate),
+    localStartTime: String(row.localStartTime),
+    durationMinutes: Number(row.durationMinutes),
+    enabled: Number(row.enabled) === 1,
+  };
+}
+
+function scheduleExceptionFromRow(value: unknown): ScheduleException {
+  const row = asRecord(value);
+  return {
+    scheduleId: String(row.scheduleId),
+    localDate: String(row.localDate),
+    action: "cancel",
   };
 }
 

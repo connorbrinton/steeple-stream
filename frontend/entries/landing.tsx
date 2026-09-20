@@ -3,11 +3,15 @@ import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import "../../public/assets/app.css";
 import { App } from "../landing/App.tsx";
+import { OccurrencePage } from "../landing/OccurrencePage.tsx";
 
 const root = document.querySelector("#root");
 if (!root) throw new Error("Landing page root element was not found");
 
-const router = createBrowserRouter([{ path: "/", element: <App /> }]);
+const router = createBrowserRouter([
+  { path: "/", element: <App /> },
+  { path: "/broadcasts/:publicId/:localDate", element: <OccurrencePage /> },
+]);
 
 createRoot(root).render(
   <StrictMode>
