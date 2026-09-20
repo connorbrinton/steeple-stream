@@ -14,6 +14,20 @@ const dir = path.dirname(fileURLToPath(import.meta.url));
 const artifacts = path.join(dir, "artifacts");
 await fs.mkdir(artifacts, { recursive: true });
 const children = new Set();
+const adminCatalog = {
+  channelId: "stakecenter",
+  units: [
+    {
+      id: "stake",
+      slug: "apex-north-stake",
+      name: "Apex North Stake",
+      type: "stake",
+      parentUnitId: null,
+      archivedAt: null,
+    },
+  ],
+  schedules: [],
+};
 let shuttingDown = false;
 function start(command, args, name) {
   const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
@@ -194,6 +208,39 @@ server = http.createServer(async (req, res) => {
       );
       return;
     }
+    if (url.pathname === "/api/session") {
+      res.setHeader("content-type", "application/json");
+      res.end(
+        JSON.stringify({ email: "admin@example.com", role: "administrator", csrfToken: "test" }),
+      );
+      return;
+    }
+    if (url.pathname === "/api/admin/catalog") {
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify(adminCatalog));
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/admin/units") {
+      const body = await readJson(req);
+      const unit = { ...body, id: `unit-${adminCatalog.units.length}`, archivedAt: null };
+      adminCatalog.units.push(unit);
+      res.writeHead(201, { "content-type": "application/json" });
+      res.end(JSON.stringify(unit));
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/admin/schedules") {
+      const body = await readJson(req);
+      const schedule = {
+        ...body,
+        id: `schedule-${adminCatalog.schedules.length}`,
+        publicId: "test-public-id",
+        channelId: "stakecenter",
+      };
+      adminCatalog.schedules.push(schedule);
+      res.writeHead(201, { "content-type": "application/json" });
+      res.end(JSON.stringify(schedule));
+      return;
+    }
     if (url.pathname === "/api/public-occurrences/conference-public/2026-10-18") {
       res.setHeader("content-type", "application/json");
       res.end(
@@ -254,6 +301,10 @@ server = http.createServer(async (req, res) => {
       await sendStatic(res, path.join(dir, "../public"), "/index.html");
       return;
     }
+    if (url.pathname === "/admin" || url.pathname.startsWith("/admin/")) {
+      await sendStatic(res, path.join(dir, "../public"), "/manage.html");
+      return;
+    }
     if (url.pathname === "/" || url.pathname === "/fixture.js") {
       await sendStatic(res, dir, url.pathname === "/" ? "/fixture.html" : "/fixture.js");
       return;
@@ -274,3 +325,9 @@ server = http.createServer(async (req, res) => {
   }
 });
 server.listen(4173, "127.0.0.1");
+
+async function readJson(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+}

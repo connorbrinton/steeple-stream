@@ -14,6 +14,7 @@ export default defineConfig({
         admin: resolve(import.meta.dirname, "entries/admin.ts"),
         broadcaster: resolve(import.meta.dirname, "entries/broadcaster.ts"),
         landing: resolve(import.meta.dirname, "../../frontend/entries/landing.tsx"),
+        manage: resolve(import.meta.dirname, "../../frontend/entries/manage.tsx"),
         player: resolve(import.meta.dirname, "entries/player.ts"),
         viewer: resolve(import.meta.dirname, "entries/viewer.ts"),
       },

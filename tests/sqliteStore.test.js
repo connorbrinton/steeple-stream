@@ -91,10 +91,24 @@ test("units, schedules and occurrence cancellations persist", async () => {
     durationMinutes: 90,
     enabled: true,
   });
+  const updatedUnit = store.updateUnit(unit.id, {
+    slug: unit.slug,
+    name: "Harris Lake First Ward",
+    type: unit.type,
+    parentUnitId: null,
+  });
+  const updatedSchedule = store.updateBroadcastSchedule(schedule.id, {
+    ...schedule,
+    title: "Sunday Sacrament Meeting",
+    durationMinutes: 75,
+  });
   store.cancelScheduleOccurrence(schedule.id, "2026-10-18");
 
-  assert.deepEqual(store.listUnits(), [unit]);
-  assert.deepEqual(store.listBroadcastSchedules(), [schedule]);
+  assert.equal(updatedUnit.name, "Harris Lake First Ward");
+  assert.equal(updatedSchedule.title, "Sunday Sacrament Meeting");
+  assert.equal(updatedSchedule.publicId, schedule.publicId);
+  assert.deepEqual(store.listUnits(), [updatedUnit]);
+  assert.deepEqual(store.listBroadcastSchedules(), [updatedSchedule]);
   assert.deepEqual(store.listScheduleExceptions(), [
     { scheduleId: schedule.id, localDate: "2026-10-18", action: "cancel" },
   ]);

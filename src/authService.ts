@@ -297,7 +297,7 @@ export function safeReturnPath(value: unknown, channelId = "stakecenter"): strin
     `/broadcasts/${channelId}/admin`,
     `/broadcasts/${channelId}/broadcaster`,
   ]);
-  if (!allowed.has(parsed.pathname)) return fallback;
+  if (!allowed.has(parsed.pathname) && !parsed.pathname.startsWith("/admin/")) return fallback;
   return `${parsed.pathname}${parsed.search}`;
 }
 

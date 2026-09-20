@@ -16,6 +16,7 @@ import { ObsEndpointManager } from "./obsEndpointManager.js";
 import { buildSourceCatalog } from "./sourceCatalog.js";
 import { AppRateLimiter, clientIp } from "./rateLimit.js";
 import { ScheduleService } from "./scheduleService.js";
+import { AdminCatalogService } from "./adminCatalogService.js";
 import type { PlaybackSession, SceneMode } from "./domain.js";
 
 const publicDir = path.resolve(import.meta.dirname, "..", "public");
@@ -26,6 +27,7 @@ const mediaBackend = new MediaMtxBackend(config.mediamtx);
 const ptzController = new PtzController({ config: config.ptz });
 const service = new BroadcastService({ store, mediaBackend, config, ptzController });
 const schedules = new ScheduleService(store);
+const adminCatalog = new AdminCatalogService(store, config.channelId);
 const sourceDiscovery = new SourceDiscoveryService({ intervalMs: config.discovery.ndiIntervalMs });
 const ingestManager = new IngestManager({
   config: config.ingest,
@@ -187,6 +189,49 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
       ...(await service.publicSummary()),
       upcoming: schedules.upcoming({ channelId: config.channelId }),
     });
+    return;
+  }
+
+  if (method === "GET" && url.pathname === "/api/admin/catalog") {
+    auth.authorize(req, "administrator");
+    sendJson(res, 200, adminCatalog.list());
+    return;
+  }
+
+  if (method === "POST" && url.pathname === "/api/admin/units") {
+    auth.authorize(req, "administrator", { csrfRequired: true });
+    sendJson(res, 201, adminCatalog.saveUnit(await parseJson(req)));
+    return;
+  }
+
+  const adminUnitMatch = /^\/api\/admin\/units\/([^/]+)$/.exec(url.pathname);
+  if (method === "PUT" && adminUnitMatch) {
+    auth.authorize(req, "administrator", { csrfRequired: true });
+    sendJson(
+      res,
+      200,
+      adminCatalog.saveUnit(await parseJson(req), decodeURIComponent(adminUnitMatch[1] || "")),
+    );
+    return;
+  }
+
+  if (method === "POST" && url.pathname === "/api/admin/schedules") {
+    auth.authorize(req, "administrator", { csrfRequired: true });
+    sendJson(res, 201, adminCatalog.saveSchedule(await parseJson(req)));
+    return;
+  }
+
+  const adminScheduleMatch = /^\/api\/admin\/schedules\/([^/]+)$/.exec(url.pathname);
+  if (method === "PUT" && adminScheduleMatch) {
+    auth.authorize(req, "administrator", { csrfRequired: true });
+    sendJson(
+      res,
+      200,
+      adminCatalog.saveSchedule(
+        await parseJson(req),
+        decodeURIComponent(adminScheduleMatch[1] || ""),
+      ),
+    );
     return;
   }
 
@@ -379,9 +424,22 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     return;
   }
 
-  if ((method === "GET" || method === "HEAD") && url.pathname === "/admin") {
-    res.writeHead(302, { location: `/broadcasts/${config.channelId}/admin` });
-    res.end();
+  if (
+    (method === "GET" || method === "HEAD") &&
+    (url.pathname === "/admin" || url.pathname.startsWith("/admin/"))
+  ) {
+    const principal = auth.authenticate(req);
+    if (!principal) {
+      res.writeHead(302, { location: `/auth/login?returnTo=${encodeURIComponent(url.pathname)}` });
+      res.end();
+      return;
+    }
+    if (principal.role !== "administrator") {
+      res.writeHead(302, { location: `/broadcasts/${config.channelId}/broadcaster` });
+      res.end();
+      return;
+    }
+    await sendStatic(res, publicDir, "/manage.html");
     return;
   }
 
