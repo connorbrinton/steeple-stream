@@ -117,6 +117,11 @@ interface ControllerEvent {
   media: InputKind;
   message: string;
   debug?: string;
+  category?: string;
+  inputVideoReady?: boolean;
+  inputAudioReady?: boolean;
+  inputVideoAgeMs?: number | null;
+  inputAudioAgeMs?: number | null;
 }
 
 export class GStreamerMediaEngine extends EventEmitter {
@@ -466,9 +471,19 @@ export class GStreamerMediaEngine extends EventEmitter {
       this.setState({
         status: "failed",
         ready: false,
+        ...(event.category === "input"
+          ? {
+              videoReady: false,
+              audioReady: false,
+              inputs: {
+                video: { ...this.state.inputs.video, ready: false },
+                audio: { ...this.state.inputs.audio, ready: false },
+              },
+            }
+          : {}),
         message: event.message,
         lastError: {
-          category: "pipeline",
+          category: event.category || "pipeline",
           message: event.message,
           debug: event.debug || null,
           at: new Date().toISOString(),
@@ -487,7 +502,34 @@ export class GStreamerMediaEngine extends EventEmitter {
         [`${event.media}Ready`]: true,
       });
     } else if (event.event === "heartbeat") {
-      this.setState({ lastHeartbeatAt: new Date().toISOString() }, { emit: false });
+      const now = Date.now();
+      const inputs = { ...this.state.inputs };
+      const freshness = [
+        ["video", "inputVideoReady", "inputVideoAgeMs"],
+        ["audio", "inputAudioReady", "inputAudioAgeMs"],
+      ] as const;
+      for (const [media, readyField, ageField] of freshness) {
+        if (!(ageField in event)) continue;
+        const age = event[ageField];
+        const fresh = typeof age === "number" && Number.isFinite(age) && age < 15_000;
+        inputs[media] = {
+          ...inputs[media],
+          ready: event[readyField] === true && fresh,
+          lastSeenAt:
+            typeof age === "number" && Number.isFinite(age)
+              ? new Date(now - Math.max(0, age)).toISOString()
+              : null,
+        };
+      }
+      this.setState(
+        {
+          lastHeartbeatAt: new Date(now).toISOString(),
+          inputs,
+          videoReady: inputs.video.ready,
+          audioReady: inputs.audio.ready,
+        },
+        { emit: false },
+      );
     }
   }
 }

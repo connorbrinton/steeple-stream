@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import test from "node:test";
+import { GStreamerMediaEngine } from "../src/gstreamerMediaEngine.js";
 import {
   defaultNdiNixPackage,
   gstPluginPackages,
@@ -54,6 +55,93 @@ function makeIngestManager(options) {
     ...options,
   });
 }
+
+test("heartbeats report input freshness and input failures clear readiness", () => {
+  const engine = new GStreamerMediaEngine({ config: {} });
+  const beforeHeartbeat = Date.now();
+
+  engine.applyControllerEvent({
+    event: "heartbeat",
+    inputVideoReady: true,
+    inputAudioReady: true,
+    inputVideoAgeMs: 200,
+    inputAudioAgeMs: 16_000,
+  });
+
+  assert.equal(engine.status().inputs.video.ready, true);
+  assert.equal(engine.status().inputs.audio.ready, false);
+  assert.ok(Date.parse(engine.status().inputs.video.lastSeenAt) >= beforeHeartbeat - 200);
+  assert.ok(Date.parse(engine.status().inputs.video.lastSeenAt) <= Date.now() - 200);
+
+  engine.applyControllerEvent({
+    event: "heartbeat",
+    inputVideoReady: false,
+    inputAudioReady: false,
+    inputVideoAgeMs: null,
+    inputAudioAgeMs: null,
+  });
+  assert.equal(engine.status().inputs.video.lastSeenAt, null);
+
+  engine.applyControllerEvent({ event: "input-ready", media: "video" });
+  engine.applyControllerEvent({
+    event: "error",
+    category: "input",
+    message: "Video input ended",
+  });
+  assert.equal(engine.status().ready, false);
+  assert.equal(engine.status().videoReady, false);
+  assert.equal(engine.status().inputs.video.ready, false);
+  assert.equal(engine.status().lastError.category, "input");
+});
+
+test("input failure retries with the latest selected scene and source", async (t) => {
+  const children = [];
+  const commands = [];
+  const manager = makeIngestManager({
+    runner: {
+      spawn(command, args) {
+        commands.push(args);
+        const child = new FakeProcess();
+        children.push(child);
+        return child;
+      },
+    },
+    config: {
+      autoStart: true,
+      runtime: "system",
+      rtmpUrl: "rtmp://127.0.0.1/live",
+      frameRate: 30,
+      videoBitrateKbps: 4500,
+      audioBitrate: 128000,
+    },
+  });
+  t.after(() => manager.stop());
+  const source = { type: "ndi", ndi: { sourceName: "CAMERA" } };
+
+  await manager.startForState({ broadcast: { mode: "chapel" }, source });
+  await manager.startForState({ broadcast: { mode: "sacrament" }, source });
+  children[0].stdout.emit(
+    "data",
+    `${JSON.stringify({ event: "error", category: "input", message: "Video input ended" })}\n`,
+  );
+  children[0].emit("exit", 0, null);
+
+  assert.ok(manager.retryTimer);
+  await new Promise((resolve) => setTimeout(resolve, 1150));
+  assert.equal(children.length, 2);
+  assert.equal(commands[1][commands[1].indexOf("--initial-mode") + 1], "sacrament");
+  assert.equal(commands[1][commands[1].indexOf("--ndi-source") + 1], "CAMERA");
+
+  children[1].stdout.emit(
+    "data",
+    `${JSON.stringify({ event: "ready", mode: "sacrament", outputs: ["rtmp"] })}\n`,
+  );
+  assert.equal(manager.status().scene.observed, "sacrament");
+  assert.equal(manager.status().ready, true);
+
+  await manager.stop();
+  assert.equal(manager.retryTimer, null);
+});
 
 test("NDI pipeline publishes audio and video to MediaMTX RTMP path", () => {
   const pipeline = ndiToRtmpPipeline({
