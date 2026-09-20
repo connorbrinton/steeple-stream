@@ -91,7 +91,7 @@ export class SourceDiscoveryService extends EventEmitter {
         available: false,
       });
     }
-    return sources.sort((a, b) => a.name.localeCompare(b.name));
+    return sources.toSorted((a, b) => a.name.localeCompare(b.name));
   }
 
   resolveNdiSource(source: ConfiguredSource | null) {
@@ -143,5 +143,5 @@ export class SourceDiscoveryService extends EventEmitter {
 }
 
 function sourceSnapshot(sources: Map<string, NdiSource>) {
-  return JSON.stringify([...sources.values()].sort((a, b) => a.name.localeCompare(b.name)));
+  return JSON.stringify([...sources.values()].toSorted((a, b) => a.name.localeCompare(b.name)));
 }

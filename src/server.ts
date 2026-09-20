@@ -1,7 +1,6 @@
 import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
 import { SqliteStore } from "./sqliteStore.js";
 import { MediaMtxBackend, type MediaBackendHealth } from "./mediaBackend.js";
@@ -18,8 +17,7 @@ import { buildSourceCatalog } from "./sourceCatalog.js";
 import { AppRateLimiter, clientIp } from "./rateLimit.js";
 import type { PlaybackSession, SceneMode } from "./domain.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const publicDir = path.resolve(__dirname, "..", "public");
+const publicDir = path.resolve(import.meta.dirname, "..", "public");
 
 const store = new SqliteStore(config.databasePath, { legacyPath: config.storePath });
 const mediamtxManager = new MediaMtxManager(config.mediamtx);

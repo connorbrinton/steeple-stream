@@ -1,7 +1,6 @@
 import dgram from "node:dgram";
 import { execFile } from "node:child_process";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import type { PtzPosition, PtzPreset, VideoSource } from "./domain.js";
 
@@ -61,7 +60,6 @@ const presetIndexes: Record<string, number> = {
   "pulpit-wide": 16,
 };
 const execFileAsync = promisify(execFile);
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export class PtzController {
   declare config: PtzConfig;
@@ -389,7 +387,7 @@ const defaultRunner = {
   }: NdiRecallOptions): Promise<void> {
     const command = helper || "python3";
     const args = [
-      ...(helper ? [] : [path.resolve(__dirname, "ndi_ptz.py")]),
+      ...(helper ? [] : [path.resolve(import.meta.dirname, "ndi_ptz.py")]),
       "recall-preset",
       "--source",
       sourceName,

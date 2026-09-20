@@ -129,7 +129,7 @@ export function buildSourceCatalog({
   return {
     activeSourceId: activeSourceId || null,
     cameraControlSourceId: cameraControlSourceId || null,
-    sources: [...sources.values()].sort(compareSources),
+    sources: [...sources.values()].toSorted(compareSources),
     discovery: discoveryStatus,
   };
 }

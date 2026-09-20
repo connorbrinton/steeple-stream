@@ -323,7 +323,7 @@ function hlsPlaylistWindow(text) {
   let duration: number | null = null;
   let start: number | null = null;
   let end: number | null = null;
-  for (const line of text.split(/\r?\n/).map((line) => line.trim())) {
+  for (const line of text.split(/\r?\n/).map((playlistLine) => playlistLine.trim())) {
     if (line.startsWith("#EXT-X-PROGRAM-DATE-TIME:")) {
       const parsed = Date.parse(line.slice("#EXT-X-PROGRAM-DATE-TIME:".length));
       date = Number.isFinite(parsed) ? parsed : null;
@@ -499,7 +499,13 @@ function attachHls(container, video, hlsUrl, options: any = {}) {
   }
 
   if (video.canPlayType("application/vnd.apple.mpegurl")) {
-    video.onerror = () => fail();
+    const cleanupPlayback = container.steepleMediaCleanup;
+    const nativeHlsError = () => fail();
+    video.addEventListener("error", nativeHlsError);
+    container.steepleMediaCleanup = () => {
+      video.removeEventListener("error", nativeHlsError);
+      cleanupPlayback?.();
+    };
     video.src = hlsUrl;
     return video;
   }
@@ -535,7 +541,6 @@ function removeCurrentMedia(container, video) {
   if (video) {
     video.steepleObserverCleanup?.();
     video.steepleObserverCleanup = null;
-    video.onerror = null;
     video.pause();
     video.removeAttribute("src");
     video.srcObject = null;

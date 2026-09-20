@@ -3,12 +3,10 @@ import { EventEmitter } from "node:events";
 import { promisify } from "node:util";
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from "node:child_process";
 import type { SceneMode, VideoSource } from "./domain.js";
 
 const execFileAsync = promisify(execFile);
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const gstRuntimePackages = ["nixpkgs#gst_all_1.gstreamer"];
 
@@ -530,7 +528,7 @@ export function switchableNdiSlateToRtmpCommand({
 }: SwitchablePipelineOptions): string[] {
   const command = [
     process.env.STEEPLE_GST_CONTROLLER_BINARY || "python3",
-    path.join(__dirname, "gst_ingest_controller.py"),
+    path.join(import.meta.dirname, "gst_ingest_controller.py"),
     "--source-type",
     sourceType,
   ];
