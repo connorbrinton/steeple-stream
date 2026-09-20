@@ -1,14 +1,28 @@
 import {
   defaultNdiNixPackage,
+  type EngineExitEvent,
+  type GStreamerConfig,
   GStreamerMediaEngine,
+  type GStreamerRunner,
+  type IngestStatus,
   gstPluginPackages,
   gstRuntimePackages,
   ndiToRtmpPipeline,
   sacramentSlateToRtmpPipeline,
-  switchableNdiSlateToRtmpCommand
+  switchableNdiSlateToRtmpCommand,
+  type StartSceneOptions
 } from "./gstreamerMediaEngine.js";
-import { discoverNdiSources } from "./sourceDiscovery.js";
+import { discoverNdiSources, type NdiSource } from "./sourceDiscovery.js";
 import { EventEmitter } from "node:events";
+import type { ApplicationState, VideoSource } from "./domain.js";
+
+interface IngestConfig extends GStreamerConfig {
+  autoStart: boolean;
+  sceneControls?: boolean;
+}
+
+type RequestedState = Pick<ApplicationState, "source" | "broadcast">;
+type NdiDiscovery = (source?: VideoSource | null) => Promise<NdiSource[]>;
 
 export {
   defaultNdiNixPackage,
@@ -20,16 +34,21 @@ export {
 };
 
 export class IngestManager extends EventEmitter {
-  declare config: any;
-  declare ndiDiscovery: typeof discoverNdiSources;
+  declare config: IngestConfig;
+  declare ndiDiscovery: NdiDiscovery;
   declare currentSourceKey: string | null;
   declare currentConfiguredSourceKey: string | null;
   declare retryTimer: NodeJS.Timeout | null;
   declare retryAttempt: number;
-  declare lastRequestedState: any;
+  declare lastRequestedState: RequestedState | null;
   declare engine: GStreamerMediaEngine;
 
-  constructor({ config, cwd = process.cwd(), runner, ndiDiscovery = discoverNdiSources }: any) {
+  constructor({ config, cwd = process.cwd(), runner, ndiDiscovery = discoverNdiSources }: {
+    config: IngestConfig;
+    cwd?: string;
+    runner?: GStreamerRunner;
+    ndiDiscovery?: NdiDiscovery;
+  }) {
     super();
     this.config = config;
     this.ndiDiscovery = ndiDiscovery;
@@ -47,7 +66,7 @@ export class IngestManager extends EventEmitter {
     this.engine.on("changed", (status) => this.emit("changed", status));
   }
 
-  async startForState(state) {
+  async startForState(state: RequestedState): Promise<IngestStatus> {
     this.lastRequestedState = structuredClone(state);
     let source = state.source;
     const mode = this.config.sceneControls === false ? "chapel" : state.broadcast?.mode === "sacrament" ? "sacrament" : "chapel";
@@ -116,12 +135,12 @@ export class IngestManager extends EventEmitter {
     return this.status();
   }
 
-  async restartForState(state) {
+  async restartForState(state: RequestedState): Promise<IngestStatus> {
     await this.stop();
     return this.startForState(state);
   }
 
-  async startScene(options) {
+  async startScene(options: StartSceneOptions): Promise<void> {
     this.clearRetry();
     await this.engine.startScene(options);
     this.retryAttempt = 0;
@@ -134,7 +153,7 @@ export class IngestManager extends EventEmitter {
     this.currentConfiguredSourceKey = null;
   }
 
-  handleEngineExit({ code, signal, sdkMissing, stopping }) {
+  handleEngineExit({ code, signal, sdkMissing, stopping }: EngineExitEvent): void {
     const shouldRetry = !stopping && !sdkMissing && this.lastRequestedState && this.config.autoStart;
     if (!shouldRetry) return;
 
@@ -150,13 +169,16 @@ export class IngestManager extends EventEmitter {
     const delayMs = Math.min(10000, 1000 * this.retryAttempt);
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
-      this.startForState(this.lastRequestedState).catch((error) => {
+      const requestedState = this.lastRequestedState;
+      if (!requestedState) return;
+      this.startForState(requestedState).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
         this.engine.setState({
           status: "failed",
-          message: `Failed to restart ingest: ${error.message}`,
+          message: `Failed to restart ingest: ${message}`,
           lastError: {
             category: "supervisor",
-            message: error.message,
+            message,
             at: new Date().toISOString()
           }
         });
@@ -173,11 +195,11 @@ export class IngestManager extends EventEmitter {
     this.retryAttempt = 0;
   }
 
-  status() {
+  status(): IngestStatus {
     return this.engine.status();
   }
 
-  async resolveRuntimeSource(source) {
+  async resolveRuntimeSource(source: VideoSource): Promise<VideoSource> {
     if (source?.type !== "ndi" || !source.ndi?.sourceName || !this.ndiDiscovery) {
       return source;
     }
@@ -198,15 +220,15 @@ export class IngestManager extends EventEmitter {
   }
 }
 
-function hasConfiguredSource(source) {
+function hasConfiguredSource(source: VideoSource | null | undefined): boolean {
   return Boolean(source?.type === "ndi" ? source.ndi?.sourceName : source?.type === "network" ? source.network?.uri : false);
 }
 
-function runtimeSourceKey(source) {
+function runtimeSourceKey(source: VideoSource): string {
   return JSON.stringify(source);
 }
 
-function configuredSourceKey(source) {
+function configuredSourceKey(source: VideoSource | null | undefined): string {
   if (!source) return JSON.stringify(null);
   if (source.type === "ndi") {
     return JSON.stringify({ type: "ndi", sourceName: source.ndi?.sourceName || "" });

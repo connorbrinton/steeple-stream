@@ -18,6 +18,8 @@
     "src/mediaBackend.ts",
     "src/mediamtxManager.ts",
     "src/ptzController.ts",
+    "src/gstreamerMediaEngine.ts",
+    "src/ingestManager.ts",
     "src/rateLimit.ts",
     "src/sourceDiscovery.ts",
     "src/sourceDiscoveryService.ts"

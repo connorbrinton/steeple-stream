@@ -4,6 +4,8 @@ import { promisify } from "node:util";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from "node:child_process";
+import type { SceneMode, VideoSource } from "./domain.js";
 
 const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -25,18 +27,115 @@ export const gstPluginPackages = [
 
 export const defaultNdiNixPackage = "nixpkgs#ndi";
 
-export class GStreamerMediaEngine extends EventEmitter {
-  declare config: any;
-  declare cwd: string;
-  declare runner: any;
-  declare onExit: any;
-  declare process: any;
-  declare stopping: boolean;
-  declare currentMode: string | null;
-  declare stdoutBuffer: string;
-  declare state: ReturnType<typeof initialState>;
+export type PipelineType = "switcher" | "slate-only";
+type InputKind = "video" | "audio";
+type OutputKind = "rtmp" | "rtsp";
 
-  constructor({ config, cwd = process.cwd(), runner = defaultRunner, onExit = null }) {
+export interface GStreamerConfig {
+  runtime: string;
+  rtmpUrl: string;
+  webrtcRtspUrl?: string;
+  frameRate: number;
+  videoBitrateKbps: number;
+  audioBitrate: number;
+  transitionDurationMs?: number;
+  gstLaunchBinary?: string | null;
+  ndiRuntimeDir?: string | null;
+  ndiNixPackage?: string;
+}
+
+interface RunnerOptions {
+  env?: NodeJS.ProcessEnv;
+  impure?: boolean;
+}
+
+export interface GStreamerRunner {
+  spawn(command: string, args: readonly string[], options: SpawnOptionsWithoutStdio & { stdio: ["pipe", "pipe", "pipe"] }): ChildProcessWithoutNullStreams;
+  nixBuild(packages: readonly string[], cwd: string, options?: RunnerOptions): Promise<string[]>;
+}
+
+export interface EngineExitEvent {
+  code: number | null;
+  signal: NodeJS.Signals | null;
+  sdkMissing: boolean;
+  stopping: boolean;
+}
+
+interface EndpointState {
+  expected: boolean;
+  ready: boolean;
+  lastSeenAt?: string | null;
+  url?: string | null;
+}
+
+export interface IngestStatus {
+  status: "stopped" | "starting" | "running" | "failed" | "disabled" | "waiting";
+  ready: boolean;
+  sourceType: string | null;
+  sourceName: string | null;
+  source: VideoSource | null;
+  message: string;
+  startedAt: string | null;
+  exitedAt: string | null;
+  exitCode: number | null;
+  signal: NodeJS.Signals | null;
+  scene: {
+    requested: SceneMode | null;
+    observed: SceneMode | null;
+    transitioning: boolean;
+    transitionStartedAt: string | null;
+  };
+  inputs: Record<InputKind, EndpointState>;
+  outputs: Record<OutputKind, EndpointState>;
+  observedMode?: SceneMode;
+  transitioning?: boolean;
+  videoReady?: boolean;
+  audioReady?: boolean;
+  lastHeartbeatAt: string | null;
+  lastError: { category: string; message: string; debug?: string | null; at: string } | null;
+  log: string[];
+}
+
+export interface StartSceneOptions {
+  mode: SceneMode;
+  source?: VideoSource | null;
+  sourceName?: string | null;
+  sourceUrlAddress?: string;
+  pipelineType?: PipelineType;
+}
+
+interface GStreamerCommand {
+  command: string;
+  args: string[];
+  env: NodeJS.ProcessEnv;
+}
+
+interface ControllerEvent {
+  event: string;
+  mode: SceneMode;
+  outputs?: OutputKind[];
+  media: InputKind;
+  message: string;
+  debug?: string;
+}
+
+export class GStreamerMediaEngine extends EventEmitter {
+  declare config: GStreamerConfig;
+  declare cwd: string;
+  declare runner: GStreamerRunner;
+  declare onExit: ((event: EngineExitEvent) => void) | null;
+  declare process: ChildProcessWithoutNullStreams | null;
+  declare stopping: boolean;
+  declare currentMode: SceneMode | null;
+  declare stdoutBuffer: string;
+  declare state: IngestStatus;
+
+  constructor({ config, cwd = process.cwd(), runner = defaultRunner, onExit = null }: {
+    config: GStreamerConfig;
+    cwd?: string;
+    runner?: GStreamerRunner;
+    onExit?: ((event: EngineExitEvent) => void) | null;
+  }) {
     super();
     this.config = config;
     this.cwd = cwd;
@@ -53,7 +152,7 @@ export class GStreamerMediaEngine extends EventEmitter {
     return Boolean(this.process);
   }
 
-  async startScene({ mode, source = null, sourceName = source?.ndi?.sourceName || source?.network?.uri || null, sourceUrlAddress = source?.ndi?.urlAddress, pipelineType = "switcher" }) {
+  async startScene({ mode, source = null, sourceName = source?.ndi?.sourceName || source?.network?.uri || null, sourceUrlAddress = source?.ndi?.urlAddress, pipelineType = "switcher" }: StartSceneOptions) {
     this.setState({
       status: "starting",
       sourceType: mode === "sacrament" ? "slate" : source?.type || "ndi",
@@ -132,7 +231,7 @@ export class GStreamerMediaEngine extends EventEmitter {
     this.currentMode = null;
   }
 
-  setMode(mode) {
+  setMode(mode: SceneMode) {
     if (!this.process || this.currentMode === mode) return;
     this.currentMode = mode;
     this.process.stdin.write(`${JSON.stringify({ type: "set-mode", mode })}\n`);
@@ -170,7 +269,7 @@ export class GStreamerMediaEngine extends EventEmitter {
     };
   }
 
-  async gstreamerCommand({ mode, source, sourceName, sourceUrlAddress, pipelineType = "switcher" }) {
+  async gstreamerCommand({ mode, source = null, sourceName = null, sourceUrlAddress, pipelineType = "switcher" }: StartSceneOptions): Promise<GStreamerCommand> {
     const env = await this.gstreamerEnvironment();
     const pipeline = pipelineType === "slate-only"
       ? sacramentSlateToRtmpPipeline({
@@ -233,12 +332,12 @@ export class GStreamerMediaEngine extends EventEmitter {
     return structuredClone(this.state);
   }
 
-  setState(patch, { emit = true } = {}) {
+  setState(patch: Partial<IngestStatus>, { emit = true }: { emit?: boolean } = {}) {
     this.state = { ...this.state, ...patch };
     if (emit) this.emit("changed", this.status());
   }
 
-  appendLog(chunk) {
+  appendLog(chunk: Uint8Array | string) {
     const text = String(chunk);
     process.stdout.write(`[ingest] ${text}`);
     if (text.includes("Failed loading NDI SDK")) {
@@ -255,7 +354,7 @@ export class GStreamerMediaEngine extends EventEmitter {
     this.appendLogLines(text);
   }
 
-  handleControllerOutput(chunk) {
+  handleControllerOutput(chunk: Uint8Array | string) {
     const text = String(chunk);
     process.stdout.write(`[ingest] ${text}`);
     this.stdoutBuffer += text;
@@ -265,7 +364,7 @@ export class GStreamerMediaEngine extends EventEmitter {
       if (!line.trim()) continue;
       this.state.log.push(line.trim());
       try {
-        this.applyControllerEvent(JSON.parse(line));
+        this.applyControllerEvent(JSON.parse(line) as ControllerEvent);
       } catch {
         // Preserve non-JSON subprocess diagnostics in the bounded log.
       }
@@ -273,7 +372,7 @@ export class GStreamerMediaEngine extends EventEmitter {
     this.trimLog();
   }
 
-  appendLogLines(text) {
+  appendLogLines(text: string) {
     const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
     this.state.log.push(...lines);
     this.trimLog();
@@ -283,7 +382,7 @@ export class GStreamerMediaEngine extends EventEmitter {
     if (this.state.log.length > 50) this.state.log.splice(0, this.state.log.length - 50);
   }
 
-  applyControllerEvent(event) {
+  applyControllerEvent(event: ControllerEvent) {
     if (event.event === "ready") {
       this.setState({
         status: "running",
@@ -340,7 +439,28 @@ export class GStreamerMediaEngine extends EventEmitter {
   }
 }
 
-export function switchableNdiSlateToRtmpCommand({ sourceType = "ndi", networkUri, sourceName, sourceUrlAddress, rtmpUrl, webrtcRtspUrl, frameRate, videoBitrateKbps, audioBitrate, transitionDurationMs = 600, mode }) {
+interface SwitchablePipelineOptions {
+  sourceType?: string;
+  networkUri?: string;
+  sourceName: string | null;
+  sourceUrlAddress?: string;
+  rtmpUrl: string;
+  webrtcRtspUrl?: string;
+  frameRate: number;
+  videoBitrateKbps: number;
+  audioBitrate: number;
+  transitionDurationMs?: number;
+  mode: SceneMode;
+}
+
+interface RtmpPipelineOptions {
+  rtmpUrl: string;
+  frameRate: number;
+  videoBitrateKbps: number;
+  audioBitrate: number;
+}
+
+export function switchableNdiSlateToRtmpCommand({ sourceType = "ndi", networkUri, sourceName, sourceUrlAddress, rtmpUrl, webrtcRtspUrl, frameRate, videoBitrateKbps, audioBitrate, transitionDurationMs = 600, mode }: SwitchablePipelineOptions): string[] {
   const command = [
     process.env.STEEPLE_GST_CONTROLLER_BINARY || "python3",
     path.join(__dirname, "gst_ingest_controller.py"),
@@ -371,7 +491,7 @@ export function switchableNdiSlateToRtmpCommand({ sourceType = "ndi", networkUri
   return command;
 }
 
-export function ndiToRtmpPipeline({ sourceName, rtmpUrl, frameRate, videoBitrateKbps, audioBitrate }) {
+export function ndiToRtmpPipeline({ sourceName, rtmpUrl, frameRate, videoBitrateKbps, audioBitrate }: RtmpPipelineOptions & { sourceName: string }): string[] {
   return [
     "ndisrc",
     `ndi-name=${sourceName}`,
@@ -426,7 +546,7 @@ export function ndiToRtmpPipeline({ sourceName, rtmpUrl, frameRate, videoBitrate
   ];
 }
 
-export function sacramentSlateToRtmpPipeline({ rtmpUrl, frameRate, videoBitrateKbps, audioBitrate }) {
+export function sacramentSlateToRtmpPipeline({ rtmpUrl, frameRate, videoBitrateKbps, audioBitrate }: RtmpPipelineOptions): string[] {
   return [
     "videotestsrc",
     "is-live=true",
@@ -475,7 +595,7 @@ export function sacramentSlateToRtmpPipeline({ rtmpUrl, frameRate, videoBitrateK
   ];
 }
 
-function initialState() {
+function initialState(): IngestStatus {
   return {
     status: "stopped",
     ready: false,
@@ -507,7 +627,7 @@ function initialState() {
   };
 }
 
-function inputStateFor(source, pipelineType) {
+function inputStateFor(source: VideoSource | null, pipelineType: PipelineType): Record<InputKind, EndpointState> {
   const expected = pipelineType !== "slate-only" && Boolean(source);
   return {
     video: { expected, ready: pipelineType === "slate-only", lastSeenAt: null },
@@ -515,14 +635,14 @@ function inputStateFor(source, pipelineType) {
   };
 }
 
-function outputStateFor(config, pipelineType) {
+function outputStateFor(config: GStreamerConfig, pipelineType: PipelineType): Record<OutputKind, EndpointState> {
   return {
     rtmp: { expected: true, ready: pipelineType === "slate-only", url: config.rtmpUrl },
     rtsp: { expected: Boolean(config.webrtcRtspUrl) && pipelineType !== "slate-only", ready: false, url: config.webrtcRtspUrl || null }
   };
 }
 
-function markOutputs(outputs, readyOutputs) {
+function markOutputs(outputs: Record<OutputKind, EndpointState>, readyOutputs: OutputKind[]): Record<OutputKind, EndpointState> {
   const next = structuredClone(outputs);
   for (const output of readyOutputs) {
     if (next[output]) next[output].ready = true;
@@ -532,7 +652,7 @@ function markOutputs(outputs, readyOutputs) {
 
 const defaultRunner = {
   spawn,
-  async nixBuild(packages, cwd, options: any = {}) {
+  async nixBuild(packages: readonly string[], cwd: string, options: RunnerOptions = {}): Promise<string[]> {
     const args = ["build", ...(options.impure ? ["--impure"] : []), "--no-link", "--print-out-paths", ...packages];
     const { stdout } = await execFileAsync("nix", args, {
       cwd,
