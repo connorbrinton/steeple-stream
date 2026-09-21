@@ -10,7 +10,7 @@ test("broadcaster chooses a unit only when automatic matching is ambiguous", asy
   await dialog.getByRole("button", { name: "Ward B" }).click();
 
   await expect(dialog).not.toBeVisible();
-  await expect(page.getByText("Ward B", { exact: false })).toBeVisible();
+  await expect(page.locator("#broadcast-details")).toContainText("Unit: Ward B");
   await expect(page.getByText("chapel live")).toBeVisible();
 });
 
