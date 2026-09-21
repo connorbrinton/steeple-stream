@@ -18,6 +18,7 @@ import { AppRateLimiter, clientIp } from "./rateLimit.js";
 import { ScheduleService } from "./scheduleService.js";
 import { AdminCatalogService } from "./adminCatalogService.js";
 import { AccessService } from "./accessService.js";
+import { BroadcastStartResolver } from "./broadcastStartResolver.js";
 import type { PlaybackSession, SceneMode } from "./domain.js";
 
 const publicDir = path.resolve(import.meta.dirname, "..", "public");
@@ -30,6 +31,7 @@ const service = new BroadcastService({ store, mediaBackend, config, ptzControlle
 const schedules = new ScheduleService(store);
 const adminCatalog = new AdminCatalogService(store, config.channelId);
 const access = new AccessService(store, config.auth);
+const broadcastStarts = new BroadcastStartResolver(store, access, schedules, config.channelId);
 const sourceDiscovery = new SourceDiscoveryService({ intervalMs: config.discovery.ndiIntervalMs });
 const ingestManager = new IngestManager({
   config: config.ingest,
@@ -187,9 +189,13 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   }
 
   if (method === "GET" && url.pathname === "/api/public-state") {
+    const publicState = await service.publicSummary();
+    const activeOccurrenceKey = publicState.broadcast.association?.occurrenceKey;
     sendJson(res, 200, {
-      ...(await service.publicSummary()),
-      upcoming: schedules.upcoming({ channelId: config.channelId }),
+      ...publicState,
+      upcoming: schedules
+        .upcoming({ channelId: config.channelId })
+        .filter((occurrence) => occurrence.key !== activeOccurrenceKey),
     });
     return;
   }
@@ -275,7 +281,25 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (method === "POST" && url.pathname === "/api/broadcast/start") {
     requireCapability("broadcastControls");
     const actor = auth.authorize(req, "operator", { csrfRequired: true });
-    sendJson(res, 200, await coordinator.start(actor));
+    const current = await service.summary();
+    if (current.broadcast.status === "live") {
+      sendJson(res, 200, await coordinator.start(actor));
+      return;
+    }
+    const body = await parseJson(req);
+    const resolution = broadcastStarts.resolve(
+      actor,
+      typeof body.unitId === "string" ? body.unitId : undefined,
+    );
+    if (resolution.status === "unit-selection-required") {
+      sendJson(res, 409, {
+        error: "Choose the unit that is broadcasting",
+        code: "unit-selection-required",
+        units: resolution.units,
+      });
+      return;
+    }
+    sendJson(res, 200, await coordinator.start(actor, resolution.association));
     return;
   }
 

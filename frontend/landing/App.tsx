@@ -12,6 +12,12 @@ interface PublicBroadcast {
   startedAt: string | null;
   endedAt: string | null;
   expiresAt: string | null;
+  association: {
+    unitId: string;
+    unitName: string;
+    title: string;
+    occurrenceKey: string | null;
+  } | null;
 }
 
 interface PublicState {
@@ -128,8 +134,11 @@ function CurrentBroadcast({ state }: { state: PublicState }) {
           <div className={`broadcast-badge ${live ? "live" : "replay"}`}>
             {live ? "Live" : "Replay"}
           </div>
-          <h2>Meeting broadcast</h2>
-          <p>{broadcastSummary(broadcast, state.viewerCount)}</p>
+          <h2>{broadcast.association?.title || "Meeting broadcast"}</h2>
+          <p>
+            {broadcast.association?.unitName && <>{broadcast.association.unitName} · </>}
+            {broadcastSummary(broadcast, state.viewerCount)}
+          </p>
         </div>
         <a
           className="button primary"
