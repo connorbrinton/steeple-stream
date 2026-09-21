@@ -96,3 +96,47 @@ test("one-time schedules and cancellations resolve through stable occurrence URL
   assert.equal(service.occurrence("weekly-public", "2026-10-18"), null);
   assert.equal(service.occurrence("conference-public", "2026-10-18").title, conference.title);
 });
+
+test("start matching opens one hour before a meeting and closes at its scheduled end", () => {
+  const schedule = {
+    id: "weekly",
+    publicId: "weekly-public",
+    channelId: "stakecenter",
+    unitId: unit.id,
+    title: "Sacrament Meeting",
+    kind: "sacrament-meeting",
+    timeZone: "America/New_York",
+    recurrence: "weekly",
+    weekday: 0,
+    localDate: null,
+    localStartTime: "11:00",
+    durationMinutes: 90,
+    enabled: true,
+  };
+  const service = new ScheduleService(store([schedule]));
+
+  assert.equal(
+    service.matching({
+      unitIds: [unit.id],
+      channelId: "stakecenter",
+      at: new Date("2026-10-18T14:15:00Z"),
+    }).length,
+    1,
+  );
+  assert.equal(
+    service.matching({
+      unitIds: [unit.id],
+      channelId: "stakecenter",
+      at: new Date("2026-10-18T13:59:00Z"),
+    }).length,
+    0,
+  );
+  assert.equal(
+    service.matching({
+      unitIds: [unit.id],
+      channelId: "stakecenter",
+      at: new Date("2026-10-18T16:31:00Z"),
+    }).length,
+    0,
+  );
+});

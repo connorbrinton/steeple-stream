@@ -4,6 +4,8 @@ const details = document.querySelector("#broadcast-details")!;
 const broadcastControlsGroup = document.querySelector("#broadcast-controls-group")!;
 const ptzControls = document.querySelector("#ptz-controls")!;
 const adminPreview = document.querySelector("#admin-preview")!;
+const unitDialog = document.querySelector<HTMLDialogElement>("#unit-dialog")!;
+const unitDialogOptions = document.querySelector("#unit-dialog-options")!;
 
 let latestHealth: { ingest?: unknown } | null = null;
 let latestState: unknown = null;
@@ -12,7 +14,8 @@ let csrfToken = "development";
 let presetSignature = "";
 let latestRecall = 0;
 
-document.querySelector("#start")!.addEventListener("click", () => post("/api/broadcast/start"));
+document.querySelector("#start")!.addEventListener("click", () => startBroadcast());
+document.querySelector("#unit-dialog-cancel")!.addEventListener("click", () => unitDialog.close());
 document
   .querySelector("#chapel")!
   .addEventListener("click", () => post("/api/broadcast/mode", { mode: "chapel" }));
@@ -32,12 +35,42 @@ async function post(url, body = {}, method: "POST" | "PUT" = "POST", refreshAfte
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({ error: response.statusText }));
+    if (payload.code === "unit-selection-required")
+      throw Object.assign(new Error(payload.error), { payload });
     alert(payload.error);
     throw new Error(payload.error);
   }
   const payload = await response.json().catch(() => null);
   if (method === "POST" && refreshAfter) await refresh();
   return payload;
+}
+
+async function startBroadcast(unitId?: string) {
+  try {
+    await post("/api/broadcast/start", unitId ? { unitId } : {});
+    if (unitDialog.open) unitDialog.close();
+  } catch (error) {
+    const payload = error instanceof Error && "payload" in error ? error.payload : null;
+    if (!isUnitSelection(payload)) return;
+    unitDialogOptions.innerHTML = "";
+    for (const unit of payload.units) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "button primary";
+      button.textContent = unit.name;
+      button.addEventListener("click", () => startBroadcast(unit.id));
+      unitDialogOptions.append(button);
+    }
+    unitDialog.showModal();
+  }
+}
+
+function isUnitSelection(
+  value: unknown,
+): value is { code: "unit-selection-required"; units: Array<{ id: string; name: string }> } {
+  if (!value || typeof value !== "object") return false;
+  const payload = value as { code?: unknown; units?: unknown };
+  return payload.code === "unit-selection-required" && Array.isArray(payload.units);
 }
 
 async function refresh() {
@@ -62,7 +95,10 @@ function renderState(state) {
       ? `${broadcast.mode} live`
       : broadcast.status
     : "camera control";
-  details.textContent = `Status: ${broadcast.status}. Mode: ${broadcast.mode}. Started: ${format(broadcast.startedAt)}. Expires: ${format(broadcast.expiresAt)}.`;
+  const association = broadcast.association
+    ? ` Unit: ${broadcast.association.unitName}. Meeting: ${broadcast.association.title}.`
+    : "";
+  details.textContent = `Status: ${broadcast.status}. Mode: ${broadcast.mode}.${association} Started: ${format(broadcast.startedAt)}. Expires: ${format(broadcast.expiresAt)}.`;
   document.querySelector("#chapel")!.classList.toggle("active", broadcast.mode === "chapel");
   document.querySelector("#sacrament")!.classList.toggle("active", broadcast.mode === "sacrament");
   renderPreview(state);

@@ -13,6 +13,7 @@ export const defaultState: ApplicationState = {
     endedAt: null,
     expiresAt: null,
     playback: null,
+    association: null,
   },
   source: {
     type: "ndi",

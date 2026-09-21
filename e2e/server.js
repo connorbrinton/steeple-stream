@@ -39,6 +39,24 @@ const adminAccess = {
     },
   ],
 };
+const broadcasterState = {
+  broadcast: {
+    id: null,
+    channelId: "stakecenter",
+    status: "offline",
+    mode: "chapel",
+    startedAt: null,
+    endedAt: null,
+    expiresAt: null,
+    playback: null,
+    association: null,
+  },
+  capabilities: { broadcastControls: true, sceneControls: true },
+  source: { type: "ndi", ndi: { sourceName: "" } },
+  cameraControlSource: null,
+  preview: null,
+  ptz: { presets: [] },
+};
 let shuttingDown = false;
 function start(command, args, name) {
   const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
@@ -226,6 +244,57 @@ server = http.createServer(async (req, res) => {
       );
       return;
     }
+    if (url.pathname === "/api/state") {
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify(broadcasterState));
+      return;
+    }
+    if (url.pathname === "/api/health") {
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ ingest: null }));
+      return;
+    }
+    if (url.pathname === "/api/events") {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/broadcast/start") {
+      if (!requireCsrf(req, res)) return;
+      const body = await readJson(req);
+      if (!body.unitId) {
+        res.writeHead(409, { "content-type": "application/json" });
+        res.end(
+          JSON.stringify({
+            error: "Choose the unit that is broadcasting",
+            code: "unit-selection-required",
+            units: [
+              { id: "ward-a", name: "Ward A", type: "ward" },
+              { id: "ward-b", name: "Ward B", type: "ward" },
+            ],
+          }),
+        );
+        return;
+      }
+      broadcasterState.broadcast = {
+        ...broadcasterState.broadcast,
+        id: "broadcast-test",
+        status: "live",
+        startedAt: new Date().toISOString(),
+        association: {
+          unitId: body.unitId,
+          unitName: body.unitId === "ward-b" ? "Ward B" : "Ward A",
+          title: "Meeting broadcast",
+          scheduleId: null,
+          schedulePublicId: null,
+          occurrenceKey: null,
+          localDate: null,
+        },
+      };
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify(broadcasterState));
+      return;
+    }
     if (url.pathname === "/api/admin/catalog") {
       res.setHeader("content-type", "application/json");
       res.end(JSON.stringify(adminCatalog));
@@ -330,6 +399,10 @@ server = http.createServer(async (req, res) => {
     }
     if (url.pathname === "/admin" || url.pathname.startsWith("/admin/")) {
       await sendStatic(res, path.join(dir, "../public"), "/manage.html");
+      return;
+    }
+    if (url.pathname === "/broadcasts/stakecenter/broadcaster") {
+      await sendStatic(res, path.join(dir, "../public"), "/broadcaster.html");
       return;
     }
     if (url.pathname === "/" || url.pathname === "/fixture.js") {

@@ -59,6 +59,16 @@ export interface UpcomingOccurrence {
   href: string;
 }
 
+export interface BroadcastAssociation {
+  unitId: string;
+  unitName: string;
+  title: string;
+  scheduleId: string | null;
+  schedulePublicId: string | null;
+  occurrenceKey: string | null;
+  localDate: string | null;
+}
+
 export interface Playback {
   webrtcUrl?: string;
   hlsUrl?: string;
@@ -99,6 +109,7 @@ export interface Broadcast {
   endedAt: string | null;
   expiresAt: string | null;
   playback: Playback | null;
+  association: BroadcastAssociation | null;
 }
 
 export interface PtzPosition {

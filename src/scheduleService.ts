@@ -68,12 +68,67 @@ export class ScheduleService {
       );
     return cancelled ? null : occurrenceFor(schedule, unit, localDate);
   }
+
+  matching({ unitIds, at = new Date(), channelId, earlyMinutes = 60 }: MatchingOptions) {
+    const instant = Temporal.Instant.from(at.toISOString());
+    const units = new Map(this.store.listUnits().map((unit) => [unit.id, unit]));
+    const allowedUnits = new Set(unitIds);
+    const cancellations = new Set(
+      this.store
+        .listScheduleExceptions()
+        .filter((entry) => entry.action === "cancel")
+        .map((entry) => `${entry.scheduleId}/${entry.localDate}`),
+    );
+    const matchesAt: UpcomingOccurrence[] = [];
+    for (const schedule of this.store.listBroadcastSchedules()) {
+      if (
+        !schedule.enabled ||
+        !allowedUnits.has(schedule.unitId) ||
+        (channelId && schedule.channelId !== channelId)
+      )
+        continue;
+      const unit = units.get(schedule.unitId);
+      if (!unit || unit.archivedAt) continue;
+      const localToday = instant.toZonedDateTimeISO(schedule.timeZone).toPlainDate();
+      for (const offset of [-1, 0, 1]) {
+        const localDate = localToday.add({ days: offset });
+        if (!matches(schedule, localDate)) continue;
+        const date = localDate.toString();
+        if (cancellations.has(`${schedule.id}/${date}`)) continue;
+        const occurrence = occurrenceFor(schedule, unit, date);
+        const opens = Temporal.Instant.from(occurrence.scheduledStart).subtract({
+          seconds: earlyMinutes * 60,
+        });
+        const closes = Temporal.Instant.from(occurrence.scheduledEnd);
+        if (
+          Temporal.Instant.compare(instant, opens) >= 0 &&
+          Temporal.Instant.compare(instant, closes) <= 0
+        )
+          matchesAt.push(occurrence);
+      }
+    }
+    return matchesAt.toSorted(
+      (left, right) =>
+        distance(left.scheduledStart, instant) - distance(right.scheduledStart, instant),
+    );
+  }
 }
 
 interface UpcomingOptions {
   from?: Date;
   days?: number;
   channelId?: string;
+}
+
+interface MatchingOptions {
+  unitIds: string[];
+  at?: Date;
+  channelId?: string;
+  earlyMinutes?: number;
+}
+
+function distance(value: string, instant: Temporal.Instant) {
+  return Math.abs(Temporal.Instant.from(value).epochMilliseconds - instant.epochMilliseconds);
 }
 
 function matches(schedule: BroadcastSchedule, date: Temporal.PlainDate) {
