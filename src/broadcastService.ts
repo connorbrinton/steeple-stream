@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type {
   Actor,
   ApplicationState,
+  BroadcastAssociation,
   Playback,
   PtzPosition,
   PtzPreset,
@@ -68,7 +69,7 @@ export class BroadcastService {
     };
   }
 
-  async start(actor: Actor | null = null) {
+  async start(actor: Actor | null = null, association: BroadcastAssociation | null = null) {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + this.config.retentionHours * 60 * 60 * 1000);
     const playback = this.mediaBackend.getPlayback(this.config.channelId);
@@ -88,6 +89,7 @@ export class BroadcastService {
         endedAt: null,
         expiresAt: expiresAt.toISOString(),
         playback,
+        association,
       };
       state.recordings.push({
         id: broadcastId,
@@ -101,6 +103,7 @@ export class BroadcastService {
       appendAudit(state, "broadcast.start", {
         broadcastId: state.broadcast.id,
         actor: auditActor(actor),
+        association,
       });
       return this.publicState(state);
     });
@@ -169,6 +172,7 @@ export class BroadcastService {
           endedAt: null,
           expiresAt: null,
           playback: null,
+          association: null,
         };
       }
       return { deleted: before - retained.length, state: this.publicState(state) };

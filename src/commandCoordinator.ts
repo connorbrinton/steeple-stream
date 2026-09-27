@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import type { BroadcastService } from "./broadcastService.js";
-import type { Actor, SceneMode } from "./domain.js";
+import type { Actor, BroadcastAssociation, SceneMode } from "./domain.js";
 
 type CoordinatedService = Pick<
   BroadcastService,
@@ -45,8 +45,8 @@ export class LocationCommandCoordinator extends EventEmitter {
     this.ingestManager?.on?.("changed", () => this.emit("health-changed"));
   }
 
-  async start(actor: Actor | null = null) {
-    const state = await this.service.start(actor);
+  async start(actor: Actor | null = null, association: BroadcastAssociation | null = null) {
+    const state = await this.service.start(actor, association);
     await this.ingestManager.startForState(state);
     await this.mediaManager?.setRecording?.(true);
     return this.changed(await this.service.summary());

@@ -429,6 +429,37 @@ body {
   font-size: 13px;
   font-weight: 700;
 }
+
+.unit-dialog {
+  width: min(440px, calc(100% - 32px));
+  border: 0;
+  border-radius: 12px;
+  padding: 24px;
+  color: var(--ink);
+  background: var(--panel);
+  box-shadow: 0 20px 70px rgb(0 0 0 / 25%);
+}
+
+.unit-dialog::backdrop {
+  background: rgb(15 23 28 / 55%);
+}
+.unit-dialog h2 {
+  margin: 0 0 8px;
+}
+.unit-dialog p {
+  margin: 0 0 20px;
+  color: var(--muted);
+}
+.unit-dialog-options {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.unit-dialog-options .button {
+  justify-content: flex-start;
+  width: 100%;
+  text-align: left;
+}
 .form-actions {
   display: flex;
   justify-content: flex-end;
