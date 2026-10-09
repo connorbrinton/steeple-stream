@@ -38,7 +38,9 @@ function harness() {
     console,
     setInterval() {},
   });
-  vm.runInContext(source, context);
+  // Manual controls are exercised separately; keep this harness focused on preset feedback.
+  context.installManualCamera = () => {};
+  vm.runInContext(source.replace(/^import .*manual-camera.*;\n/m, ""), context);
   context.refresh = async () => {};
   const resolve = (index) => requests[index].resolve({ ok: true, json: async () => ({}) });
   return { context, buttons, requests, resolve, alerts };

@@ -205,6 +205,27 @@ Implemented:
 
 ## PTZ Control
 
+The broadcaster console supports manual pan, tilt, and zoom over NDI. Hold the
+on-screen movement buttons with a mouse, touch, or keyboard, or enable gamepad
+control for a browser-recognized standard Xbox/PlayStation-style controller.
+Use the left stick to aim and the analog triggers to zoom. The left shoulder
+button or on-screen Precision checkbox lowers movement speed. There is no
+hold-to-enable button. Release sticks and triggers to neutral after enabling.
+
+Movement uses a small dead zone, proportional speeds, and light smoothing;
+releasing a control sends zero speed without easing to a stop. Control disables
+when the page loses focus, the controller disconnects, or a preset is selected.
+Only one browser control session can operate the camera at a time. A persistent
+NDI helper stops motion after 750 ms without updates, on stdin EOF, and on normal
+shutdown. Preset recall and source changes stop manual control first.
+
+Manual movement currently requires `STEEPLE_PTZ_TRANSPORT=ndi` and an NDI camera
+control source; VISCA preset recall remains available. Camera firmware determines
+the lowest effective speed and whether it honors the NDI speed commands. Test
+direction, zoom, and stopping on the installed camera before using manual control
+during a meeting. Automated tests use fake receivers and gamepads, without
+connecting to physical cameras.
+
 Steeple Stream defaults to recalling the camera's read-only NDI presets:
 
 ```bash
