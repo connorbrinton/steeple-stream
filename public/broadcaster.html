@@ -7,25 +7,27 @@
     <link rel="stylesheet" href="/build/app.css?v=__ASSET_VERSION__" />
   </head>
   <body>
-    <main class="shell">
+    <main class="shell broadcaster-shell">
       <header class="topbar">
         <div class="brand">Steeple Stream Broadcaster</div>
         <div class="status">
           <span id="status-dot" class="dot"></span><span id="status-label">Loading</span>
         </div>
       </header>
-      <section class="layout admin-grid">
-        <div class="panel preview-panel">
-          <h2>Preview</h2>
-          <div class="video-frame admin-preview" id="admin-preview">
-            <div class="slate">
-              <div>
-                <h1>Broadcast Offline</h1>
-                <p>No stream is currently active.</p>
+      <section class="layout admin-grid broadcaster-layout">
+        <div class="preview-anchor">
+          <div class="panel preview-panel" aria-label="Live camera preview">
+            <div class="video-frame admin-preview" id="admin-preview">
+              <div class="slate">
+                <div>
+                  <h1>Broadcast Offline</h1>
+                  <p>No stream is currently active.</p>
+                </div>
               </div>
             </div>
           </div>
         </div>
+        <div class="preview-reserve" aria-hidden="true"></div>
 
         <div class="panel operator-panel">
           <h2>Broadcast Controls</h2>
