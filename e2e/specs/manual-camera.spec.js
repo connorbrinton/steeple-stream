@@ -33,7 +33,10 @@ test.describe("touch joysticks", () => {
     await expect
       .poll(() => commands.some((command) => command.pan > 0 && command.zoom > 0))
       .toBe(true);
-    await touch.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [moved[1]] });
+    await touch.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [first, moved[1]],
+    });
     await expect
       .poll(() => commands.some((command) => command.pan === 0 && command.zoom > 0))
       .toBe(true);
