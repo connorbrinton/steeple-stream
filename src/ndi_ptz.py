@@ -87,6 +87,9 @@ def manual_control(args):
                         if not all(-1 <= speed <= 1 for speed in speeds):
                             raise ValueError("Invalid camera speed")
                         pan, tilt, zoom = speeds
+                        # A command can partially succeed. Retain responsibility for
+                        # stopping until both axes and zoom have accepted zero speed.
+                        moving = moving or any(speeds)
                         pan_ok = ndi.NDIlib_recv_ptz_pan_tilt_speed(recv, pan, tilt)
                         zoom_ok = ndi.NDIlib_recv_ptz_zoom_speed(recv, zoom)
                         if not pan_ok or not zoom_ok:
@@ -97,13 +100,16 @@ def manual_control(args):
                     stop_motion(ndi, recv)
                     moving = False
         finally:
-            stop_motion(ndi, recv)
+            if moving:
+                stop_motion(ndi, recv)
             settle_after_send(ndi, recv, 150)
 
 
 def stop_motion(ndi, recv):
-    ndi.NDIlib_recv_ptz_pan_tilt_speed(recv, 0, 0)
-    ndi.NDIlib_recv_ptz_zoom_speed(recv, 0)
+    pan_ok = ndi.NDIlib_recv_ptz_pan_tilt_speed(recv, 0, 0)
+    zoom_ok = ndi.NDIlib_recv_ptz_zoom_speed(recv, 0)
+    if not pan_ok or not zoom_ok:
+        raise RuntimeError("NDI manual stop failed")
 
 
 def recall_preset(args):
