@@ -8,6 +8,7 @@ import { MediaMtxManager } from "./mediamtxManager.js";
 import { BroadcastService } from "./broadcastService.js";
 import { IngestManager } from "./ingestManager.js";
 import { PtzController } from "./ptzController.js";
+import { ManualPtz, cameraVelocity } from "./manualPtz.js";
 import { parseJson, proxyHttp, sendJson, sendStatic } from "./httpUtils.js";
 import { SourceDiscoveryService } from "./sourceDiscoveryService.js";
 import { LocationCommandCoordinator } from "./commandCoordinator.js";
@@ -26,7 +27,8 @@ const publicDir = path.resolve(import.meta.dirname, "..", "public");
 const store = new SqliteStore(config.databasePath, { legacyPath: config.storePath });
 const mediamtxManager = new MediaMtxManager(config.mediamtx);
 const mediaBackend = new MediaMtxBackend(config.mediamtx);
-const ptzController = new PtzController({ config: config.ptz });
+const manualPtz = new ManualPtz(config.ptz);
+const ptzController = new PtzController({ config: config.ptz, stopManual: () => manualPtz.stop() });
 const service = new BroadcastService({ store, mediaBackend, config, ptzController });
 const schedules = new ScheduleService(store);
 const adminCatalog = new AdminCatalogService(store, config.channelId);
@@ -77,6 +79,7 @@ server.listen(config.port, config.host, () => {
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, async () => {
     server.close();
+    await manualPtz.stop();
     await ingestManager.stop();
     sourceDiscovery.stop();
     await mediamtxManager.stop();
@@ -321,6 +324,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (method === "PUT" && url.pathname === "/api/source") {
     const actor = auth.authorize(req, "administrator", { csrfRequired: true });
     const body = await parseJson(req);
+    await manualPtz.stop();
     sendJson(res, 200, await coordinator.updateSource(body, actor));
     return;
   }
@@ -328,6 +332,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (method === "PUT" && url.pathname === "/api/camera-control-source") {
     const actor = auth.authorize(req, "administrator", { csrfRequired: true });
     const body = await parseJson(req);
+    await manualPtz.stop();
     sendJson(res, 200, await coordinator.updateCameraControlSource(body, actor));
     return;
   }
@@ -412,6 +417,27 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
       userAgent: req.headers["user-agent"] || null,
     } satisfies PlaybackSession);
     sendJson(res, 202, { accepted: true });
+    return;
+  }
+
+  if (method === "POST" && url.pathname === "/api/ptz/move") {
+    const actor = auth.authorize(req, "operator", { csrfRequired: true });
+    const body = await parseJson(req);
+    const velocity = cameraVelocity(body);
+    const session = typeof body.session === "string" ? body.session : "";
+    if (!session || session.length > 100)
+      throw Object.assign(new Error("Camera control session is required"), { status: 400 });
+    const sequence = body.sequence;
+    if (typeof sequence !== "number" || !Number.isSafeInteger(sequence) || sequence < 0)
+      throw Object.assign(new Error("Camera control sequence is required"), { status: 400 });
+    const state = await store.read();
+    await manualPtz.move(
+      state.cameraControlSource || state.source,
+      `${actor.email || "local"}:${session}`,
+      velocity,
+      sequence,
+    );
+    sendJson(res, 200, { accepted: true });
     return;
   }
 

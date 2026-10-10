@@ -1,3 +1,4 @@
+import { installManualCamera } from "./manual-camera.js";
 const statusDot = document.querySelector("#status-dot")!;
 const statusLabel = document.querySelector("#status-label")!;
 const details = document.querySelector("#broadcast-details")!;
@@ -13,6 +14,7 @@ let latestPreviewSignature = "";
 let csrfToken = "development";
 let presetSignature = "";
 let latestRecall = 0;
+let manualSourceSignature = "";
 
 document.querySelector("#start")!.addEventListener("click", () => startBroadcast());
 document.querySelector("#unit-dialog-cancel")!.addEventListener("click", () => unitDialog.close());
@@ -83,6 +85,10 @@ async function refresh() {
 }
 
 function renderState(state) {
+  const controlSource = JSON.stringify(state.cameraControlSource || state.source);
+  if (manualSourceSignature && controlSource !== manualSourceSignature)
+    window.dispatchEvent(new Event("camera-source-changed"));
+  manualSourceSignature = controlSource;
   latestState = state;
   const broadcast = state.broadcast;
   const capabilities = state.capabilities || {};
@@ -244,6 +250,7 @@ async function initialize() {
   }
   const principal = await response.json();
   csrfToken = principal.csrfToken;
+  installManualCamera(() => csrfToken);
   await refresh();
   const events = new EventSource("/api/events");
   events.addEventListener("state", (event) => renderState(JSON.parse(event.data)));

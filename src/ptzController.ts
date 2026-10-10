@@ -42,6 +42,7 @@ interface PtzControllerOptions {
   config: PtzConfig;
   socketFactory?: SocketFactory;
   runner?: PtzRunner;
+  stopManual?: () => Promise<void>;
 }
 
 interface ViscaOptions {
@@ -65,18 +66,22 @@ export class PtzController {
   declare config: PtzConfig;
   declare socketFactory: SocketFactory;
   declare runner: PtzRunner;
+  declare stopManual: () => Promise<void>;
 
   constructor({
     config,
     socketFactory = defaultSocketFactory,
     runner = defaultRunner,
+    stopManual = async () => {},
   }: PtzControllerOptions) {
     this.config = config;
     this.socketFactory = socketFactory;
     this.runner = runner;
+    this.stopManual = stopManual;
   }
 
   async recallPreset({ preset, source }: { preset: PtzPreset; source: PtzSource }) {
+    await this.stopManual();
     const transport = this.config.transport || "manual";
     if (transport === "manual") {
       return { transport, status: "recorded" };
@@ -184,6 +189,7 @@ export class PtzController {
   }
 
   async capturePosition({ source }: { source: PtzSource }): Promise<PtzPosition> {
+    await this.stopManual();
     const host = this.config.host || inferHostFromSource(source);
     if (!host) throw Object.assign(new Error("PTZ host is not configured"), { status: 409 });
     return queryPosition({

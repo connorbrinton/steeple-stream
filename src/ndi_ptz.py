@@ -4,6 +4,10 @@ import ctypes
 import ctypes.util
 import sys
 import time
+import json
+import select
+import os
+import signal
 
 
 class NDIlibSource(ctypes.Structure):
@@ -42,12 +46,64 @@ def main():
     check.add_argument("--source", required=True)
     check.add_argument("--url-address", default="")
     check.add_argument("--wait-ms", default=3000, type=int)
+    manual = subparsers.add_parser("manual")
+    manual.add_argument("--source", required=True)
+    manual.add_argument("--url-address", default="")
+    manual.add_argument("--wait-ms", default=3000, type=int)
     args = parser.parse_args()
 
     if args.command == "recall-preset":
         recall_preset(args)
     elif args.command == "check-support":
         check_support(args)
+    elif args.command == "manual":
+        manual_control(args)
+
+
+def manual_control(args):
+    def terminate(_signal, _frame):
+        raise SystemExit(0)
+    signal.signal(signal.SIGTERM, terminate)
+    with ndi_receiver(args) as (ndi, recv):
+        wait_for_ptz_support(ndi, recv, args.wait_ms)
+        print("ready", flush=True)
+        moving = False
+        deadline = 0
+        buffered = b""
+        try:
+            while True:
+                readable, _, _ = select.select([sys.stdin], [], [], 0.05)
+                if readable:
+                    chunk = os.read(sys.stdin.fileno(), 4096)
+                    if not chunk:
+                        break
+                    buffered += chunk
+                    if len(buffered) > 65536:
+                        raise ValueError("Camera command buffer exceeded")
+                    while b"\n" in buffered:
+                        line, buffered = buffered.split(b"\n", 1)
+                        command = json.loads(line)
+                        speeds = [float(command[key]) for key in ("pan", "tilt", "zoom")]
+                        if not all(-1 <= speed <= 1 for speed in speeds):
+                            raise ValueError("Invalid camera speed")
+                        pan, tilt, zoom = speeds
+                        pan_ok = ndi.NDIlib_recv_ptz_pan_tilt_speed(recv, pan, tilt)
+                        zoom_ok = ndi.NDIlib_recv_ptz_zoom_speed(recv, zoom)
+                        if not pan_ok or not zoom_ok:
+                            raise RuntimeError("NDI manual movement failed")
+                        moving = any(speeds)
+                        deadline = time.monotonic() + 0.75
+                if moving and time.monotonic() >= deadline:
+                    stop_motion(ndi, recv)
+                    moving = False
+        finally:
+            stop_motion(ndi, recv)
+            settle_after_send(ndi, recv, 150)
+
+
+def stop_motion(ndi, recv):
+    ndi.NDIlib_recv_ptz_pan_tilt_speed(recv, 0, 0)
+    ndi.NDIlib_recv_ptz_zoom_speed(recv, 0)
 
 
 def recall_preset(args):
@@ -149,6 +205,10 @@ def configure_signatures(ndi):
     ndi.NDIlib_recv_ptz_is_supported.restype = ctypes.c_bool
     ndi.NDIlib_recv_ptz_recall_preset.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_float]
     ndi.NDIlib_recv_ptz_recall_preset.restype = ctypes.c_bool
+    ndi.NDIlib_recv_ptz_pan_tilt_speed.argtypes = [ctypes.c_void_p, ctypes.c_float, ctypes.c_float]
+    ndi.NDIlib_recv_ptz_pan_tilt_speed.restype = ctypes.c_bool
+    ndi.NDIlib_recv_ptz_zoom_speed.argtypes = [ctypes.c_void_p, ctypes.c_float]
+    ndi.NDIlib_recv_ptz_zoom_speed.restype = ctypes.c_bool
 
 
 if __name__ == "__main__":
