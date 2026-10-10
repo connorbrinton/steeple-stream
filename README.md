@@ -205,10 +205,18 @@ Implemented:
 
 ## PTZ Control
 
-The broadcaster console supports manual pan, tilt, and zoom over NDI. Hold the
+The broadcaster console supports manual pan, tilt, and zoom over NDI. Press
+anywhere in the pan/tilt pad to establish its center, then drag to set direction
+and speed. The separate vertical zoom pad works the same way: drag up to zoom in
+and down to zoom out. Returning to the press location stops movement, and release
+stops immediately. Both pads reflect the current movement speed, including when
+using a gamepad. Pan/tilt and zoom can be dragged simultaneously on a touchscreen.
+
+Hold the
 on-screen movement buttons with a mouse, touch, or keyboard, or enable gamepad
 control for a browser-recognized standard Xbox/PlayStation-style controller.
-Use the left stick to aim and the analog triggers to zoom. The left shoulder
+Use the left stick to aim and the right stick vertically to zoom. Analog triggers
+also control zoom when the right stick is within its dead zone. The left shoulder
 button or on-screen Precision checkbox lowers movement speed. There is no
 hold-to-enable button. Release sticks and triggers to neutral after enabling.
 
