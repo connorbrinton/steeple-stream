@@ -90,7 +90,8 @@ def manual_control(args):
                         # A command can partially succeed. Retain responsibility for
                         # stopping until both axes and zoom have accepted zero speed.
                         moving = moving or any(speeds)
-                        pan_ok = ndi.NDIlib_recv_ptz_pan_tilt_speed(recv, pan, tilt)
+                        # UI/API pan is positive right; NDI pan speed is positive left.
+                        pan_ok = ndi.NDIlib_recv_ptz_pan_tilt_speed(recv, -pan, tilt)
                         zoom_ok = ndi.NDIlib_recv_ptz_zoom_speed(recv, zoom)
                         if not pan_ok or not zoom_ok:
                             raise RuntimeError("NDI manual movement failed")

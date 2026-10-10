@@ -34,10 +34,21 @@ class ManualControlTest(unittest.TestCase):
         ndi = self.run_helper([b'{"pan":0.3,"tilt":0,"zoom":0}\n', b''],
                              [([0], [], []), ([], [], []), ([0], [], [])], [0, 0.1, 0.8])
         calls = ndi.NDIlib_recv_ptz_pan_tilt_speed.call_args_list
-        self.assertEqual(calls[0].args, ("fake-receiver", 0.3, 0))
+        self.assertEqual(calls[0].args, ("fake-receiver", -0.3, 0))
         self.assertEqual(calls[1].args, ("fake-receiver", 0, 0))
         self.assertEqual(len(calls), 2)
         self.assertEqual(ndi.NDIlib_recv_ptz_zoom_speed.call_count, 2)
+
+    def test_pan_directions_preserve_tilt_and_zoom(self):
+        for pan in (-0.4, 0.4):
+            with self.subTest(pan=pan):
+                command = f'{{"pan":{pan},"tilt":0.2,"zoom":0.6}}\n'.encode()
+                ndi = self.run_helper([command, b''],
+                                     [([0], [], []), ([0], [], [])], [0, 0.1])
+                self.assertEqual(ndi.NDIlib_recv_ptz_pan_tilt_speed.call_args_list[0].args,
+                                 ("fake-receiver", -pan, 0.2))
+                self.assertEqual(ndi.NDIlib_recv_ptz_zoom_speed.call_args_list[0].args,
+                                 ("fake-receiver", 0.6))
 
     def test_eof(self):
         ndi = self.run_helper([b''], [([0], [], [])], [])
