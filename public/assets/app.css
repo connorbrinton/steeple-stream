@@ -726,6 +726,87 @@ video {
   user-select: none;
 }
 
+.camera-joysticks {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.camera-joysticks > div:first-child {
+  flex: 1;
+  min-width: 0;
+  max-width: 180px;
+}
+
+.camera-joystick {
+  position: relative;
+  height: 180px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--quiet);
+  touch-action: none;
+  user-select: none;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.camera-joystick:active {
+  cursor: grabbing;
+}
+
+.camera-joystick-pan {
+  width: 100%;
+}
+
+.camera-joystick-zoom {
+  width: 72px;
+}
+
+.joystick-origin,
+.joystick-thumb {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.joystick-origin {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--muted);
+}
+
+.joystick-thumb {
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--muted);
+  background: var(--panel);
+  opacity: 0.65;
+}
+
+.camera-joystick.is-moving .joystick-thumb {
+  background: #1f5864;
+  border-color: #1f5864;
+  opacity: 1;
+}
+
+.zoom-direction {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.zoom-in {
+  top: 8px;
+}
+.zoom-out {
+  bottom: 8px;
+}
+
 .control-label {
   margin-bottom: 8px;
   color: var(--muted);
