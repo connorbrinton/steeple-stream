@@ -118,6 +118,7 @@ test("drag joysticks start at the press location and provide proportional speed"
   await page.goto("/broadcasts/stakecenter/broadcaster");
   const pad = page.getByRole("group", { name: "Pan and tilt joystick", exact: true });
   await expect(pad).toBeVisible();
+  await pad.scrollIntoViewIfNeeded();
   const box = await pad.boundingBox();
   const x = box.x + 25;
   const y = box.y + 40;
