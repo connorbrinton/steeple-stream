@@ -1403,10 +1403,11 @@ video {
 .broadcaster-layout {
   --preview-inset: 20px;
   --preview-height: min(56.25cqw, max(0px, calc(90svh - 56px - var(--preview-inset) - 16px)));
-  --preview-min-height: min(var(--preview-height), 20svh);
+  --preview-sticky-height: 25svh;
+  --preview-min-height: min(var(--preview-height), var(--preview-sticky-height));
   display: block;
   container-type: inline-size;
-  scroll-padding-top: calc(20svh + 16px);
+  scroll-padding-top: calc(var(--preview-min-height) + 16px);
 }
 
 .broadcaster-layout .preview-panel {
@@ -1425,7 +1426,7 @@ video {
 }
 
 .broadcaster-layout .operator-panel :is(button, input, select, summary, [tabindex]) {
-  scroll-margin-top: calc(20svh + 16px);
+  scroll-margin-top: calc(var(--preview-min-height) + 16px);
 }
 
 @supports (animation-timeline: scroll(root)) {
