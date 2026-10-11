@@ -80,11 +80,18 @@ export async function runSynchronizedMove(options: SmoothMotionOptions): Promise
       const now = await readPosition();
       if (signal.aborted) throw new Error("Smooth camera movement was interrupted");
       const elapsed = performance.now() - startedAt;
-      if (elapsed > timeoutMs) throw new Error("Smooth camera movement exceeded its safety timeout");
+      if (elapsed > timeoutMs)
+        throw new Error("Smooth camera movement exceeded its safety timeout");
       const velocity = synchronizedVelocity(start, now, target, polarity);
-      if (axes.every((axis) => velocity[axis] === 0) &&
-          axes.every((axis) => Math.abs(target[axis] - now[axis]) <= tolerance[axis] ||
-            Math.abs(target[axis] - start[axis]) <= tolerance[axis])) return;
+      if (
+        axes.every((axis) => velocity[axis] === 0) &&
+        axes.every(
+          (axis) =>
+            Math.abs(target[axis] - now[axis]) <= tolerance[axis] ||
+            Math.abs(target[axis] - start[axis]) <= tolerance[axis],
+        )
+      )
+        return;
       for (const axis of axes) {
         if (Math.abs(now[axis] - last[axis]) > 1) changedAt[axis] = performance.now();
         const planned = Math.abs(target[axis] - start[axis]) > tolerance[axis];

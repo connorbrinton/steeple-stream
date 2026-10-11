@@ -221,7 +221,6 @@ export async function probeVisca(
   };
 }
 
-
 /**
  * Read the actual camera coordinates without changing camera state.
  * The Clear Touch RL500 is known to answer raw VISCA UDP inquiries on port 1259.

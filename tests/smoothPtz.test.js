@@ -43,13 +43,15 @@ test("closed-loop motion reaches a target while throttling faster pan", async ()
       };
       history.push({ ...position });
     },
-    stop: async () => { stopped++; },
+    stop: async () => {
+      stopped++;
+    },
   });
   assert.equal(stopped, 1);
   assert.ok(Math.abs(position.pan - target.pan) <= 12, "pan should finish at target");
   assert.ok(Math.abs(position.zoom - target.zoom) <= 20, "zoom should finish at target");
   const maxLead = Math.max(...history.map((p) => (p.pan - p.zoom) / 600));
-  assert.ok(maxLead < 0.30, "fast pan should not finish long before slow zoom");
+  assert.ok(maxLead < 0.3, "fast pan should not finish long before slow zoom");
 });
 
 test("cancellation always stops velocity commands", async () => {
@@ -66,7 +68,9 @@ test("cancellation always stops velocity commands", async () => {
         calls++;
         abort.abort();
       },
-      stop: async () => { stopped++; },
+      stop: async () => {
+        stopped++;
+      },
     }),
     /interrupted/,
   );
@@ -87,7 +91,9 @@ test("position inquiry failure after movement stops the camera", async () => {
         return { pan: 0, tilt: 0, zoom: 0 };
       },
       sendVelocity: async () => {},
-      stop: async () => { stopped++; },
+      stop: async () => {
+        stopped++;
+      },
     }),
     /feedback timeout/,
   );

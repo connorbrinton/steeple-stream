@@ -29,7 +29,11 @@ interface PtzTransportResult {
 }
 
 interface PtzController {
-  recallPreset(options: { preset: PtzPreset; source: VideoSource; mode?: "native" | "smooth" }): Promise<PtzTransportResult>;
+  recallPreset(options: {
+    preset: PtzPreset;
+    source: VideoSource;
+    mode?: "native" | "smooth";
+  }): Promise<PtzTransportResult>;
   capturePosition(options: { source: VideoSource }): Promise<PtzPosition>;
 }
 
@@ -251,7 +255,11 @@ export class BroadcastService {
     return this.addManualSource(source, actor);
   }
 
-  async recallPreset(presetId: string, actor: Actor | null = null, mode: "native" | "smooth" = "native") {
+  async recallPreset(
+    presetId: string,
+    actor: Actor | null = null,
+    mode: "native" | "smooth" = "native",
+  ) {
     const current = await this.store.read();
     const target = current.ptz.presets.find((entry) => entry.id === presetId);
     if (!target) {

@@ -108,12 +108,18 @@ export class PtzController {
     preset,
     source,
     mode = "native",
-  }: { preset: PtzPreset; source: PtzSource; mode?: "native" | "smooth" }) {
+  }: {
+    preset: PtzPreset;
+    source: PtzSource;
+    mode?: "native" | "smooth";
+  }) {
     const generation = ++this.motionGeneration;
     await this.cancelSmooth();
     await this.stopManual();
     if (generation !== this.motionGeneration)
-      throw Object.assign(new Error("Preset recall was superseded by another camera command"), { status: 409 });
+      throw Object.assign(new Error("Preset recall was superseded by another camera command"), {
+        status: 409,
+      });
     const transport = this.config.transport || "manual";
     if (transport === "manual") {
       return { transport, status: "recorded" };
@@ -148,7 +154,9 @@ export class PtzController {
           throw Object.assign(new Error("Synchronized motion is not available"), { status: 409 });
         if (!preset.position)
           throw Object.assign(
-            new Error("Capture this preset's current camera position in admin diagnostics before using smooth recall"),
+            new Error(
+              "Capture this preset's current camera position in admin diagnostics before using smooth recall",
+            ),
             { status: 409 },
           );
         const abort = new AbortController();
