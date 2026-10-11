@@ -14,6 +14,10 @@ const obsForm = document.querySelector("#obs-credential-form")!;
 const probeButton = document.querySelector<HTMLButtonElement>("#probe-camera")!;
 const probeStatus = document.querySelector("#camera-probe-status")!;
 const probeOutput = document.querySelector<HTMLElement>("#camera-probe-output")!;
+const capturePresetSelect = document.querySelector<HTMLSelectElement>("#camera-capture-preset")!;
+const capturePresetButton = document.querySelector<HTMLButtonElement>("#camera-capture-button")!;
+const capturePresetStatus = document.querySelector("#camera-capture-status")!;
+let presetOptionsSignature = "";
 
 let latestHealth: { ingest?: unknown } | null = null;
 let latestState: unknown = null;
@@ -64,6 +68,39 @@ probeButton.addEventListener("click", async () => {
     probeButton.disabled = false;
   }
 });
+
+capturePresetButton.addEventListener("click", async () => {
+  const presetId = capturePresetSelect.value;
+  if (!presetId) return;
+  capturePresetButton.disabled = true;
+  capturePresetStatus.textContent = "Reading the current camera position…";
+  try {
+    const result = await post("/api/ptz/capture", { presetId });
+    capturePresetStatus.textContent =
+      "Saved " + result.preset.name + ": " + formatCameraPosition(result.preset.position);
+  } catch (error) {
+    capturePresetStatus.textContent =
+      "Capture failed: " + (error instanceof Error ? error.message : String(error));
+  } finally {
+    capturePresetButton.disabled = false;
+  }
+});
+
+function renderPresetCapture(presets) {
+  const signature = JSON.stringify(presets);
+  if (signature === presetOptionsSignature) return;
+  presetOptionsSignature = signature;
+  const selected = capturePresetSelect.value;
+  capturePresetSelect.replaceChildren();
+  for (const preset of presets) {
+    const option = document.createElement("option");
+    option.value = preset.id;
+    option.textContent = preset.name + (preset.position ? " (captured)" : " (not captured)");
+    capturePresetSelect.append(option);
+  }
+  if (presets.some((preset) => preset.id === selected)) capturePresetSelect.value = selected;
+  capturePresetButton.disabled = !presets.length;
+}
 
 openManualSource.addEventListener("click", () => openManualSourceModal());
 document
@@ -141,6 +178,7 @@ function renderState(state) {
     : "camera control";
   renderPreview(state);
   renderSource(state.source);
+  renderPresetCapture(state.ptz?.presets || []);
 }
 
 function renderSource(source) {
