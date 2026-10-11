@@ -22,17 +22,28 @@ function fakeClock() {
   let time = 0;
   return {
     now: () => time,
-    sleep: async (ms) => { time += ms; },
+    sleep: async (ms) => {
+      time += ms;
+    },
   };
 }
 
 test("waits until camera position stays stable across the whole settling window", async () => {
   const clock = fakeClock();
   const values = [
-    coordinates(50), coordinates(60), coordinates(65),
-    coordinates(65), coordinates(68), coordinates(69),
-    coordinates(70), coordinates(70), coordinates(70),
-    coordinates(70), coordinates(70), coordinates(70), coordinates(70),
+    coordinates(50),
+    coordinates(60),
+    coordinates(65),
+    coordinates(65),
+    coordinates(68),
+    coordinates(69),
+    coordinates(70),
+    coordinates(70),
+    coordinates(70),
+    coordinates(70),
+    coordinates(70),
+    coordinates(70),
+    coordinates(70),
   ];
   let reads = 0;
   const result = await waitForPresetToSettle(
@@ -70,7 +81,10 @@ test("automatically recalls and saves each preset after it settles", async () =>
   assert.equal(status.stage, "completed");
   assert.equal(status.completed, 2);
   assert.deepEqual(recalled, ["a", "b"]);
-  assert.deepEqual(saved.map((s) => s.position), [coordinates(20, 300), coordinates(500, 2000)]);
+  assert.deepEqual(
+    saved.map((s) => s.position),
+    [coordinates(20, 300), coordinates(500, 2000)],
+  );
 });
 
 test("defers the initially stationary preset until after another has moved", async () => {
@@ -79,12 +93,17 @@ test("defers the initially stationary preset until after another has moved", asy
   const recalled = [];
   const saved = [];
   const batch = new PresetCaptureBatch({
-    plan: async () => ({ presets: [preset("a"), preset("b")], readPosition: async () => ({ ...current }) }),
+    plan: async () => ({
+      presets: [preset("a"), preset("b")],
+      readPosition: async () => ({ ...current }),
+    }),
     recall: async (id) => {
       recalled.push(id);
       current = id === "a" ? coordinates(10) : coordinates(200);
     },
-    capture: async (id) => { saved.push(id); },
+    capture: async (id) => {
+      saved.push(id);
+    },
     clock: clock.now,
     sleep: clock.sleep,
   });
@@ -104,7 +123,9 @@ test("never saves a preset that does not move or whose destination cannot be ver
       readPosition: async () => coordinates(100),
     }),
     recall: async () => {},
-    capture: async () => { saved++; },
+    capture: async () => {
+      saved++;
+    },
     clock: clock.now,
     sleep: clock.sleep,
   });
@@ -121,12 +142,17 @@ test("cancellation prevents further native recalls and captures", async () => {
   let saved = 0;
   let batch;
   batch = new PresetCaptureBatch({
-    plan: async () => ({ presets: [preset("a"), preset("b")], readPosition: async () => coordinates(0) }),
+    plan: async () => ({
+      presets: [preset("a"), preset("b")],
+      readPosition: async () => coordinates(0),
+    }),
     recall: async (id) => {
       recalled.push(id);
       batch.cancel();
     },
-    capture: async () => { saved++; },
+    capture: async () => {
+      saved++;
+    },
     clock: clock.now,
     sleep: clock.sleep,
   });
@@ -139,7 +165,9 @@ test("cancellation prevents further native recalls and captures", async () => {
 
 test("only one capture job can run at once", async () => {
   let release;
-  const plan = new Promise((resolve) => { release = resolve; });
+  const plan = new Promise((resolve) => {
+    release = resolve;
+  });
   const batch = new PresetCaptureBatch({
     plan: () => plan,
     recall: async () => {},

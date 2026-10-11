@@ -80,8 +80,7 @@ const presetCaptureBatch = new PresetCaptureBatch({
     const host = configuredCameraHost(source);
     return {
       presets: state.ptz.presets,
-      readPosition: () =>
-        readViscaPosition(host, { port: config.ptz.ndiFeedbackPort }),
+      readPosition: () => readViscaPosition(host, { port: config.ptz.ndiFeedbackPort }),
     };
   },
   recall: async (id, actor) => {

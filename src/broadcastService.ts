@@ -296,13 +296,10 @@ export class BroadcastService {
     return this.savePresetPosition(presetId, position, actor);
   }
 
-  async savePresetPosition(
-    presetId: string,
-    position: PtzPosition,
-    actor: Actor | null = null,
-  ) {
-    if (!["pan", "tilt", "zoom"].every((axis) =>
-      Number.isFinite(position[axis as keyof PtzPosition])))
+  async savePresetPosition(presetId: string, position: PtzPosition, actor: Actor | null = null) {
+    if (
+      !["pan", "tilt", "zoom"].every((axis) => Number.isFinite(position[axis as keyof PtzPosition]))
+    )
       throw Object.assign(new Error("Invalid PTZ position"), { status: 400 });
     return this.store.update((state) => {
       const preset = state.ptz.presets.find((entry) => entry.id === presetId);

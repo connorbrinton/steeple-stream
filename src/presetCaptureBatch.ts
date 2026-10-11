@@ -198,7 +198,8 @@ export class PresetCaptureBatch {
           // A previously captured target that hasn't moved is safe to retain.
           if (!preset.position || !closeEnough(preset.position, settled.position, stableTolerance))
             throw new Error(
-              'No camera movement detected for "' + preset.name +
+              'No camera movement detected for "' +
+                preset.name +
                 '". Its target could not be verified; no position was saved.',
             );
         }

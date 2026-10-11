@@ -119,14 +119,15 @@ function renderCaptureBatch(batch) {
   cancelCaptureAllButton.hidden = !active;
   cancelCaptureAllButton.disabled = batch.stage === "cancelling";
   capturePresetButton.disabled = active || !capturePresetSelect.options.length;
-  const heading = {
-    idle: "No batch capture has been run.",
-    running: `Capturing ${batch.completed}/${batch.total} presets`,
-    cancelling: `Cancelling… ${batch.completed}/${batch.total} saved`,
-    completed: `Complete: ${batch.completed}/${batch.total} preset positions saved`,
-    cancelled: `Cancelled: ${batch.completed}/${batch.total} positions saved`,
-    failed: `Stopped after ${batch.completed}/${batch.total} positions`,
-  }[batch.stage] || batch.stage;
+  const heading =
+    {
+      idle: "No batch capture has been run.",
+      running: `Capturing ${batch.completed}/${batch.total} presets`,
+      cancelling: `Cancelling… ${batch.completed}/${batch.total} saved`,
+      completed: `Complete: ${batch.completed}/${batch.total} preset positions saved`,
+      cancelled: `Cancelled: ${batch.completed}/${batch.total} positions saved`,
+      failed: `Stopped after ${batch.completed}/${batch.total} positions`,
+    }[batch.stage] || batch.stage;
   captureAllProgress.textContent =
     heading +
     (batch.current ? ` — ${batch.current.name}` : "") +
