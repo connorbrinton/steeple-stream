@@ -81,6 +81,66 @@ test("a failed WHEP request falls back to playable HLS", async ({ page }) => {
   await expectAudio(page, 1, false);
 });
 
+test("an established WebRTC connection that fails ICE switches to playable HLS", async ({ page }) => {
+  await page.goto("/?mode=hybrid&timeline=false");
+  await startPlayback(page);
+  await expectWebRtcMedia(page);
+  await page.evaluate(() => {
+    const peer = window.testPeers.at(-1);
+    Object.defineProperty(peer, "connectionState", {
+      configurable: true,
+      get: () => "failed",
+    });
+    peer.dispatchEvent(new Event("connectionstatechange"));
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.testTransports.some(
+          (item) =>
+            item.transport === "hls" &&
+            item.fallbackReason === "WebRTC peer connection failed",
+        ),
+      ),
+    )
+    .toBe(true);
+  await expect.poll(() => video(page).evaluate((element) => element.srcObject === null)).toBe(true);
+  await expectProgress(page);
+});
+
+test("a brief WebRTC disconnection does not abandon a recovered connection", async ({ page }) => {
+  await page.goto("/?mode=hybrid&timeline=false");
+  await startPlayback(page);
+  await expectWebRtcMedia(page);
+  await page.evaluate(() => {
+    const peer = window.testPeers.at(-1);
+    window.testFakeConnectionState = "disconnected";
+    Object.defineProperty(peer, "connectionState", {
+      configurable: true,
+      get: () => window.testFakeConnectionState,
+    });
+    peer.dispatchEvent(new Event("connectionstatechange"));
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.testTransports.some((item) => item.transport === "reconnecting")),
+    )
+    .toBe(true);
+  await page.evaluate(() => {
+    window.testFakeConnectionState = "connected";
+    window.testPeers.at(-1).dispatchEvent(new Event("connectionstatechange"));
+  });
+  await page.waitForTimeout(2800);
+  expect(await video(page).evaluate((element) => element.srcObject !== null)).toBe(true);
+  expect(
+    await page.evaluate(() =>
+      window.testTransports.some(
+        (item) => item.transport === "hls" && item.fallbackReason?.includes("disconnected"),
+      ),
+    ),
+  ).toBe(false);
+});
+
 test("a broadcaster or admin hybrid preview has no seek bar", async ({ page }) => {
   await page.goto("/?mode=hybrid&timeline=false");
   await startPlayback(page);
