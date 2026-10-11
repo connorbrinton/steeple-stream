@@ -20,7 +20,7 @@ export interface CaptureBatchStatus {
 interface CaptureBatchOptions {
   plan(): Promise<Plan>;
   recall(id: string, actor: Actor | null): Promise<void>;
-  capture(id: string, actor: Actor | null): Promise<{ position: PtzPosition }>;
+  capture(id: string, position: PtzPosition, actor: Actor | null): Promise<void>;
   clock?: Clock;
   sleep?: Sleep;
   settleMs?: number;
@@ -80,7 +80,7 @@ export async function waitForPresetToSettle(
   const timeoutMs = options.timeoutMs ?? 45000;
   const began = now();
   let stableSince = began;
-  let last: PtzPosition | null = null;
+  let stableAnchor: PtzPosition | null = null;
   let moved = false;
   while (true) {
     interrupted(signal);
@@ -89,8 +89,10 @@ export async function waitForPresetToSettle(
     const time = now();
     if (time - began > timeoutMs) throw new Error("Camera did not settle before timeout");
     if (!closeEnough(position, before, movementThreshold)) moved = true;
-    if (!last || !closeEnough(position, last, stableTolerance)) stableSince = time;
-    last = position;
+    if (!stableAnchor || !closeEnough(position, stableAnchor, stableTolerance)) {
+      stableSince = time;
+      stableAnchor = position;
+    }
     if (time - stableSince >= settleMs) return { position, moved };
     await sleep(sampleMs, signal);
   }
@@ -200,14 +202,17 @@ export class PresetCaptureBatch {
                 '". Its target could not be verified; no position was saved.',
             );
         }
-        const saved = await this.options.capture(preset.id, actor);
+        // Verify once more before committing; don't save coordinates from a camera
+        // that's still moving or that was changed by an external controller.
+        const verified = await readPosition();
         interrupted(signal);
-        if (!closeEnough(saved.position, settled.position, movementThreshold))
+        if (!closeEnough(verified, settled.position, stableTolerance))
           throw new Error('Position changed while saving preset "' + preset.name + '"');
+        await this.options.capture(preset.id, verified, actor);
         this.status.results.push({
           id: preset.id,
           name: preset.name,
-          position: saved.position,
+          position: verified,
         });
         this.status.completed++;
       }
