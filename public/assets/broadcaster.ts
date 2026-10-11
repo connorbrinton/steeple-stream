@@ -206,7 +206,7 @@ function showPreviewTransport(info) {
     label = "WebRTC · Connecting…";
   } else if (transport.startsWith("webrtc-")) {
     const type = info.candidateType;
-    label = type === "relay" ? "WebRTC · Relay" : "WebRTC · Direct";
+    label = type === "relay" ? "WebRTC · Relay" : type === "host" || type === "srflx" || type === "prflx" ? "WebRTC · Direct" : "WebRTC · Connected";
     detail = type && type !== "unknown" ? `ICE candidate: ${type}` : "";
   } else if (transport === "hls") {
     label = "HLS · Higher latency";
