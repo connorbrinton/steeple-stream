@@ -220,3 +220,22 @@ export async function probeVisca(
     note: "No VISCA reply. This does not prove the camera lacks VISCA; it may use another transport or reply port.",
   };
 }
+
+
+/**
+ * Read the actual camera coordinates without changing camera state.
+ * The Clear Touch RL500 is known to answer raw VISCA UDP inquiries on port 1259.
+ */
+export async function readViscaPosition(
+  host: string,
+  options: { port?: number; timeoutMs?: number } = {},
+): Promise<Position> {
+  if (!isPrivateCameraIp(host)) throw new Error("Camera address must be private IPv4");
+  const port = options.port ?? 1259;
+  const timeoutMs = options.timeoutMs ?? 650;
+  const pt = await inquire(host, port, "raw-visca-udp", "panTilt", 1, timeoutMs);
+  if (!pt) throw new Error("VISCA pan/tilt position inquiry failed");
+  const zoom = await inquire(host, port, "raw-visca-udp", "zoom", 2, timeoutMs);
+  if (!zoom) throw new Error("VISCA zoom position inquiry failed");
+  return { ...decodePanTilt(pt.body), zoom: decodeZoom(zoom.body) };
+}
