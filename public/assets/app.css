@@ -1026,6 +1026,16 @@ video {
   background: var(--quiet);
 }
 
+.probe-report {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--quiet);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .admin-preview {
   aspect-ratio: 16 / 9;
 }
