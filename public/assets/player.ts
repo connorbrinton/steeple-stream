@@ -413,6 +413,20 @@ async function attachWebRtc(container, video, whepUrl, options: any = {}) {
   const pending = new AbortController();
   container.steepleTransportCleanup = () => pending.abort();
   const isCurrent = () => container.steeplePeer === pc;
+  pc.addEventListener("connectionstatechange", () => {
+    if (!isCurrent()) return;
+    if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
+      options.onTransport?.({
+        transport: "error",
+        reason: `WebRTC peer connection ${pc.connectionState}`,
+      });
+    } else if (pc.connectionState === "connected") {
+      void selectedCandidateType(pc).then((candidateType) => {
+        if (isCurrent())
+          options.onTransport?.({ transport: `webrtc-${candidateType}`, candidateType });
+      });
+    }
+  });
   const checkCurrent = () => {
     if (!isCurrent()) throw new Error("WebRTC source changed");
   };
