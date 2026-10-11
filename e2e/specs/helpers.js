@@ -91,4 +91,7 @@ export async function expectWebRtcMedia(page) {
       { timeout: 20_000 },
     )
     .toBe(true);
+  // ICE can decode into a hidden warm-up element while HLS remains active.
+  // The test should finish only after the user-facing player has selected WebRTC.
+  await expect.poll(() => video(page).evaluate((element) => element.srcObject !== null)).toBe(true);
 }
