@@ -42,7 +42,8 @@ const ptzController = new PtzController({
       target,
       signal,
       readPosition: () => readViscaPosition(host, { port: config.ptz.ndiFeedbackPort }),
-      sendVelocity: (velocity) => manualPtz.move(source, owner, velocity, ++sequence),
+      sendVelocity: (velocity) =>
+        manualPtz.move(source, owner, { ...velocity, watchdogMs: 1500 }, ++sequence),
       stop: () => manualPtz.stop(),
     });
   },
@@ -482,6 +483,14 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
       sequence,
     );
     sendJson(res, 200, { accepted: true });
+    return;
+  }
+
+  if (method === "POST" && url.pathname === "/api/ptz/stop") {
+    auth.authorize(req, "operator", { csrfRequired: true });
+    await ptzController.interruptMotion();
+    await manualPtz.stop();
+    sendJson(res, 200, { stopped: true });
     return;
   }
 
