@@ -31,8 +31,14 @@ for (const forceFallback of [false, true]) {
             const scroll = document.scrollingElement;
             const preview = document.querySelector(".preview-panel").getBoundingClientRect();
             const controls = document.querySelector(".operator-panel").getBoundingClientRect();
+            const probe = document.createElement("div");
+            probe.style.cssText = "position:absolute;visibility:hidden;height:var(--preview-min-height)";
+            document.querySelector(".broadcaster-layout").append(probe);
+            const minHeight = probe.getBoundingClientRect().height;
+            probe.remove();
             return {
               height: preview.height,
+              minHeight,
               top: preview.top,
               controls: controls.top,
               scroll: scroll.scrollTop,
@@ -58,7 +64,7 @@ for (const forceFallback of [false, true]) {
         expect(bottom.max).toBe(initial.max);
         if (initial.supported) {
           const expectedHeight = Math.max(
-            Math.min(initial.height, viewport.height * 0.2),
+            initial.minHeight,
             initial.height - Math.max(0, bottom.scroll - initial.top),
           );
           await expect
