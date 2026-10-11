@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 
-export const video = (page) => page.locator("#player video");
+export const video = (page) => page.locator('#player media-controller video[slot="media"]');
 export async function expectProgress(page) {
   const initial = await video(page).evaluate((element) => element.currentTime);
   await expect
