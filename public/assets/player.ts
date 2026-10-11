@@ -855,6 +855,10 @@ function monitorPlayback(container, video, options) {
       if (disposed || !container.contains(video)) return;
       if (reason.name !== "NotAllowedError") return;
       autoplayBlocked = true;
+      if (options.onAutoplayBlocked) {
+        options.onAutoplayBlocked();
+        return;
+      }
       showPlaybackStatus(container, "Ready to watch", "");
       const overlay = container.querySelector(".playback-status")!;
       if (overlay.querySelector("button")) return;
