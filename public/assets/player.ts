@@ -31,10 +31,15 @@ window.SteeplePlayer = {
     renderVideoFrame(container, video, "WebRTC");
     monitorPlayback(container, video, options);
     const connect = async () => {
+      options.onTransport?.({ transport: "connecting" });
       try {
         await attachWebRtc(container, video, whepUrl, options);
-      } catch {
+      } catch (error) {
         if (container.steepleGeneration !== generation) return;
+        options.onTransport?.({
+          transport: "error",
+          reason: error instanceof Error ? error.message : String(error),
+        });
         showPlaybackStatus(
           container,
           "Waiting for video",
@@ -82,6 +87,7 @@ window.SteeplePlayer = {
     video.playsInline = true;
     video.steepleObserverCleanup = options.onVideo?.(video);
     renderVideoFrame(container, video, "HLS");
+    options.onTransport?.({ transport: "hls" });
 
     attachHls(container, video, hlsUrl, options);
     return video;
@@ -227,6 +233,7 @@ function renderHybridPlayer(container, playback, options: any = {}) {
       return;
     }
     switchMedia("webrtc");
+    options.onTransport?.({ transport: "connecting" });
     const generation = container.steepleGeneration;
     try {
       await attachWebRtc(container, video, playback.webrtcUrl, options);
@@ -406,6 +413,22 @@ async function attachWebRtc(container, video, whepUrl, options: any = {}) {
   const pending = new AbortController();
   container.steepleTransportCleanup = () => pending.abort();
   const isCurrent = () => container.steeplePeer === pc;
+  pc.addEventListener("connectionstatechange", () => {
+    if (!isCurrent()) return;
+    if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
+      options.onTransport?.({
+        transport: "error",
+        reason: `WebRTC peer connection ${pc.connectionState}`,
+      });
+    } else if (pc.connectionState === "connected") {
+      void selectedCandidateType(pc)
+        .then((candidateType) => {
+          if (isCurrent())
+            options.onTransport?.({ transport: `webrtc-${candidateType}`, candidateType });
+        })
+        .catch(() => {});
+    }
+  });
   const checkCurrent = () => {
     if (!isCurrent()) throw new Error("WebRTC source changed");
   };
