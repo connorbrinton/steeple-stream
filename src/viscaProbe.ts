@@ -47,7 +47,7 @@ export function configuredCameraHost(source: VideoSource): string {
 
 function isPrivateCameraIp(value: string): boolean {
   if (isIP(value) !== 4) return false;
-  const [a, b] = value.split(".").map(Number);
+  const [a, b = 0] = value.split(".").map(Number);
   return (
     a === 10 ||
     (a === 172 && b >= 16 && b <= 31) ||
