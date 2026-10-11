@@ -18,6 +18,26 @@ test("WHEP delivers decoded video and non-silent audio from MediaMTX", async ({ 
   await expectAudio(page, 1, false);
 });
 
+test("the player reports WebRTC negotiation and the connected ICE candidate type", async ({
+  page,
+}) => {
+  await page.goto("/?mode=hybrid&timeline=false");
+  await startPlayback(page);
+  await expectWebRtcMedia(page);
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.testTransports.some((item) => item.transport === "connecting")),
+    )
+    .toBe(true);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.testTransports.some((item) => item.transport.startsWith("webrtc-")),
+      ),
+    )
+    .toBe(true);
+});
+
 test("HLS delivers moving video and a decoded audio signal", async ({ page }) => {
   await page.goto("/?mode=hls");
   await startPlayback(page);
@@ -48,6 +68,17 @@ test("a failed WHEP request falls back to playable HLS", async ({ page }) => {
   await page.goto("/?mode=hybrid");
   await startPlayback(page);
   await expect.poll(() => video(page).evaluate((element) => element.srcObject === null)).toBe(true);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.testTransports.some(
+          (item) =>
+            item.transport === "hls" &&
+            item.fallbackReason?.includes("WHEP returned HTTP 503"),
+        ),
+      ),
+    )
+    .toBe(true);
   await expectAudio(page, 1, false);
 });
 
