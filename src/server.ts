@@ -8,6 +8,7 @@ import { MediaMtxManager } from "./mediamtxManager.js";
 import { BroadcastService } from "./broadcastService.js";
 import { IngestManager } from "./ingestManager.js";
 import { PtzController } from "./ptzController.js";
+import { configuredCameraHost, probeVisca } from "./viscaProbe.js";
 import { ManualPtz, cameraVelocity } from "./manualPtz.js";
 import { parseJson, proxyHttp, sendJson, sendStatic } from "./httpUtils.js";
 import { SourceDiscoveryService } from "./sourceDiscoveryService.js";
@@ -48,6 +49,8 @@ const auth = new AuthService({ store, config: config.auth, roleResolver: access 
 const rateLimiter = new AppRateLimiter();
 const obsEndpoints = new ObsEndpointManager({ store, service, coordinator, host: config.obsHost });
 let latestBackendHealth: MediaBackendHealth | null = null;
+let probeRunning = false;
+let lastProbeAt = 0;
 
 const server = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
   try {
@@ -417,6 +420,26 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
       userAgent: req.headers["user-agent"] || null,
     } satisfies PlaybackSession);
     sendJson(res, 202, { accepted: true });
+    return;
+  }
+
+  if (method === "POST" && url.pathname === "/api/admin/camera/probe") {
+    auth.authorize(req, "administrator", { csrfRequired: true });
+    if (probeRunning || Date.now() - lastProbeAt < 5000)
+      throw Object.assign(new Error("Camera probe is already running or was run recently"), {
+        status: 429,
+      });
+    const state = await store.read();
+    const source =
+      state.cameraControlSource?.type === "ndi" ? state.cameraControlSource : state.source;
+    const host = configuredCameraHost(source);
+    lastProbeAt = Date.now();
+    probeRunning = true;
+    try {
+      sendJson(res, 200, await probeVisca(host, { port: config.ptz.port }));
+    } finally {
+      probeRunning = false;
+    }
     return;
   }
 
