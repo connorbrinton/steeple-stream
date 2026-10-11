@@ -198,11 +198,14 @@ async function recallPreset(button, presetId) {
   }
 }
 
+function markPreviewPlaying() {
+  window.SteepleEarlyPlay?.playing();
+}
+
 function observePreviewVideo(video: HTMLVideoElement) {
-  const started = () => window.SteepleEarlyPlay?.playing();
-  video.addEventListener("playing", started);
-  if (!video.paused && video.readyState >= 2) started();
-  return () => video.removeEventListener("playing", started);
+  video.addEventListener("playing", markPreviewPlaying);
+  if (!video.paused && video.readyState >= 2) markPreviewPlaying();
+  return () => video.removeEventListener("playing", markPreviewPlaying);
 }
 
 function showPreviewTransport(info) {
