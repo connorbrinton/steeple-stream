@@ -4,6 +4,7 @@ const statusLabel = document.querySelector("#status-label")!;
 const details = document.querySelector("#broadcast-details")!;
 const broadcastControlsGroup = document.querySelector("#broadcast-controls-group")!;
 const ptzControls = document.querySelector("#ptz-controls")!;
+const smoothPresetRecall = document.querySelector<HTMLInputElement>("#smooth-preset-recall")!;
 const adminPreview = document.querySelector("#admin-preview")!;
 const unitDialog = document.querySelector<HTMLDialogElement>("#unit-dialog")!;
 const unitDialogOptions = document.querySelector("#unit-dialog-options")!;
@@ -163,7 +164,12 @@ async function recallPreset(button, presetId) {
   button.classList.add("preset-pending");
   button.setAttribute("aria-busy", "true");
   try {
-    await post("/api/ptz/recall", { presetId }, "POST", false);
+    await post(
+      "/api/ptz/recall",
+      { presetId, mode: smoothPresetRecall.checked ? "smooth" : "native" },
+      "POST",
+      false,
+    );
     if (request !== latestRecall || !ptzControls.contains(button)) return;
     button.classList.remove("preset-pending");
     button.removeAttribute("aria-busy");
