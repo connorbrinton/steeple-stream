@@ -40,7 +40,7 @@ export class ManualPtz {
     ) => ChildProcessWithoutNullStreams = spawn,
   ) {}
 
-  async move(source: VideoSource, owner: string, velocity: CameraVelocity, sequence: number) {
+  async move(source: VideoSource, owner: string, velocity: CameraVelocity & { watchdogMs?: number }, sequence: number) {
     if (this.sequences.get(owner) === Infinity)
       throw Object.assign(new Error("Camera control was interrupted; enable control again"), {
         status: 409,
