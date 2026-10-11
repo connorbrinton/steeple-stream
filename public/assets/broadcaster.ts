@@ -7,6 +7,8 @@ const ptzControls = document.querySelector("#ptz-controls")!;
 const smoothPresetRecall = document.querySelector<HTMLInputElement>("#smooth-preset-recall")!;
 const stopCameraMotion = document.querySelector<HTMLButtonElement>("#stop-camera-motion")!;
 const adminPreview = document.querySelector("#admin-preview")!;
+const previewTransport = document.querySelector<HTMLElement>("#preview-transport")!;
+const previewTransportDetail = document.querySelector<HTMLElement>("#preview-transport-detail")!;
 const unitDialog = document.querySelector<HTMLDialogElement>("#unit-dialog")!;
 const unitDialogOptions = document.querySelector("#unit-dialog-options")!;
 
@@ -196,13 +198,49 @@ async function recallPreset(button, presetId) {
   }
 }
 
+function showPreviewTransport(info) {
+  const transport = info?.transport || "unknown";
+  let label = "Preview transport unknown";
+  let detail = "";
+  if (transport === "connecting") {
+    label = "WebRTC · Connecting…";
+  } else if (transport.startsWith("webrtc-")) {
+    const type = info.candidateType;
+    label = type === "relay" ? "WebRTC · Relay" : "WebRTC · Direct";
+    detail = type && type !== "unknown" ? `ICE candidate: ${type}` : "";
+  } else if (transport === "hls") {
+    label = "HLS · Higher latency";
+    detail = info.fallbackReason ? `WebRTC unavailable: ${info.fallbackReason}` : "";
+  } else if (transport === "error") {
+    label = "WebRTC · Connection failed";
+    detail = info.reason || "Retrying the video connection.";
+  } else if (transport === "unavailable") {
+    label = "Preview unavailable";
+    detail = info.reason || "";
+  }
+  previewTransport.textContent = label;
+  previewTransportDetail.textContent = detail;
+  previewTransportDetail.hidden = !detail;
+}
+
 function renderPreview(state) {
-  if (window.SteeplePlayer.renderPreviewStatus(adminPreview, state.source)) return;
+  if (window.SteeplePlayer.renderPreviewStatus(adminPreview, state.source)) {
+    showPreviewTransport({ transport: "unavailable", reason: "No camera video source configured." });
+    return;
+  }
   const broadcast = state.broadcast;
   const playback = broadcast.playback || state.preview;
   const hlsUrl = playback?.hlsUrl;
   const webrtcUrl = playback?.webrtcUrl;
   const streamKey = previewStreamKey(latestHealth?.ingest);
+  if (latestPreviewSignature !== streamKey)
+    showPreviewTransport(
+      webrtcUrl
+        ? { transport: "connecting" }
+        : hlsUrl
+          ? { transport: "hls" }
+          : { transport: "unavailable", reason: "No preview URL available." },
+    );
   latestPreviewSignature = streamKey;
   if (hlsUrl && webrtcUrl) {
     window.SteeplePlayer.renderHybridLive(adminPreview, playback, {
@@ -211,6 +249,7 @@ function renderPreview(state) {
       timeline: false,
       timeoutMs: 4000,
       streamKey,
+      onTransport: showPreviewTransport,
     });
     return;
   }
@@ -221,6 +260,7 @@ function renderPreview(state) {
       timeoutMs: 4000,
       streamKey,
       retry: true,
+      onTransport: showPreviewTransport,
     }).catch(() => {
       window.SteeplePlayer.renderSlate(
         adminPreview,
@@ -235,9 +275,11 @@ function renderPreview(state) {
       autoplay: true,
       controls: false,
       streamKey,
+      onTransport: showPreviewTransport,
     });
     return;
   }
+  showPreviewTransport({ transport: "unavailable", reason: "No playback URL configured." });
   window.SteeplePlayer.renderSlate(
     adminPreview,
     "Preview Unavailable",
