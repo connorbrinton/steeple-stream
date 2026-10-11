@@ -204,6 +204,8 @@ function showPreviewTransport(info) {
   let detail = "";
   if (transport === "connecting") {
     label = "WebRTC · Connecting…";
+  } else if (transport === "reconnecting") {
+    label = "WebRTC · Reconnecting…";
   } else if (transport.startsWith("webrtc-")) {
     const type = info.candidateType;
     label =
