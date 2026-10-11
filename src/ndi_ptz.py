@@ -96,7 +96,11 @@ def manual_control(args):
                         if not pan_ok or not zoom_ok:
                             raise RuntimeError("NDI manual movement failed")
                         moving = any(speeds)
-                        deadline = time.monotonic() + 0.75
+                        watchdog_ms = command.get("watchdogMs", 750)
+                        if (not isinstance(watchdog_ms, int) or isinstance(watchdog_ms, bool)
+                                or not 500 <= watchdog_ms <= 1500):
+                            raise ValueError("Invalid camera watchdog interval")
+                        deadline = time.monotonic() + watchdog_ms / 1000
                 if moving and time.monotonic() >= deadline:
                     stop_motion(ndi, recv)
                     moving = False
