@@ -83,13 +83,13 @@ export class PtzController {
     socketFactory = defaultSocketFactory,
     runner = defaultRunner,
     stopManual = async () => {},
-    smoothRunner = null,
+    smoothRunner = undefined,
   }: PtzControllerOptions) {
     this.config = config;
     this.socketFactory = socketFactory;
     this.runner = runner;
     this.stopManual = stopManual;
-    this.smoothRunner = smoothRunner;
+    this.smoothRunner = smoothRunner ?? null;
   }
 
   async interruptMotion(): Promise<void> {
