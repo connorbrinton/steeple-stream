@@ -1,4 +1,5 @@
 import http from "node:http";
+import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import { config } from "./config.js";
@@ -8,6 +9,8 @@ import { MediaMtxManager } from "./mediamtxManager.js";
 import { BroadcastService } from "./broadcastService.js";
 import { IngestManager } from "./ingestManager.js";
 import { PtzController } from "./ptzController.js";
+import { configuredCameraHost, readViscaPosition } from "./viscaProbe.js";
+import { runSynchronizedMove } from "./smoothPtz.js";
 import { configuredCameraHost, probeVisca } from "./viscaProbe.js";
 import { ManualPtz, cameraVelocity } from "./manualPtz.js";
 import { parseJson, proxyHttp, sendJson, sendStatic } from "./httpUtils.js";
@@ -29,7 +32,22 @@ const store = new SqliteStore(config.databasePath, { legacyPath: config.storePat
 const mediamtxManager = new MediaMtxManager(config.mediamtx);
 const mediaBackend = new MediaMtxBackend(config.mediamtx);
 const manualPtz = new ManualPtz(config.ptz);
-const ptzController = new PtzController({ config: config.ptz, stopManual: () => manualPtz.stop() });
+const ptzController = new PtzController({
+  config: config.ptz,
+  stopManual: () => manualPtz.stop(),
+  smoothRunner: async ({ target, source, signal }) => {
+    const host = configuredCameraHost(source);
+    const owner = "smooth:" + randomUUID();
+    let sequence = 0;
+    await runSynchronizedMove({
+      target,
+      signal,
+      readPosition: () => readViscaPosition(host, { port: config.ptz.ndiFeedbackPort }),
+      sendVelocity: (velocity) => manualPtz.move(source, owner, velocity, ++sequence),
+      stop: () => manualPtz.stop(),
+    });
+  },
+});
 const service = new BroadcastService({ store, mediaBackend, config, ptzController });
 const schedules = new ScheduleService(store);
 const adminCatalog = new AdminCatalogService(store, config.channelId);
@@ -82,6 +100,7 @@ server.listen(config.port, config.host, () => {
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, async () => {
     server.close();
+    await ptzController.cancelSmooth();
     await manualPtz.stop();
     await ingestManager.stop();
     sourceDiscovery.stop();
@@ -327,6 +346,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (method === "PUT" && url.pathname === "/api/source") {
     const actor = auth.authorize(req, "administrator", { csrfRequired: true });
     const body = await parseJson(req);
+    await ptzController.cancelSmooth();
     await manualPtz.stop();
     sendJson(res, 200, await coordinator.updateSource(body, actor));
     return;
@@ -335,6 +355,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (method === "PUT" && url.pathname === "/api/camera-control-source") {
     const actor = auth.authorize(req, "administrator", { csrfRequired: true });
     const body = await parseJson(req);
+    await ptzController.cancelSmooth();
     await manualPtz.stop();
     sendJson(res, 200, await coordinator.updateCameraControlSource(body, actor));
     return;
@@ -454,6 +475,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     if (typeof sequence !== "number" || !Number.isSafeInteger(sequence) || sequence < 0)
       throw Object.assign(new Error("Camera control sequence is required"), { status: 400 });
     const state = await store.read();
+    await ptzController.cancelSmooth();
     await manualPtz.move(
       state.cameraControlSource || state.source,
       `${actor.email || "local"}:${session}`,
@@ -467,7 +489,13 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (method === "POST" && url.pathname === "/api/ptz/recall") {
     const actor = auth.authorize(req, "operator", { csrfRequired: true });
     const body = await parseJson(req);
-    sendJson(res, 200, await coordinator.recallPreset(String(body.presetId || ""), actor));
+    if (body.mode !== undefined && body.mode !== "native" && body.mode !== "smooth")
+      throw Object.assign(new Error("Invalid preset recall mode"), { status: 400 });
+    sendJson(
+      res,
+      200,
+      await coordinator.recallPreset(String(body.presetId || ""), actor, body.mode || "native"),
+    );
     return;
   }
 
