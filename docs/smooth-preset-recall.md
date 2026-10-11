@@ -12,6 +12,34 @@ This feature uses the established NDI manual velocity commands to move the camer
 
 The checkbox defaults to **off** on every page load. Unchecked presets still use standard NDI firmware preset recall. Missing captured positions produce a clear error, **not** an unexpected fallback movement.
 
+## Automatic capture of all presets
+
+For a faster setup, open **Admin → Video & Cameras → Camera Diagnostics** and click
+**Capture All Presets**. Confirm the warning that the camera will move, then leave
+the page open to watch progress or return later; progress is maintained by the
+server, not the browser.
+
+- Steeple Stream recalls each existing **camera-side NDI preset in sequence**.
+- It samples actual RL500 pan/tilt/zoom position over raw VISCA UDP 1259.
+- A preset's position is saved only after the reading remains within a tight
+  tolerance for 1.8 seconds, and a final reading confirms it is unchanged.
+- If the camera already starts at the first preset, that preset is deferred
+  until after another has moved.
+- Captured coordinates are saved immediately after each successful preset;
+  an interruption retains those completed captures.
+- If a camera preset is unresponsive, still moving after 45 seconds, or its
+  final position is unverified, the run stops with an error **without saving
+  that preset**.
+- **Cancel Remaining Captures** prevents further recalls, but does not
+  guarantee that the camera stops its current native/firmware preset movement.
+- Batch capture is blocked during a live broadcast. Manual movement, individual
+  capture, source changes and new preset recalls are blocked while the batch
+  is running, except the existing Stop Camera Motion action, which cancels
+  further captures.
+
+There is no need to capture each preset manually unless you want to override a
+particular saved position or the automatic process cannot confirm it.
+
 ## Safety and current limitations
 
 - Test with the camera pointed at a safe, empty area and no audience or active stream. The trajectory model has not been calibrated against the RL500's physical speed response.
