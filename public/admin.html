@@ -57,6 +57,19 @@
           </button>
           <p class="meta" id="camera-probe-status" role="status"></p>
           <pre class="probe-report" id="camera-probe-output" hidden></pre>
+          <div class="source-toolbar">
+            <div>
+              <div class="control-label">Capture preset position</div>
+              <p class="meta">First recall a saved camera preset normally and allow it to finish. Then capture its current position for smooth recall.</p>
+            </div>
+          </div>
+          <div class="controls">
+            <select id="camera-capture-preset" aria-label="Preset to capture"></select>
+            <button class="button" id="camera-capture-button" type="button">
+              Save Current Position
+            </button>
+          </div>
+          <p class="meta" id="camera-capture-status" role="status"></p>
         </div>
 
         <div class="panel">
