@@ -293,10 +293,21 @@ export class BroadcastService {
     const position = await this.ptzController.capturePosition({
       source: cameraControlSourceFor(current),
     });
+    return this.savePresetPosition(presetId, position, actor);
+  }
+
+  async savePresetPosition(
+    presetId: string,
+    position: PtzPosition,
+    actor: Actor | null = null,
+  ) {
+    if (!["pan", "tilt", "zoom"].every((axis) =>
+      Number.isFinite(position[axis as keyof PtzPosition])))
+      throw Object.assign(new Error("Invalid PTZ position"), { status: 400 });
     return this.store.update((state) => {
       const preset = state.ptz.presets.find((entry) => entry.id === presetId);
       if (!preset) throw Object.assign(new Error("Unknown PTZ preset"), { status: 404 });
-      preset.position = position;
+      preset.position = { ...position };
       appendAudit(state, "ptz.capture", { presetId, actor: auditActor(actor) });
       return { preset };
     });
