@@ -43,6 +43,12 @@ export function synchronizedVelocity(
   for (const axis of unfinished) {
     const distance = target[axis] - now[axis];
     const direction = Math.sign(distance) * Math.sign(polarity[axis]);
+    // If the motor coasts past its destination, reverse slowly rather than
+    // waiting forever for an impossible positive-progress target.
+    if (progress(axis) > 1) {
+      command[axis] = direction * 0.12;
+      continue;
+    }
     // Allow a small look-ahead so the slowest axis can keep moving.
     // An axis that outruns the slowest one receives a zero-speed command.
     const lag = common + 0.07 - progress(axis);
