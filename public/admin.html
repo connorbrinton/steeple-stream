@@ -46,6 +46,19 @@
           <p class="meta" id="source-help"></p>
         </div>
 
+        <div class="panel" id="camera-diagnostics">
+          <h2>Camera Diagnostics</h2>
+          <p class="meta">
+            Probe the configured camera's VISCA connectivity and position feedback. This test only
+            reads camera information and never moves it or changes presets.
+          </p>
+          <button type="button" class="button primary" id="probe-camera">
+            Run Capability Probe
+          </button>
+          <p class="meta" id="camera-probe-status" role="status"></p>
+          <pre class="probe-report" id="camera-probe-output" hidden></pre>
+        </div>
+
         <div class="panel">
           <h2>Health</h2>
           <div class="meta" id="health">Checking health.</div>
