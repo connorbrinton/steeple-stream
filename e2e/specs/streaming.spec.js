@@ -121,6 +121,7 @@ test("an established WebRTC connection that fails ICE switches to playable HLS",
   await page.goto("/?mode=hybrid&timeline=false");
   await startPlayback(page);
   await expectWebRtcMedia(page);
+  const peersBeforeFailure = await page.evaluate(() => window.testPeers.length);
   await page.evaluate(() => {
     const peer = window.testPeers.at(-1);
     Object.defineProperty(peer, "connectionState", {
@@ -141,6 +142,10 @@ test("an established WebRTC connection that fails ICE switches to playable HLS",
     .toBe(true);
   await expect.poll(() => video(page).evaluate((element) => element.srcObject === null)).toBe(true);
   await expectProgress(page);
+  // After falling back, a fresh WebRTC attempt must happen in the background.
+  await expect
+    .poll(() => page.evaluate(() => window.testPeers.length))
+    .toBeGreaterThan(peersBeforeFailure);
 });
 
 test("a brief WebRTC disconnection does not abandon a recovered connection", async ({ page }) => {
