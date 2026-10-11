@@ -29,7 +29,11 @@ interface PtzTransportResult {
 }
 
 interface PtzController {
-  recallPreset(options: { preset: PtzPreset; source: VideoSource }): Promise<PtzTransportResult>;
+  recallPreset(options: {
+    preset: PtzPreset;
+    source: VideoSource;
+    mode?: "native" | "smooth";
+  }): Promise<PtzTransportResult>;
   capturePosition(options: { source: VideoSource }): Promise<PtzPosition>;
 }
 
@@ -251,7 +255,11 @@ export class BroadcastService {
     return this.addManualSource(source, actor);
   }
 
-  async recallPreset(presetId: string, actor: Actor | null = null) {
+  async recallPreset(
+    presetId: string,
+    actor: Actor | null = null,
+    mode: "native" | "smooth" = "native",
+  ) {
     const current = await this.store.read();
     const target = current.ptz.presets.find((entry) => entry.id === presetId);
     if (!target) {
@@ -261,7 +269,7 @@ export class BroadcastService {
     }
     const controlSource = cameraControlSourceFor(current);
     const transport = this.ptzController
-      ? await this.ptzController.recallPreset({ preset: target, source: controlSource })
+      ? await this.ptzController.recallPreset({ preset: target, source: controlSource, mode })
       : { transport: "not_configured", status: "recorded" };
 
     return this.store.update((state) => {
@@ -285,10 +293,18 @@ export class BroadcastService {
     const position = await this.ptzController.capturePosition({
       source: cameraControlSourceFor(current),
     });
+    return this.savePresetPosition(presetId, position, actor);
+  }
+
+  async savePresetPosition(presetId: string, position: PtzPosition, actor: Actor | null = null) {
+    if (
+      !["pan", "tilt", "zoom"].every((axis) => Number.isFinite(position[axis as keyof PtzPosition]))
+    )
+      throw Object.assign(new Error("Invalid PTZ position"), { status: 400 });
     return this.store.update((state) => {
       const preset = state.ptz.presets.find((entry) => entry.id === presetId);
       if (!preset) throw Object.assign(new Error("Unknown PTZ preset"), { status: 404 });
-      preset.position = position;
+      preset.position = { ...position };
       appendAudit(state, "ptz.capture", { presetId, actor: auditActor(actor) });
       return { preset };
     });

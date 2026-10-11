@@ -68,6 +68,7 @@ export const config = {
     ndiHelper: process.env.STEEPLE_NDI_PTZ_HELPER || null,
     ndiPresetSpeed: Number(process.env.STEEPLE_NDI_PTZ_PRESET_SPEED || 1),
     ndiSettleMs: Number(process.env.STEEPLE_NDI_PTZ_SETTLE_MS || 750),
+    ndiFeedbackPort: Number(process.env.STEEPLE_NDI_PTZ_FEEDBACK_PORT || 1259),
   },
   discovery: {
     ndiIntervalMs: Number(process.env.STEEPLE_NDI_DISCOVERY_INTERVAL_MS || 7000),

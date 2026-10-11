@@ -40,7 +40,12 @@ export class ManualPtz {
     ) => ChildProcessWithoutNullStreams = spawn,
   ) {}
 
-  async move(source: VideoSource, owner: string, velocity: CameraVelocity, sequence: number) {
+  async move(
+    source: VideoSource,
+    owner: string,
+    velocity: CameraVelocity & { watchdogMs?: number },
+    sequence: number,
+  ) {
     if (this.sequences.get(owner) === Infinity)
       throw Object.assign(new Error("Camera control was interrupted; enable control again"), {
         status: 409,
@@ -48,7 +53,7 @@ export class ManualPtz {
     if (sequence <= (this.sequences.get(owner) ?? -1)) return;
     this.sequences.set(owner, sequence);
     if (this.sequences.size > 128) this.sequences.delete(this.sequences.keys().next().value!);
-    const moving = Object.values(velocity).some(Boolean);
+    const moving = velocity.pan !== 0 || velocity.tilt !== 0 || velocity.zoom !== 0;
     if (this.owner && this.owner !== owner && Date.now() - this.lastUpdate < 1000)
       throw Object.assign(new Error("Another operator is controlling the camera"), { status: 409 });
     if (!moving && !this.child) return;

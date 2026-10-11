@@ -14,6 +14,15 @@ const obsForm = document.querySelector("#obs-credential-form")!;
 const probeButton = document.querySelector<HTMLButtonElement>("#probe-camera")!;
 const probeStatus = document.querySelector("#camera-probe-status")!;
 const probeOutput = document.querySelector<HTMLElement>("#camera-probe-output")!;
+const capturePresetSelect = document.querySelector<HTMLSelectElement>("#camera-capture-preset")!;
+const capturePresetButton = document.querySelector<HTMLButtonElement>("#camera-capture-button")!;
+const capturePresetStatus = document.querySelector("#camera-capture-status")!;
+const captureAllButton = document.querySelector<HTMLButtonElement>("#capture-all-presets")!;
+const cancelCaptureAllButton = document.querySelector<HTMLButtonElement>("#cancel-capture-all")!;
+const captureAllProgress = document.querySelector("#capture-all-progress")!;
+const captureAllResults = document.querySelector("#capture-all-results")!;
+let captureBatchActive = false;
+let presetOptionsSignature = "";
 
 let latestHealth: { ingest?: unknown } | null = null;
 let latestState: unknown = null;
@@ -64,6 +73,107 @@ probeButton.addEventListener("click", async () => {
     probeButton.disabled = false;
   }
 });
+
+captureAllButton.addEventListener("click", async () => {
+  if (
+    !confirm(
+      "The camera will MOVE through ALL configured presets. Only run this when nobody needs the camera for a service. Continue?",
+    )
+  )
+    return;
+  captureAllButton.disabled = true;
+  try {
+    const result = await post("/api/admin/camera/capture-all", {});
+    renderCaptureBatch(result);
+  } catch (error) {
+    captureAllProgress.textContent =
+      "Unable to start: " + (error instanceof Error ? error.message : String(error));
+  } finally {
+    await refreshCaptureBatch().catch(console.error);
+  }
+});
+
+cancelCaptureAllButton.addEventListener("click", async () => {
+  cancelCaptureAllButton.disabled = true;
+  try {
+    const result = await post("/api/admin/camera/capture-all/cancel", {});
+    renderCaptureBatch(result);
+  } catch (error) {
+    captureAllProgress.textContent =
+      "Unable to cancel: " + (error instanceof Error ? error.message : String(error));
+  } finally {
+    await refreshCaptureBatch().catch(console.error);
+  }
+});
+
+async function refreshCaptureBatch() {
+  const response = await fetch("/api/admin/camera/capture-all");
+  if (!response.ok) throw new Error("Could not load camera capture status");
+  renderCaptureBatch(await response.json());
+}
+
+function renderCaptureBatch(batch) {
+  const active = batch.stage === "running" || batch.stage === "cancelling";
+  captureBatchActive = active;
+  captureAllButton.disabled = active || !capturePresetSelect.options.length;
+  cancelCaptureAllButton.hidden = !active;
+  cancelCaptureAllButton.disabled = batch.stage === "cancelling";
+  capturePresetButton.disabled = active || !capturePresetSelect.options.length;
+  const heading =
+    {
+      idle: "No batch capture has been run.",
+      running: `Capturing ${batch.completed}/${batch.total} presets`,
+      cancelling: `Cancelling… ${batch.completed}/${batch.total} saved`,
+      completed: `Complete: ${batch.completed}/${batch.total} preset positions saved`,
+      cancelled: `Cancelled: ${batch.completed}/${batch.total} positions saved`,
+      failed: `Stopped after ${batch.completed}/${batch.total} positions`,
+    }[batch.stage] || batch.stage;
+  captureAllProgress.textContent =
+    heading +
+    (batch.current ? ` — ${batch.current.name}` : "") +
+    (batch.error ? ` — ${batch.error}` : "");
+  captureAllResults.replaceChildren();
+  for (const result of batch.results || []) {
+    const item = document.createElement("div");
+    item.className = "list-item";
+    item.textContent = `${result.name}: ${formatCameraPosition(result.position)}`;
+    captureAllResults.append(item);
+  }
+}
+
+capturePresetButton.addEventListener("click", async () => {
+  const presetId = capturePresetSelect.value;
+  if (!presetId) return;
+  capturePresetButton.disabled = true;
+  capturePresetStatus.textContent = "Reading the current camera position…";
+  try {
+    const result = await post("/api/ptz/capture", { presetId });
+    capturePresetStatus.textContent =
+      "Saved " + result.preset.name + ": " + formatCameraPosition(result.preset.position);
+  } catch (error) {
+    capturePresetStatus.textContent =
+      "Capture failed: " + (error instanceof Error ? error.message : String(error));
+  } finally {
+    capturePresetButton.disabled = false;
+  }
+});
+
+function renderPresetCapture(presets) {
+  const signature = JSON.stringify(presets);
+  if (signature === presetOptionsSignature) return;
+  presetOptionsSignature = signature;
+  const selected = capturePresetSelect.value;
+  capturePresetSelect.replaceChildren();
+  for (const preset of presets) {
+    const option = document.createElement("option");
+    option.value = preset.id;
+    option.textContent = preset.name + (preset.position ? " (captured)" : " (not captured)");
+    capturePresetSelect.append(option);
+  }
+  if (presets.some((preset) => preset.id === selected)) capturePresetSelect.value = selected;
+  capturePresetButton.disabled = !presets.length || captureBatchActive;
+  captureAllButton.disabled = !presets.length || captureBatchActive;
+}
 
 openManualSource.addEventListener("click", () => openManualSourceModal());
 document
@@ -141,6 +251,7 @@ function renderState(state) {
     : "camera control";
   renderPreview(state);
   renderSource(state.source);
+  renderPresetCapture(state.ptz?.presets || []);
 }
 
 function renderSource(source) {
@@ -583,6 +694,8 @@ async function initialize() {
   }
   await loadSources();
   await refresh();
+  await refreshCaptureBatch();
+  setInterval(() => refreshCaptureBatch().catch(console.error), 1500);
   const events = new EventSource("/api/events");
   events.addEventListener("state", (event) => renderState(JSON.parse(event.data)));
   events.addEventListener("health", (event) => {

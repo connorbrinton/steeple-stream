@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { PtzPosition, PtzPreset, VideoSource } from "./domain.js";
+import { configuredCameraHost, readViscaPosition } from "./viscaProbe.js";
 
 interface PtzConfig {
   transport: string;
@@ -14,6 +15,7 @@ interface PtzConfig {
   ndiHelper?: string | null;
   ndiPresetSpeed?: number;
   ndiSettleMs?: number;
+  ndiFeedbackPort?: number;
 }
 
 interface PtzSource {
@@ -36,6 +38,10 @@ interface PtzRunner {
   recallNdiPreset(options: NdiRecallOptions): Promise<void>;
 }
 
+interface SmoothRunner {
+  (options: { target: PtzPosition; source: VideoSource; signal: AbortSignal }): Promise<void>;
+}
+
 type SocketFactory = () => dgram.Socket;
 
 interface PtzControllerOptions {
@@ -43,6 +49,7 @@ interface PtzControllerOptions {
   socketFactory?: SocketFactory;
   runner?: PtzRunner;
   stopManual?: () => Promise<void>;
+  smoothRunner?: SmoothRunner;
 }
 
 interface ViscaOptions {
@@ -67,21 +74,52 @@ export class PtzController {
   declare socketFactory: SocketFactory;
   declare runner: PtzRunner;
   declare stopManual: () => Promise<void>;
+  declare smoothRunner: SmoothRunner | null;
+  private activeSmooth: { abort: AbortController; task: Promise<void> } | null = null;
+  private motionGeneration = 0;
 
   constructor({
     config,
     socketFactory = defaultSocketFactory,
     runner = defaultRunner,
     stopManual = async () => {},
+    smoothRunner = undefined,
   }: PtzControllerOptions) {
     this.config = config;
     this.socketFactory = socketFactory;
     this.runner = runner;
     this.stopManual = stopManual;
+    this.smoothRunner = smoothRunner ?? null;
   }
 
-  async recallPreset({ preset, source }: { preset: PtzPreset; source: PtzSource }) {
+  async interruptMotion(): Promise<void> {
+    this.motionGeneration++;
+    await this.cancelSmooth();
+  }
+
+  private async cancelSmooth(): Promise<void> {
+    const active = this.activeSmooth;
+    if (!active) return;
+    active.abort.abort();
+    await active.task.catch(() => {});
+  }
+
+  async recallPreset({
+    preset,
+    source,
+    mode = "native",
+  }: {
+    preset: PtzPreset;
+    source: PtzSource;
+    mode?: "native" | "smooth";
+  }) {
+    const generation = ++this.motionGeneration;
+    await this.cancelSmooth();
     await this.stopManual();
+    if (generation !== this.motionGeneration)
+      throw Object.assign(new Error("Preset recall was superseded by another camera command"), {
+        status: 409,
+      });
     const transport = this.config.transport || "manual";
     if (transport === "manual") {
       return { transport, status: "recorded" };
@@ -111,6 +149,38 @@ export class PtzController {
         throw error;
       }
       const presetIndex = cameraPresetNumber - 1;
+      if (mode === "smooth") {
+        if (!this.smoothRunner)
+          throw Object.assign(new Error("Synchronized motion is not available"), { status: 409 });
+        if (!preset.position)
+          throw Object.assign(
+            new Error(
+              "Capture this preset's current camera position in admin diagnostics before using smooth recall",
+            ),
+            { status: 409 },
+          );
+        const abort = new AbortController();
+        const task = this.smoothRunner({
+          target: preset.position,
+          source: source as VideoSource,
+          signal: abort.signal,
+        });
+        const active = { abort, task };
+        this.activeSmooth = active;
+        try {
+          await task;
+        } finally {
+          if (this.activeSmooth === active) this.activeSmooth = null;
+        }
+        return {
+          transport,
+          status: "recalled",
+          movement: "synchronized-ndi",
+          sourceName,
+          preset: presetIndex,
+          cameraPreset: cameraPresetNumber,
+        };
+      }
       await this.runner.recallNdiPreset({
         helper: this.config.ndiHelper || null,
         sourceName,
@@ -189,7 +259,13 @@ export class PtzController {
   }
 
   async capturePosition({ source }: { source: PtzSource }): Promise<PtzPosition> {
+    await this.interruptMotion();
     await this.stopManual();
+    if (this.config.transport === "ndi")
+      return readViscaPosition(configuredCameraHost(source as VideoSource), {
+        port: this.config.ndiFeedbackPort ?? 1259,
+        timeoutMs: this.config.timeoutMs ?? 1500,
+      });
     const host = this.config.host || inferHostFromSource(source);
     if (!host) throw Object.assign(new Error("PTZ host is not configured"), { status: 409 });
     return queryPosition({

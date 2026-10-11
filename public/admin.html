@@ -57,6 +57,46 @@
           </button>
           <p class="meta" id="camera-probe-status" role="status"></p>
           <pre class="probe-report" id="camera-probe-output" hidden></pre>
+          <div class="source-toolbar">
+            <div>
+              <div class="control-label">Capture preset position</div>
+              <p class="meta">
+                First recall a saved camera preset normally and allow it to finish. Then capture its
+                current position for smooth recall.
+              </p>
+            </div>
+          </div>
+          <div class="controls">
+            <select id="camera-capture-preset" aria-label="Preset to capture"></select>
+            <button class="button" id="camera-capture-button" type="button">
+              Save Current Position
+            </button>
+          </div>
+          <p class="meta" id="camera-capture-status" role="status"></p>
+          <div class="source-toolbar">
+            <div>
+              <div class="control-label">Capture all preset positions</div>
+              <p class="meta">
+                Moves the camera through every configured preset using native NDI recall. Steeple
+                Stream waits for VISCA position feedback to stabilize before saving each position.
+                Run this only when the camera is not needed for a service.
+              </p>
+            </div>
+          </div>
+          <div class="controls">
+            <button class="button primary" id="capture-all-presets" type="button">
+              Capture All Presets
+            </button>
+            <button class="button danger" id="cancel-capture-all" type="button" hidden>
+              Cancel Remaining Captures
+            </button>
+          </div>
+          <p class="meta" id="capture-all-progress" role="status" aria-live="polite"></p>
+          <div class="list" id="capture-all-results"></div>
+          <p class="meta">
+            Cancelling prevents further presets from being recalled. The camera may complete its
+            current built-in preset movement.
+          </p>
         </div>
 
         <div class="panel">

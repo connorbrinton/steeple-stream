@@ -84,8 +84,12 @@ export class LocationCommandCoordinator extends EventEmitter {
     return this.changed(state);
   }
 
-  async recallPreset(presetId: string, actor: Actor | null = null) {
-    const result = await this.service.recallPreset(presetId, actor);
+  async recallPreset(
+    presetId: string,
+    actor: Actor | null = null,
+    mode: "native" | "smooth" = "native",
+  ) {
+    const result = await this.service.recallPreset(presetId, actor, mode);
     this.emit("changed");
     return result;
   }
