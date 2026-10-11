@@ -421,10 +421,12 @@ async function attachWebRtc(container, video, whepUrl, options: any = {}) {
         reason: `WebRTC peer connection ${pc.connectionState}`,
       });
     } else if (pc.connectionState === "connected") {
-      void selectedCandidateType(pc).then((candidateType) => {
-        if (isCurrent())
-          options.onTransport?.({ transport: `webrtc-${candidateType}`, candidateType });
-      });
+      void selectedCandidateType(pc)
+        .then((candidateType) => {
+          if (isCurrent())
+            options.onTransport?.({ transport: `webrtc-${candidateType}`, candidateType });
+        })
+        .catch(() => {});
     }
   });
   const checkCurrent = () => {
