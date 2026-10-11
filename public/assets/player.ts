@@ -276,6 +276,7 @@ function renderHybridPlayer(container, playback, options: any = {}) {
             if (candidate !== stage) return;
             if (stage.promoted && mode === "webrtc") {
               showHls(null, reason);
+              retryWebRtc(reason);
             } else {
               stage.failureReason = reason;
               stage.host.steepleTransportCleanup?.();
