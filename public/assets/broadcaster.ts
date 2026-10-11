@@ -198,6 +198,13 @@ async function recallPreset(button, presetId) {
   }
 }
 
+function observePreviewVideo(video: HTMLVideoElement) {
+  const started = () => window.SteepleEarlyPlay?.playing();
+  video.addEventListener("playing", started);
+  if (!video.paused && video.readyState >= 2) started();
+  return () => video.removeEventListener("playing", started);
+}
+
 function showPreviewTransport(info) {
   const transport = info?.transport || "unknown";
   let label = "Preview transport unknown";
@@ -216,7 +223,7 @@ function showPreviewTransport(info) {
           : "WebRTC · Connected";
     detail = type && type !== "unknown" ? `ICE candidate: ${type}` : "";
   } else if (transport === "hls") {
-    label = "HLS · Higher latency";
+    label = info.connectingWebRtc ? "HLS · Checking WebRTC" : "HLS · Higher latency";
     detail = info.fallbackReason ? `WebRTC unavailable: ${info.fallbackReason}` : "";
   } else if (transport === "error") {
     label = "WebRTC · Connection failed";
@@ -260,6 +267,8 @@ function renderPreview(state) {
       timeoutMs: 4000,
       streamKey,
       onTransport: showPreviewTransport,
+      onVideo: observePreviewVideo,
+      onAutoplayBlocked: () => window.SteepleEarlyPlay?.blocked(),
     });
     return;
   }
