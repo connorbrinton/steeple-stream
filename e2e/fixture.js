@@ -5,6 +5,7 @@ const container = document.querySelector("#player");
 let mode = new URLSearchParams(location.search).get("mode") || "recording";
 const timeline = new URLSearchParams(location.search).get("timeline") !== "false";
 let generation = 0;
+window.testTransports = [];
 const ready = fetch("/fixture/config").then((response) => response.json());
 async function render() {
   const { startedAt } = await ready;
@@ -14,6 +15,7 @@ async function render() {
     streamKey: String(generation),
     timelineStartAt: startedAt,
     timeline,
+    onTransport: (state) => window.testTransports.push(state),
   };
   if (mode === "recording")
     window.SteeplePlayer.renderRecording(container, `/recording.mp4?stream=${generation}`, options);
