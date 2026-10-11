@@ -1412,6 +1412,8 @@ video {
 
 .broadcaster-layout .preview-panel {
   padding: 0;
+  border: 0;
+  background: #11181d;
   overflow: hidden;
   height: var(--preview-height);
 }
