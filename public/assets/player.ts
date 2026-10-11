@@ -271,6 +271,8 @@ function renderHybridPlayer(container, playback, options: any = {}) {
           // The preview remains HLS until WebRTC has actually decoded a frame.
           onTransport: (event: any) => {
             if (event.transport.startsWith("webrtc-")) stage.candidateType = event.candidateType;
+            if (stage.promoted && candidate === stage && mode === "webrtc")
+              options.onTransport?.(event);
           },
           onConnectionFailure: (reason: string) => {
             if (candidate !== stage) return;
