@@ -100,7 +100,7 @@ server.listen(config.port, config.host, () => {
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, async () => {
     server.close();
-    await ptzController.cancelSmooth();
+    await ptzController.interruptMotion();
     await manualPtz.stop();
     await ingestManager.stop();
     sourceDiscovery.stop();
@@ -346,7 +346,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (method === "PUT" && url.pathname === "/api/source") {
     const actor = auth.authorize(req, "administrator", { csrfRequired: true });
     const body = await parseJson(req);
-    await ptzController.cancelSmooth();
+    await ptzController.interruptMotion();
     await manualPtz.stop();
     sendJson(res, 200, await coordinator.updateSource(body, actor));
     return;
@@ -355,7 +355,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (method === "PUT" && url.pathname === "/api/camera-control-source") {
     const actor = auth.authorize(req, "administrator", { csrfRequired: true });
     const body = await parseJson(req);
-    await ptzController.cancelSmooth();
+    await ptzController.interruptMotion();
     await manualPtz.stop();
     sendJson(res, 200, await coordinator.updateCameraControlSource(body, actor));
     return;
@@ -475,7 +475,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     if (typeof sequence !== "number" || !Number.isSafeInteger(sequence) || sequence < 0)
       throw Object.assign(new Error("Camera control sequence is required"), { status: 400 });
     const state = await store.read();
-    await ptzController.cancelSmooth();
+    await ptzController.interruptMotion();
     await manualPtz.move(
       state.cameraControlSource || state.source,
       `${actor.email || "local"}:${session}`,
