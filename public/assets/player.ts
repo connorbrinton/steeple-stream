@@ -235,12 +235,17 @@ function renderHybridPlayer(container, playback, options: any = {}) {
     switchMedia("webrtc");
     options.onTransport?.({ transport: "connecting" });
     const generation = container.steepleGeneration;
+    const fallBack = (reason: string) => {
+      if (!stopped && mode === "webrtc" && generation === container.steepleGeneration)
+        showHls(null, reason);
+    };
     try {
-      await attachWebRtc(container, video, playback.webrtcUrl, options);
+      await attachWebRtc(container, video, playback.webrtcUrl, {
+        ...options,
+        onConnectionFailure: fallBack,
+      });
     } catch (error) {
-      if (!stopped && generation === container.steepleGeneration) {
-        showHls(null, error instanceof Error ? error.message : String(error));
-      }
+      fallBack(error instanceof Error ? error.message : String(error));
     }
     notify();
   };
@@ -413,14 +418,33 @@ async function attachWebRtc(container, video, whepUrl, options: any = {}) {
   const pending = new AbortController();
   container.steepleTransportCleanup = () => pending.abort();
   const isCurrent = () => container.steeplePeer === pc;
+  let disconnectedTimer: ReturnType<typeof setTimeout> | undefined;
+  const clearDisconnectTimer = () => {
+    clearTimeout(disconnectedTimer);
+    disconnectedTimer = undefined;
+  };
+  pending.signal.addEventListener("abort", clearDisconnectTimer, { once: true });
+  const connectionFailed = (reason: string) => {
+    if (!isCurrent()) return;
+    clearDisconnectTimer();
+    options.onTransport?.({ transport: "error", reason });
+    options.onConnectionFailure?.(reason);
+  };
   pc.addEventListener("connectionstatechange", () => {
     if (!isCurrent()) return;
-    if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
-      options.onTransport?.({
-        transport: "error",
-        reason: `WebRTC peer connection ${pc.connectionState}`,
-      });
+    if (pc.connectionState === "failed") {
+      connectionFailed("WebRTC peer connection failed");
+    } else if (pc.connectionState === "disconnected") {
+      // A brief ICE disconnect is common on unstable Wi-Fi. Let it recover
+      // before replacing the peer with HLS.
+      clearDisconnectTimer();
+      options.onTransport?.({ transport: "reconnecting" });
+      disconnectedTimer = setTimeout(() => {
+        if (isCurrent() && pc.connectionState === "disconnected")
+          connectionFailed("WebRTC peer connection disconnected");
+      }, 2500);
     } else if (pc.connectionState === "connected") {
+      clearDisconnectTimer();
       void selectedCandidateType(pc)
         .then((candidateType) => {
           if (isCurrent())
