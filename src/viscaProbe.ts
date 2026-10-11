@@ -153,7 +153,14 @@ export async function probeVisca(
     ...(port === 1259 ? [] : [{ protocol: "raw-visca-udp" as const, port: 1259 }]),
   ];
   for (const target of targets) {
-    const version = await inquire(host, target.port, target.protocol, "version", ++sequence, timeoutMs);
+    const version = await inquire(
+      host,
+      target.port,
+      target.protocol,
+      "version",
+      ++sequence,
+      timeoutMs,
+    );
     const pt = await inquire(host, target.port, target.protocol, "panTilt", ++sequence, timeoutMs);
     if (!version && !pt) continue;
     const zoom = await inquire(host, target.port, target.protocol, "zoom", ++sequence, timeoutMs);
@@ -163,8 +170,22 @@ export async function probeVisca(
       try {
         position = { ...decodePanTilt(pt.body), zoom: decodeZoom(zoom.body) };
         await new Promise((resolve) => setTimeout(resolve, 200));
-        const secondPt = await inquire(host, target.port, target.protocol, "panTilt", ++sequence, timeoutMs);
-        const secondZoom = await inquire(host, target.port, target.protocol, "zoom", ++sequence, timeoutMs);
+        const secondPt = await inquire(
+          host,
+          target.port,
+          target.protocol,
+          "panTilt",
+          ++sequence,
+          timeoutMs,
+        );
+        const secondZoom = await inquire(
+          host,
+          target.port,
+          target.protocol,
+          "zoom",
+          ++sequence,
+          timeoutMs,
+        );
         if (secondPt && secondZoom)
           repeatedPosition = { ...decodePanTilt(secondPt.body), zoom: decodeZoom(secondZoom.body) };
       } catch {

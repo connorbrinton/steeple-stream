@@ -19,15 +19,16 @@ test("frames read-only VISCA inquiries with the Sony VISCA-over-IP header", () =
 
 test("correlates VISCA responses by packet sequence and payload length", () => {
   const response = Buffer.from([0x01, 0x11, 0, 3, 0, 0, 0, 7, 0x90, 0x50, 0xff]);
-  assert.deepEqual(viscaResponseBody(response, 7, "sony-visca-ip"), Buffer.from([0x90, 0x50, 0xff]));
+  assert.deepEqual(
+    viscaResponseBody(response, 7, "sony-visca-ip"),
+    Buffer.from([0x90, 0x50, 0xff]),
+  );
   assert.equal(viscaResponseBody(response, 8, "sony-visca-ip"), null);
   assert.equal(viscaResponseBody(response.subarray(0, -1), 7, "sony-visca-ip"), null);
 });
 
 test("decodes signed pan/tilt and unsigned zoom positions", () => {
-  const panTilt = Buffer.from([
-    0x90, 0x50, 0x00, 0x01, 0x02, 0x03, 0x0f, 0x0f, 0x0f, 0x0e, 0xff,
-  ]);
+  const panTilt = Buffer.from([0x90, 0x50, 0x00, 0x01, 0x02, 0x03, 0x0f, 0x0f, 0x0f, 0x0e, 0xff]);
   const zoom = Buffer.from([0x90, 0x50, 0, 0, 1, 0, 0xff]);
   assert.deepEqual(decodePanTilt(panTilt), { pan: 0x0123, tilt: -2 });
   assert.equal(decodeZoom(zoom), 16);
