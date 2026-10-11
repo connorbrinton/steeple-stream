@@ -65,7 +65,9 @@ test("HLS delivers moving video and a decoded audio signal", async ({ page }) =>
 
 test("HLS plays while a WebRTC signaling request remains pending", async ({ page }) => {
   let release;
-  const gate = new Promise((resolve) => { release = resolve; });
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
   let whepStarted = false;
   await page.route("**/webrtc/**", async (route) => {
     if (route.request().method() !== "POST") return route.continue();
@@ -79,14 +81,20 @@ test("HLS plays while a WebRTC signaling request remains pending", async ({ page
   await startPlayback(page);
   await expect.poll(() => video(page).evaluate((element) => element.srcObject)).toBe(null);
   await expect
-    .poll(() => page.evaluate(() =>
-      window.testTransports.some((item) => item.transport === "hls" && item.connectingWebRtc),
-    ))
+    .poll(() =>
+      page.evaluate(() =>
+        window.testTransports.some((item) => item.transport === "hls" && item.connectingWebRtc),
+      ),
+    )
     .toBe(true);
   release();
-  await expect.poll(() => page.evaluate(() =>
-    window.testTransports.some((item) => item.transport === "hls" && item.fallbackReason),
-  )).toBe(true);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.testTransports.some((item) => item.transport === "hls" && item.fallbackReason),
+      ),
+    )
+    .toBe(true);
 });
 
 test("a failed WHEP request falls back to playable HLS", async ({ page }) => {

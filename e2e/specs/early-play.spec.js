@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test";
 
-test("Play is clickable before broadcaster state and media negotiation finish", async ({ page }) => {
+test("Play is clickable before broadcaster state and media negotiation finish", async ({
+  page,
+}) => {
   let release;
   const gate = new Promise((resolve) => {
     release = resolve;
@@ -39,12 +41,19 @@ test("Play is clickable before broadcaster state and media negotiation finish", 
   expect(await page.locator("#preview-play-message").textContent()).toContain("Connecting");
   release();
   await expect
-    .poll(() => page.locator("#admin-preview video").first().evaluate((element) => element.currentTime), {
-      timeout: 20000,
-    })
+    .poll(
+      () =>
+        page
+          .locator("#admin-preview video")
+          .first()
+          .evaluate((element) => element.currentTime),
+      {
+        timeout: 20000,
+      },
+    )
     .toBeGreaterThan(0.3);
   await expect(page.locator("#preview-start")).toBeHidden();
-  await expect(page.locator("#admin-preview .playback-status").getByText("Ready to watch")).toHaveCount(
-    0,
-  );
+  await expect(
+    page.locator("#admin-preview .playback-status").getByText("Ready to watch"),
+  ).toHaveCount(0);
 });

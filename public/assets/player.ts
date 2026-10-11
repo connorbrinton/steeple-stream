@@ -250,8 +250,7 @@ function renderHybridPlayer(container, playback, options: any = {}) {
     rtcRetryDelay = Math.min(rtcRetryDelay * 2, 60000);
   };
   const startWebRtc = () => {
-    if (stopped || !followingLive || mode !== "hls" || !playback.webrtcUrl || candidate)
-      return;
+    if (stopped || !followingLive || mode !== "hls" || !playback.webrtcUrl || candidate) return;
     const warmVideo = document.createElement("video");
     warmVideo.className = "webrtc-prewarm";
     warmVideo.muted = true;
