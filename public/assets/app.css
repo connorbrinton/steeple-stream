@@ -1467,3 +1467,24 @@ video {
     --preview-inset: 12px;
   }
 }
+
+/* Firefox and older browsers use the same geometry, with JS supplying only
+   the scroll distance. Keep the native CSS path free of scroll listeners. */
+.broadcaster-layout.preview-scroll-fallback .preview-anchor {
+  position: sticky;
+  top: 0;
+  height: 0;
+  z-index: 10;
+}
+
+.broadcaster-layout.preview-scroll-fallback .preview-reserve {
+  height: var(--preview-height);
+}
+
+.broadcaster-layout.preview-scroll-fallback .preview-panel {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  animation: none;
+  height: max(var(--preview-min-height), calc(var(--preview-height) - var(--preview-scroll, 0px)));
+}
