@@ -54,7 +54,7 @@ probeButton.addEventListener("click", async () => {
       `Response time: ${report.responseMs === null ? "Not available" : `${Math.round(report.responseMs)} ms`}`,
       "Motion Sync: Unknown (requires camera-specific verification)",
       report.note,
-    ].join("\\n");
+    ].join("\n");
     probeOutput.hidden = false;
   } catch (error) {
     probeStatus.textContent = `Probe failed: ${error instanceof Error ? error.message : String(error)}`;
