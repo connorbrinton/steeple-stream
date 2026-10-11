@@ -81,7 +81,9 @@ test("a failed WHEP request falls back to playable HLS", async ({ page }) => {
   await expectAudio(page, 1, false);
 });
 
-test("an established WebRTC connection that fails ICE switches to playable HLS", async ({ page }) => {
+test("an established WebRTC connection that fails ICE switches to playable HLS", async ({
+  page,
+}) => {
   await page.goto("/?mode=hybrid&timeline=false");
   await startPlayback(page);
   await expectWebRtcMedia(page);
@@ -98,8 +100,7 @@ test("an established WebRTC connection that fails ICE switches to playable HLS",
       page.evaluate(() =>
         window.testTransports.some(
           (item) =>
-            item.transport === "hls" &&
-            item.fallbackReason === "WebRTC peer connection failed",
+            item.transport === "hls" && item.fallbackReason === "WebRTC peer connection failed",
         ),
       ),
     )
