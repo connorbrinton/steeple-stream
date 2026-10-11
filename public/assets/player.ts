@@ -209,6 +209,8 @@ function renderHybridPlayer(container, playback, options: any = {}) {
   const cleanupCandidate = (stage: any) => {
     stage.host.steepleTransportCleanup?.();
     stage.host.steeplePeer?.close();
+    // Invalidate the old candidate so a late WHEP response deletes its session.
+    stage.host.steeplePeer = null;
     const resource = stage.host.steepleWhepResource;
     if (resource) fetch(resource, { method: "DELETE", keepalive: true }).catch(() => {});
     stage.host.steepleWhepResource = null;
