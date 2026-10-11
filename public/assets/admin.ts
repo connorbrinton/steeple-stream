@@ -27,6 +27,12 @@ let selectingSourceId: string | null = null;
 let selectingCameraControlSourceId: string | null = null;
 let csrfToken = "development";
 
+function formatCameraPosition(position) {
+  return position
+    ? `pan=${position.pan}, tilt=${position.tilt}, zoom=${position.zoom}`
+    : "Not available";
+}
+
 probeButton.addEventListener("click", async () => {
   probeButton.disabled = true;
   probeStatus.textContent = "Checking camera…";
@@ -41,16 +47,12 @@ probeButton.addEventListener("click", async () => {
     if (!response.ok) throw new Error(report.error || response.statusText);
     probeStatus.textContent =
       report.status === "reachable" ? "VISCA camera responded." : "VISCA did not respond.";
-    const formatPosition = (position) =>
-      position
-        ? `pan=${position.pan}, tilt=${position.tilt}, zoom=${position.zoom}`
-        : "Not available";
     probeOutput.textContent = [
       `Camera: ${report.host}`,
       `Transport: ${report.protocol || "Not detected"}${report.port ? ` (UDP ${report.port})` : ""}`,
       `VISCA version response: ${report.version || "Not available"}`,
-      `Position: ${formatPosition(report.position)}`,
-      `Repeated position: ${formatPosition(report.repeatedPosition)}`,
+      `Position: ${formatCameraPosition(report.position)}`,
+      `Repeated position: ${formatCameraPosition(report.repeatedPosition)}`,
       `Response time: ${report.responseMs === null ? "Not available" : `${Math.round(report.responseMs)} ms`}`,
       "Motion Sync: Unknown (requires camera-specific verification)",
       report.note,
