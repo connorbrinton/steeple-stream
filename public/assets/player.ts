@@ -138,7 +138,9 @@ function destroy(container) {
 // Keep the element (and its browser playback permission) for this container,
 // including across offline slates. Transports and controls have shorter lives.
 function getVideo(container) {
-  return (container.steepleVideo ||= document.createElement("video"));
+  const video = (container.steepleVideo ||= document.createElement("video"));
+  video.classList.remove("preview-preplay-video");
+  return video;
 }
 
 function renderHybridPlayer(container, playback, options: any = {}) {
