@@ -5,6 +5,7 @@ const details = document.querySelector("#broadcast-details")!;
 const broadcastControlsGroup = document.querySelector("#broadcast-controls-group")!;
 const ptzControls = document.querySelector("#ptz-controls")!;
 const smoothPresetRecall = document.querySelector<HTMLInputElement>("#smooth-preset-recall")!;
+const stopCameraMotion = document.querySelector<HTMLButtonElement>("#stop-camera-motion")!;
 const adminPreview = document.querySelector("#admin-preview")!;
 const unitDialog = document.querySelector<HTMLDialogElement>("#unit-dialog")!;
 const unitDialogOptions = document.querySelector("#unit-dialog-options")!;
@@ -16,6 +17,17 @@ let csrfToken = "development";
 let presetSignature = "";
 let latestRecall = 0;
 let manualSourceSignature = "";
+
+stopCameraMotion.addEventListener("click", async () => {
+  stopCameraMotion.disabled = true;
+  try {
+    await post("/api/ptz/stop", {}, "POST", false);
+  } catch (error) {
+    console.error("Camera stop failed", error);
+  } finally {
+    stopCameraMotion.disabled = false;
+  }
+});
 
 document.querySelector("#start")!.addEventListener("click", () => startBroadcast());
 document.querySelector("#unit-dialog-cancel")!.addEventListener("click", () => unitDialog.close());
