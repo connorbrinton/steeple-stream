@@ -83,6 +83,63 @@ test("NDI controller recalls configured NDI preset", async () => {
   ]);
 });
 
+test("opt-in synchronized NDI recall uses captured coordinates instead of native preset recall", async () => {
+  const calls = [];
+  let manualStopped = 0;
+  const controller = new PtzController({
+    config: { transport: "ndi" },
+    stopManual: async () => { manualStopped++; },
+    runner: { recallNdiPreset: async () => { throw new Error("native should not run"); } },
+    smoothRunner: async ({ target }) => { calls.push(target); },
+  });
+  const result = await controller.recallPreset({
+    mode: "smooth",
+    preset: { id: "pulpit", name: "Pulpit", ndiPreset: 18, position: {
+      pan: -1091, tilt: -47, zoom: 3619,
+    }},
+    source: { type: "ndi", ndi: { sourceName: "ClearTouch RL500", urlAddress: "192.168.110.145:5961" } },
+  });
+  assert.equal(result.movement, "synchronized-ndi");
+  assert.deepEqual(calls, [{ pan: -1091, tilt: -47, zoom: 3619 }]);
+  assert.equal(manualStopped, 1);
+});
+
+test("smooth recall requires captured coordinates; never silently triggers native motion", async () => {
+  const controller = new PtzController({
+    config: { transport: "ndi" },
+    runner: { recallNdiPreset: async () => { throw new Error("native should not run"); } },
+    smoothRunner: async () => { throw new Error("smooth should not run"); },
+  });
+  await assert.rejects(controller.recallPreset({
+    mode: "smooth",
+    preset: { id: "pulpit", name: "Pulpit", ndiPreset: 18, position: null },
+    source: { type: "ndi", ndi: { sourceName: "ClearTouch RL500" } },
+  }), /Capture this preset/);
+});
+
+test("manual interruption cancels in-flight synchronized motion", async () => {
+  let release;
+  const controller = new PtzController({
+    config: { transport: "ndi" },
+    smoothRunner: async ({ signal }) => {
+      await new Promise((resolve) => {
+        release = resolve;
+        signal.addEventListener("abort", resolve, { once: true });
+      });
+    },
+  });
+  const recall = controller.recallPreset({
+    mode: "smooth",
+    preset: { id: "pulpit", name: "Pulpit", ndiPreset: 18, position: {pan:1,tilt:2,zoom:3} },
+    source: { type: "ndi", ndi: { sourceName: "RL500" } },
+  });
+  // Allow the recall's initial asynchronous manual-stop step to finish.
+  await new Promise((resolve) => setImmediate(resolve));
+  await controller.interruptMotion();
+  await recall;
+  assert.ok(release);
+});
+
 test("NDI controller requires a selected NDI source", async () => {
   const controller = new PtzController({
     config: { transport: "ndi" },
