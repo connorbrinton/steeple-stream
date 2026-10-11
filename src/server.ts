@@ -10,6 +10,7 @@ import { BroadcastService } from "./broadcastService.js";
 import { IngestManager } from "./ingestManager.js";
 import { PtzController } from "./ptzController.js";
 import { runSynchronizedMove } from "./smoothPtz.js";
+import { PresetCaptureBatch } from "./presetCaptureBatch.js";
 import { configuredCameraHost, probeVisca, readViscaPosition } from "./viscaProbe.js";
 import { ManualPtz, cameraVelocity } from "./manualPtz.js";
 import { parseJson, proxyHttp, sendJson, sendStatic } from "./httpUtils.js";
@@ -62,6 +63,34 @@ const coordinator = new LocationCommandCoordinator({
   service,
   ingestManager,
   mediaManager: mediamtxManager,
+});
+const presetCaptureBatch = new PresetCaptureBatch({
+  plan: async () => {
+    const state = await store.read();
+    if (state.broadcast.status === "live")
+      throw Object.assign(new Error("Cannot capture presets during a live broadcast"), {
+        status: 409,
+      });
+    if (config.ptz.transport !== "ndi")
+      throw Object.assign(new Error("Automatic preset capture requires NDI control"), {
+        status: 409,
+      });
+    const source =
+      state.cameraControlSource?.type === "ndi" ? state.cameraControlSource : state.source;
+    const host = configuredCameraHost(source);
+    return {
+      presets: state.ptz.presets,
+      readPosition: () =>
+        readViscaPosition(host, { port: config.ptz.ndiFeedbackPort }),
+    };
+  },
+  recall: async (id, actor) => {
+    await coordinator.recallPreset(id, actor, "native");
+  },
+  capture: async (id, position, actor) => {
+    await service.savePresetPosition(id, position, actor);
+    coordinator.emit("changed");
+  },
 });
 const auth = new AuthService({ store, config: config.auth, roleResolver: access });
 const rateLimiter = new AppRateLimiter();
@@ -306,6 +335,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (method === "POST" && url.pathname === "/api/broadcast/start") {
     requireCapability("broadcastControls");
     const actor = auth.authorize(req, "operator", { csrfRequired: true });
+    presetCaptureBatch.assertInactive();
     const current = await service.summary();
     if (current.broadcast.status === "live") {
       sendJson(res, 200, await coordinator.start(actor));
@@ -346,6 +376,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (method === "PUT" && url.pathname === "/api/source") {
     const actor = auth.authorize(req, "administrator", { csrfRequired: true });
     const body = await parseJson(req);
+    presetCaptureBatch.assertInactive();
     await ptzController.interruptMotion();
     await manualPtz.stop();
     sendJson(res, 200, await coordinator.updateSource(body, actor));
@@ -355,6 +386,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (method === "PUT" && url.pathname === "/api/camera-control-source") {
     const actor = auth.authorize(req, "administrator", { csrfRequired: true });
     const body = await parseJson(req);
+    presetCaptureBatch.assertInactive();
     await ptzController.interruptMotion();
     await manualPtz.stop();
     sendJson(res, 200, await coordinator.updateCameraControlSource(body, actor));
@@ -464,9 +496,28 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     return;
   }
 
+  if (method === "GET" && url.pathname === "/api/admin/camera/capture-all") {
+    auth.authorize(req, "administrator");
+    sendJson(res, 200, presetCaptureBatch.snapshot());
+    return;
+  }
+
+  if (method === "POST" && url.pathname === "/api/admin/camera/capture-all") {
+    const actor = auth.authorize(req, "administrator", { csrfRequired: true });
+    sendJson(res, 202, await presetCaptureBatch.start(actor));
+    return;
+  }
+
+  if (method === "POST" && url.pathname === "/api/admin/camera/capture-all/cancel") {
+    auth.authorize(req, "administrator", { csrfRequired: true });
+    sendJson(res, 200, presetCaptureBatch.cancel());
+    return;
+  }
+
   if (method === "POST" && url.pathname === "/api/ptz/move") {
     const actor = auth.authorize(req, "operator", { csrfRequired: true });
     const body = await parseJson(req);
+    presetCaptureBatch.assertInactive();
     const velocity = cameraVelocity(body);
     const session = typeof body.session === "string" ? body.session : "";
     if (!session || session.length > 100)
@@ -488,6 +539,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
 
   if (method === "POST" && url.pathname === "/api/ptz/stop") {
     auth.authorize(req, "operator", { csrfRequired: true });
+    presetCaptureBatch.cancel();
     await ptzController.interruptMotion();
     await manualPtz.stop();
     sendJson(res, 200, { stopped: true });
@@ -497,6 +549,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (method === "POST" && url.pathname === "/api/ptz/recall") {
     const actor = auth.authorize(req, "operator", { csrfRequired: true });
     const body = await parseJson(req);
+    presetCaptureBatch.assertInactive();
     if (body.mode !== undefined && body.mode !== "native" && body.mode !== "smooth")
       throw Object.assign(new Error("Invalid preset recall mode"), { status: 400 });
     sendJson(
@@ -510,6 +563,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (method === "POST" && url.pathname === "/api/ptz/capture") {
     const actor = auth.authorize(req, "administrator", { csrfRequired: true });
     const body = await parseJson(req);
+    presetCaptureBatch.assertInactive();
     sendJson(res, 200, await coordinator.capturePreset(String(body.presetId || ""), actor));
     return;
   }
