@@ -73,8 +73,7 @@ test("a failed WHEP request falls back to playable HLS", async ({ page }) => {
       page.evaluate(() =>
         window.testTransports.some(
           (item) =>
-            item.transport === "hls" &&
-            item.fallbackReason?.includes("WHEP returned HTTP 503"),
+            item.transport === "hls" && item.fallbackReason?.includes("WHEP returned HTTP 503"),
         ),
       ),
     )

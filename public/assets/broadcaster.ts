@@ -225,7 +225,10 @@ function showPreviewTransport(info) {
 
 function renderPreview(state) {
   if (window.SteeplePlayer.renderPreviewStatus(adminPreview, state.source)) {
-    showPreviewTransport({ transport: "unavailable", reason: "No camera video source configured." });
+    showPreviewTransport({
+      transport: "unavailable",
+      reason: "No camera video source configured.",
+    });
     return;
   }
   const broadcast = state.broadcast;

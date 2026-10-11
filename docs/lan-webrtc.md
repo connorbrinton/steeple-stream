@@ -20,6 +20,6 @@ After deployment, open the normal `https://broadcasts.brintonium.com` broadcaste
 
 If the indicator shows HLS on the chapel Wi-Fi, check the browser's `about:webrtc` (Firefox) or `chrome://webrtc-internals` (Chromium-based browsers) and confirm the Beelink LAN IP can be reached over UDP 8189. Some guest Wi-Fi networks use client isolation or VLAN ACLs that block direct access. Also check the NixOS firewall and MediaMTX ICE logs.
 
-The indicator reports the transport selected *by the browser*, not simply whether the WebRTC API is enabled in server configuration. A host ICE candidate indicates a direct peer connection but isn't proof of the network's exact physical route.
+The indicator reports the transport selected _by the browser_, not simply whether the WebRTC API is enabled in server configuration. A host ICE candidate indicates a direct peer connection but isn't proof of the network's exact physical route.
 
 Do not deploy or change the running configuration during an active broadcast.
