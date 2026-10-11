@@ -3,6 +3,12 @@ declare global {
     Hls: any;
     SteepleComponent: any;
     SteeplePlayer: any;
+    SteepleEarlyPlay?: {
+      requested: boolean;
+      playing(): void;
+      blocked(): void;
+      waiting(): void;
+    };
     steepleRole: string;
   }
 

@@ -66,7 +66,12 @@ test("all page templates version their scripts and stylesheets", async (t) => {
     {
       name: "broadcaster",
       path: "/broadcaster.html",
-      assets: ["/build/app.css", "/vendor/hls.min.js", "/build/broadcaster.js"],
+      assets: [
+        "/build/app.css",
+        "/assets/early-play.js",
+        "/vendor/hls.min.js",
+        "/build/broadcaster.js",
+      ],
     },
     { name: "landing", path: "/index.html", assets: ["/build/app.css", "/build/landing.js"] },
     {

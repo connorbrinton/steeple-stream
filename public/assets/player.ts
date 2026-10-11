@@ -138,7 +138,9 @@ function destroy(container) {
 // Keep the element (and its browser playback permission) for this container,
 // including across offline slates. Transports and controls have shorter lives.
 function getVideo(container) {
-  return (container.steepleVideo ||= document.createElement("video"));
+  const video = (container.steepleVideo ||= document.createElement("video"));
+  video.classList.remove("preview-preplay-video");
+  return video;
 }
 
 function renderHybridPlayer(container, playback, options: any = {}) {
@@ -152,6 +154,9 @@ function renderHybridPlayer(container, playback, options: any = {}) {
   let advertised: { start: number; end: number; updatedAt: number } | null = null;
   let refreshTimer: ReturnType<typeof setTimeout> | undefined;
   let request: AbortController | undefined;
+  let rtcRetryTimer: ReturnType<typeof setTimeout> | undefined;
+  let rtcRetryDelay = 2000;
+  let candidate: any = null;
   const subscribers = new Set<() => void>();
   const startedAt = Date.parse(options.timelineStartAt || "") || Date.now();
   const elapsed = () => Math.max(0, (Date.now() - startedAt) / 1000);
@@ -201,13 +206,30 @@ function renderHybridPlayer(container, playback, options: any = {}) {
     video.play().catch(() => {});
     notify();
   };
+  const cleanupCandidate = (stage: any) => {
+    stage.host.steepleTransportCleanup?.();
+    stage.host.steeplePeer?.close();
+    // Invalidate the old candidate so a late WHEP response deletes its session.
+    stage.host.steeplePeer = null;
+    const resource = stage.host.steepleWhepResource;
+    if (resource) fetch(resource, { method: "DELETE", keepalive: true }).catch(() => {});
+    stage.host.steepleWhepResource = null;
+    stage.video.pause();
+    stage.video.srcObject = null;
+    stage.video.remove();
+    if (candidate === stage) candidate = null;
+  };
+  const stopCandidate = () => {
+    clearTimeout(rtcRetryTimer);
+    if (candidate) cleanupCandidate(candidate);
+  };
   const showHls = (time: number | null = null, fallbackReason: string | null = null) => {
     if (!playback.hlsUrl || stopped) return;
+    if (time !== null) stopCandidate();
     requestedTime = time;
     followingLive = time === null;
     if (mode !== "hls") {
       switchMedia("hls");
-      options.onTransport?.({ transport: "hls", fallbackReason });
       const listeners = new AbortController();
       container.steepleTransportCleanup = () => listeners.abort();
       for (const event of ["loadedmetadata", "progress", "canplay"]) {
@@ -215,6 +237,7 @@ function renderHybridPlayer(container, playback, options: any = {}) {
       }
       attachHls(container, video, playback.hlsUrl, options);
     }
+    options.onTransport?.({ transport: "hls", fallbackReason, connectingWebRtc: !!candidate });
     seekHls();
     if (time === null) {
       const range = getLiveWindow(video);
@@ -223,24 +246,107 @@ function renderHybridPlayer(container, playback, options: any = {}) {
     }
     notify();
   };
+  const retryWebRtc = (reason: string) => {
+    if (stopped || !followingLive || mode !== "hls") return;
+    options.onTransport?.({ transport: "hls", fallbackReason: reason });
+    clearTimeout(rtcRetryTimer);
+    rtcRetryTimer = setTimeout(startWebRtc, rtcRetryDelay);
+    rtcRetryDelay = Math.min(rtcRetryDelay * 2, 60000);
+  };
+  const startWebRtc = () => {
+    if (stopped || !followingLive || mode !== "hls" || !playback.webrtcUrl || candidate) return;
+    const warmVideo = document.createElement("video");
+    warmVideo.className = "webrtc-prewarm";
+    warmVideo.muted = true;
+    warmVideo.autoplay = true;
+    warmVideo.playsInline = true;
+    const stage: any = { video: warmVideo, host: {}, promoted: false, failureReason: null };
+    candidate = stage;
+    wrapper.append(warmVideo);
+    options.onTransport?.({ transport: "hls", connectingWebRtc: true });
+    void (async () => {
+      try {
+        await attachWebRtc(stage.host, warmVideo, playback.webrtcUrl, {
+          ...options,
+          // The preview remains HLS until WebRTC has actually decoded a frame.
+          onTransport: (event: any) => {
+            if (event.transport.startsWith("webrtc-")) stage.candidateType = event.candidateType;
+            if (stage.promoted && candidate === stage && mode === "webrtc")
+              options.onTransport?.(event);
+          },
+          onConnectionFailure: (reason: string) => {
+            if (candidate !== stage) return;
+            if (stage.promoted && mode === "webrtc") {
+              showHls(null, reason);
+              retryWebRtc(reason);
+            } else {
+              stage.failureReason = reason;
+              stage.host.steepleTransportCleanup?.();
+            }
+          },
+        });
+        await waitForVideoFrame(warmVideo);
+        if (stopped || !followingLive || mode !== "hls" || candidate !== stage) {
+          cleanupCandidate(stage);
+          return;
+        }
+        // Keep the decoded frame visible on top of HLS until the existing,
+        // user-activated video has rendered the promoted WebRTC stream.
+        stage.promoted = true;
+        warmVideo.classList.add("webrtc-prewarm-visible");
+        switchMedia("webrtc");
+        container.steepleTransportCleanup = () => cleanupCandidate(stage);
+        video.srcObject = warmVideo.srcObject;
+        const candidateType = stage.candidateType || "unknown";
+        options.onTransport?.({ transport: `webrtc-${candidateType}`, candidateType });
+        const uncover = () => {
+          warmVideo.pause();
+          warmVideo.srcObject = null;
+          warmVideo.remove();
+        };
+        video.addEventListener("playing", uncover, { once: true });
+        if (video.readyState >= 3 && !video.paused) uncover();
+        video.play().catch(() => options.onAutoplayBlocked?.());
+        rtcRetryDelay = 2000;
+        notify();
+      } catch (error) {
+        if (candidate !== stage || stopped) return;
+        const reason =
+          stage.failureReason || (error instanceof Error ? error.message : String(error));
+        cleanupCandidate(stage);
+        retryWebRtc(reason);
+      }
+    })();
+  };
   const goLive = async () => {
     if (stopped) return;
     requestedTime = null;
     followingLive = true;
-    if (!playback.webrtcUrl) return showHls();
     if (mode === "webrtc") {
       video.play().catch(() => {});
       return;
     }
+    if (playback.hlsUrl) {
+      // HLS never waits for WHEP signaling, ICE or a WebRTC timeout.
+      showHls();
+      startWebRtc();
+      return;
+    }
+    if (!playback.webrtcUrl) return;
     switchMedia("webrtc");
     options.onTransport?.({ transport: "connecting" });
     const generation = container.steepleGeneration;
+    const fallBack = (reason: string) => {
+      if (!stopped && generation === container.steepleGeneration)
+        options.onTransport?.({ transport: "error", reason });
+    };
     try {
-      await attachWebRtc(container, video, playback.webrtcUrl, options);
+      await attachWebRtc(container, video, playback.webrtcUrl, {
+        ...options,
+        onConnectionFailure: fallBack,
+      });
     } catch (error) {
-      if (!stopped && generation === container.steepleGeneration) {
-        showHls(null, error instanceof Error ? error.message : String(error));
-      }
+      fallBack(error instanceof Error ? error.message : String(error));
     }
     notify();
   };
@@ -309,6 +415,7 @@ function renderHybridPlayer(container, playback, options: any = {}) {
   const timer = setInterval(notify, 500);
   container.steepleControlsCleanup = () => {
     stopped = true;
+    stopCandidate();
     clearInterval(timer);
     clearTimeout(refreshTimer);
     request?.abort();
@@ -407,20 +514,70 @@ async function selectedCandidateType(pc) {
   return remote?.candidateType || "unknown";
 }
 
+/** Wait for decoded media, not merely successful WHEP/ICE negotiation. */
+function waitForVideoFrame(video: HTMLVideoElement, timeoutMs = 2500): Promise<void> {
+  if (typeof video.requestVideoFrameCallback !== "function") {
+    if (video.readyState >= 2 && video.videoWidth > 0) return Promise.resolve();
+    return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        video.removeEventListener("loadeddata", ready);
+        reject(new Error("WebRTC produced no decoded frame"));
+      }, timeoutMs);
+      const ready = () => {
+        clearTimeout(timeout);
+        video.removeEventListener("loadeddata", ready);
+        resolve();
+      };
+      video.addEventListener("loadeddata", ready, { once: true });
+    });
+  }
+  return new Promise<void>((resolve, reject) => {
+    let callbackId: number;
+    const timeout = setTimeout(() => {
+      video.cancelVideoFrameCallback(callbackId);
+      if (video.readyState >= 2 && video.videoWidth > 0) resolve();
+      else reject(new Error("WebRTC produced no decoded frame"));
+    }, timeoutMs);
+    callbackId = video.requestVideoFrameCallback(() => {
+      clearTimeout(timeout);
+      resolve();
+    });
+  });
+}
+
 async function attachWebRtc(container, video, whepUrl, options: any = {}) {
   const pc = new RTCPeerConnection();
   container.steeplePeer = pc;
   const pending = new AbortController();
   container.steepleTransportCleanup = () => pending.abort();
   const isCurrent = () => container.steeplePeer === pc;
+  let disconnectedTimer: ReturnType<typeof setTimeout> | undefined;
+  const clearDisconnectTimer = () => {
+    clearTimeout(disconnectedTimer);
+    disconnectedTimer = undefined;
+  };
+  pending.signal.addEventListener("abort", clearDisconnectTimer, { once: true });
+  const connectionFailed = (reason: string) => {
+    if (!isCurrent()) return;
+    clearDisconnectTimer();
+    options.onTransport?.({ transport: "error", reason });
+    options.onConnectionFailure?.(reason);
+  };
   pc.addEventListener("connectionstatechange", () => {
     if (!isCurrent()) return;
-    if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
-      options.onTransport?.({
-        transport: "error",
-        reason: `WebRTC peer connection ${pc.connectionState}`,
-      });
+    if (pc.connectionState === "failed") {
+      connectionFailed("WebRTC peer connection failed");
+    } else if (pc.connectionState === "disconnected") {
+      // A brief ICE disconnect is common on unstable Wi-Fi. Let it recover
+      // before replacing the peer with HLS.
+      clearDisconnectTimer();
+      options.onTransport?.({ transport: "reconnecting" });
+      disconnectedTimer = setTimeout(() => {
+        if (isCurrent() && pc.connectionState === "disconnected")
+          connectionFailed("WebRTC peer connection disconnected");
+      }, 2500);
     } else if (pc.connectionState === "connected") {
+      clearDisconnectTimer();
       void selectedCandidateType(pc)
         .then((candidateType) => {
           if (isCurrent())
@@ -704,6 +861,10 @@ function monitorPlayback(container, video, options) {
       if (disposed || !container.contains(video)) return;
       if (reason.name !== "NotAllowedError") return;
       autoplayBlocked = true;
+      if (options.onAutoplayBlocked) {
+        options.onAutoplayBlocked();
+        return;
+      }
       showPlaybackStatus(container, "Ready to watch", "");
       const overlay = container.querySelector(".playback-status")!;
       if (overlay.querySelector("button")) return;

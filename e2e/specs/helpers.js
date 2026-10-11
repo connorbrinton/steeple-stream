@@ -1,11 +1,28 @@
 import { expect } from "@playwright/test";
 
-export const video = (page) => page.locator("#player video");
+export const video = (page) => page.locator('#player media-controller video[slot="media"]');
 export async function expectProgress(page) {
-  const initial = await video(page).evaluate((element) => element.currentTime);
+  const read = () =>
+    video(page).evaluate((element) => ({
+      time: element.currentTime,
+      rtc: element.srcObject !== null,
+    }));
+  let baseline = await read();
   await expect
-    .poll(() => video(page).evaluate((element) => element.currentTime), { timeout: 20_000 })
-    .toBeGreaterThan(initial + 0.3);
+    .poll(
+      async () => {
+        const current = await read();
+        // HLS and WebRTC use different clock origins. Wait for progression
+        // *after* a transport change rather than comparing across that jump.
+        if (current.rtc !== baseline.rtc || current.time < baseline.time - 0.3) {
+          baseline = current;
+          return false;
+        }
+        return current.time > baseline.time + 0.3;
+      },
+      { timeout: 20_000 },
+    )
+    .toBe(true);
 }
 export async function expectContainedVideo(page) {
   await expect
@@ -91,4 +108,7 @@ export async function expectWebRtcMedia(page) {
       { timeout: 20_000 },
     )
     .toBe(true);
+  // ICE can decode into a hidden warm-up element while HLS remains active.
+  // The test should finish only after the user-facing player has selected WebRTC.
+  await expect.poll(() => video(page).evaluate((element) => element.srcObject !== null)).toBe(true);
 }

@@ -198,12 +198,24 @@ async function recallPreset(button, presetId) {
   }
 }
 
+function markPreviewPlaying() {
+  window.SteepleEarlyPlay?.playing();
+}
+
+function observePreviewVideo(video: HTMLVideoElement) {
+  video.addEventListener("playing", markPreviewPlaying);
+  if (!video.paused && video.readyState >= 2) markPreviewPlaying();
+  return () => video.removeEventListener("playing", markPreviewPlaying);
+}
+
 function showPreviewTransport(info) {
   const transport = info?.transport || "unknown";
   let label = "Preview transport unknown";
   let detail = "";
   if (transport === "connecting") {
     label = "WebRTC · Connecting…";
+  } else if (transport === "reconnecting") {
+    label = "WebRTC · Reconnecting…";
   } else if (transport.startsWith("webrtc-")) {
     const type = info.candidateType;
     label =
@@ -214,7 +226,7 @@ function showPreviewTransport(info) {
           : "WebRTC · Connected";
     detail = type && type !== "unknown" ? `ICE candidate: ${type}` : "";
   } else if (transport === "hls") {
-    label = "HLS · Higher latency";
+    label = info.connectingWebRtc ? "HLS · Checking WebRTC" : "HLS · Higher latency";
     detail = info.fallbackReason ? `WebRTC unavailable: ${info.fallbackReason}` : "";
   } else if (transport === "error") {
     label = "WebRTC · Connection failed";
@@ -258,6 +270,8 @@ function renderPreview(state) {
       timeoutMs: 4000,
       streamKey,
       onTransport: showPreviewTransport,
+      onVideo: observePreviewVideo,
+      onAutoplayBlocked: () => window.SteepleEarlyPlay?.blocked(),
     });
     return;
   }
