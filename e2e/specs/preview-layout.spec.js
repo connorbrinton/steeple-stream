@@ -32,7 +32,8 @@ for (const forceFallback of [false, true]) {
             const preview = document.querySelector(".preview-panel").getBoundingClientRect();
             const controls = document.querySelector(".operator-panel").getBoundingClientRect();
             const probe = document.createElement("div");
-            probe.style.cssText = "position:absolute;visibility:hidden;height:var(--preview-min-height)";
+            probe.style.cssText =
+              "position:absolute;visibility:hidden;height:var(--preview-min-height)";
             document.querySelector(".broadcaster-layout").append(probe);
             const minHeight = probe.getBoundingClientRect().height;
             probe.remove();
