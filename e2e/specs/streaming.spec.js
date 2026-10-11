@@ -26,7 +26,9 @@ test("the player reports WebRTC negotiation and the connected ICE candidate type
   await expectWebRtcMedia(page);
   await expect
     .poll(() =>
-      page.evaluate(() => window.testTransports.some((item) => item.transport === "connecting")),
+      page.evaluate(() =>
+        window.testTransports.some((item) => item.transport === "hls" && item.connectingWebRtc),
+      ),
     )
     .toBe(true);
   await expect
