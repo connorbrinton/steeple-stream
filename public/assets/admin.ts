@@ -11,6 +11,9 @@ const sourceDiscoveryStatus = document.querySelector("#source-discovery-status")
 const sourceModal = document.querySelector("#manual-source-modal")!;
 const openManualSource = document.querySelector("#open-manual-source")!;
 const obsForm = document.querySelector("#obs-credential-form")!;
+const probeButton = document.querySelector<HTMLButtonElement>("#probe-camera")!;
+const probeStatus = document.querySelector("#camera-probe-status")!;
+const probeOutput = document.querySelector<HTMLElement>("#camera-probe-output")!;
 
 let latestHealth: { ingest?: unknown } | null = null;
 let latestState: unknown = null;
@@ -23,6 +26,42 @@ let sourceCatalog: {
 let selectingSourceId: string | null = null;
 let selectingCameraControlSourceId: string | null = null;
 let csrfToken = "development";
+
+probeButton.addEventListener("click", async () => {
+  probeButton.disabled = true;
+  probeStatus.textContent = "Checking camera…";
+  probeOutput.hidden = true;
+  try {
+    const response = await fetch("/api/admin/camera/probe", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-steeple-csrf": csrfToken },
+      body: "{}",
+    });
+    const report = await response.json();
+    if (!response.ok) throw new Error(report.error || response.statusText);
+    probeStatus.textContent =
+      report.status === "reachable" ? "VISCA camera responded." : "VISCA did not respond.";
+    const formatPosition = (position) =>
+      position
+        ? `pan=${position.pan}, tilt=${position.tilt}, zoom=${position.zoom}`
+        : "Not available";
+    probeOutput.textContent = [
+      `Camera: ${report.host}`,
+      `Transport: ${report.protocol || "Not detected"}${report.port ? ` (UDP ${report.port})` : ""}`,
+      `VISCA version response: ${report.version || "Not available"}`,
+      `Position: ${formatPosition(report.position)}`,
+      `Repeated position: ${formatPosition(report.repeatedPosition)}`,
+      `Response time: ${report.responseMs === null ? "Not available" : `${Math.round(report.responseMs)} ms`}`,
+      "Motion Sync: Unknown (requires camera-specific verification)",
+      report.note,
+    ].join("\\n");
+    probeOutput.hidden = false;
+  } catch (error) {
+    probeStatus.textContent = `Probe failed: ${error instanceof Error ? error.message : String(error)}`;
+  } finally {
+    probeButton.disabled = false;
+  }
+});
 
 openManualSource.addEventListener("click", () => openManualSourceModal());
 document
