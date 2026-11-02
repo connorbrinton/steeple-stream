@@ -70,16 +70,14 @@ export default defineConfig({
           async (entries) => {
             const required = broadcasterFiles();
             return {
-              manifest: entries.filter((entry) => {
-                const filename = new URL(entry.url, "https://example.invalid").pathname.replace(
-                  /^\/build\//,
-                  "",
-                );
-                return (
-                  required.has(filename) ||
-                  entry.url.startsWith("/operator-shell") ||
-                  entry.url.startsWith("/assets/early-play.js")
-                );
+              manifest: entries.flatMap((entry) => {
+                const pathname = new URL(entry.url, "https://example.invalid").pathname;
+                if (pathname === "/operator-shell" || pathname === "/assets/early-play.js")
+                  return [entry];
+                const filename = pathname.replace(/^\/build\//, "").replace(/^\//, "");
+                // Workbox's Vite glob entries are relative to buildDir, but the Node
+                // server serves them at /build/. Keep those paths explicit.
+                return required.has(filename) ? [{ ...entry, url: `/build/${filename}` }] : [];
               }),
               warnings: [],
             };
