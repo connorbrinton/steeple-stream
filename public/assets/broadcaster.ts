@@ -469,12 +469,14 @@ async function connect() {
   }
 }
 
+// oxlint-disable no-underscore-dangle -- Vite injects this build-time identifier.
 declare const __STEEPLE_BUILD_COMMIT__: string;
 
 // This revision is baked into the JS bundle. It remains available even if the
 // appliance has upgraded while this browser is running an older offline shell.
 const clientCommit =
   typeof __STEEPLE_BUILD_COMMIT__ === "string" ? __STEEPLE_BUILD_COMMIT__ : "development";
+// oxlint-enable no-underscore-dangle
 const shortCommit = (revision: string) =>
   /^[0-9a-f]{40}$/i.test(revision) ? revision.slice(0, 9) : revision;
 
@@ -513,9 +515,10 @@ function workerCommit(worker: ServiceWorker | null): Promise<string> {
       resolve(value);
     };
     const timer = setTimeout(() => finish("No response"), 2000);
-    channel.port1.onmessage = (event) => {
+    channel.port1.addEventListener("message", (event) => {
       finish(typeof event.data?.commit === "string" ? event.data.commit : "Unknown");
-    };
+    });
+    channel.port1.start();
     try {
       worker.postMessage({ type: "GET_VERSION" }, [channel.port2]);
     } catch {
@@ -611,16 +614,22 @@ document.querySelector("#diagnostics-copy")!.addEventListener("click", () => {
   const report = diagnosticIds
     .map(([label, id]) => `${label}: ${document.getElementById(id)!.textContent}`)
     .join("\n");
-  void navigator.clipboard.writeText(report).then(
-    () => {
-      diagnosticsCopyStatus.textContent = "Diagnostics copied";
-      diagnosticsCopyStatus.hidden = false;
-    },
-    () => {
-      diagnosticsCopyStatus.textContent = "Copy failed; you can select the values above";
-      diagnosticsCopyStatus.hidden = false;
-    },
-  );
+  diagnosticsCopyStatus.hidden = true;
+  // Clipboard access requires a user gesture. Call it immediately on the click,
+  // rather than after another asynchronous operation.
+  void Promise.resolve()
+    .then(() => navigator.clipboard.writeText(report))
+    .then(
+      () => {
+        diagnosticsCopyStatus.textContent = "Diagnostics copied";
+        diagnosticsCopyStatus.hidden = false;
+      },
+      (error) => {
+        console.warn("Could not copy diagnostic report", error);
+        diagnosticsCopyStatus.textContent = "Copy failed; you can select the values above";
+        diagnosticsCopyStatus.hidden = false;
+      },
+    );
 });
 
 const offlineStatus = document.querySelector<HTMLElement>("#offline-status")!;
@@ -634,8 +643,8 @@ async function verifyOfflineCache(): Promise<boolean> {
   if (!navigator.serviceWorker.controller) return false;
   const required = ["/operator-shell", "/build/broadcaster.js", "/build/app.css"];
   const keys = await caches.keys();
-  for (const key of keys.filter((key) => key.startsWith("workbox-precache-"))) {
-    const cache = await caches.open(key);
+  for (const cacheName of keys.filter((key) => key.startsWith("workbox-precache-"))) {
+    const cache = await caches.open(cacheName);
     const paths = new Set((await cache.keys()).map((request) => new URL(request.url).pathname));
     if (required.every((resource) => paths.has(resource))) return true;
   }
