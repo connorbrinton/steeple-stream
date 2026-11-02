@@ -3,6 +3,7 @@ import { matchPrecache, precache } from "workbox-precaching";
 // Workbox handles revisions, atomic installation, and obsolete entry cleanup.
 // Do not add its global precache route: admin/viewer pages share /build assets
 // and must not receive cached broadcaster resources.
+// oxlint-disable-next-line no-underscore-dangle -- Workbox injection point is required.
 precache(self.__WB_MANIFEST);
 
 self.addEventListener("message", (event) => {
