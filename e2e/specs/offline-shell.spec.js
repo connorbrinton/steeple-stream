@@ -10,22 +10,16 @@ async function waitForCachedShell(page) {
   await expect
     .poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller)))
     .toBe(true);
-  await expect
-    .poll(() =>
-      page.evaluate(async () => {
-        const keys = await caches.keys();
-        const cacheName = keys.find((key) => key.startsWith("workbox-precache-"));
-        if (!cacheName) return false;
-        const cache = await caches.open(cacheName);
-        const cachedPaths = (await cache.keys()).map((request) => new URL(request.url).pathname);
-        const missing = ["/operator-shell", "/build/broadcaster.js", "/build/app.css"].filter(
-          (path) => !cachedPaths.includes(path),
-        );
-        if (missing.length) console.log("Workbox cache debug", { missing, cachedPaths });
-        return missing.length === 0;
-      }),
-    )
-    .toBe(true);
+  const cachedPaths = await page.evaluate(async () => {
+    const keys = await caches.keys();
+    const cacheName = keys.find((key) => key.startsWith("workbox-precache-"));
+    if (!cacheName) return [];
+    const cache = await caches.open(cacheName);
+    return (await cache.keys()).map((request) => new URL(request.url).pathname);
+  });
+  expect(cachedPaths).toEqual(
+    expect.arrayContaining(["/operator-shell", "/build/broadcaster.js", "/build/app.css"]),
+  );
 }
 
 test("cached broadcaster and presets open without an available API", async ({
