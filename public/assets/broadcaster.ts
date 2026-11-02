@@ -518,7 +518,13 @@ async function registerOfflineShell() {
     };
     const watchInstaller = () => {
       const installing = registration.installing;
-      installing?.addEventListener("statechange", showWaitingUpdate);
+      installing?.addEventListener("statechange", () => {
+        showWaitingUpdate();
+        if (installing.state === "redundant") {
+          offlineStatus.textContent = "Offline cache unavailable";
+        }
+        void checkOfflineReady();
+      });
       showWaitingUpdate();
     };
     registration.addEventListener("updatefound", watchInstaller);
