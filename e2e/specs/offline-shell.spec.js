@@ -74,6 +74,23 @@ test("cached broadcaster and presets open without an available API", async ({
   await context.setOffline(false);
 });
 
+test("footer diagnostics show the loaded UI, live server, and installed worker revisions", async ({
+  page,
+}) => {
+  await waitForCachedShell(page);
+  await page.locator("#diagnostics-open").click();
+  await expect(page.locator("#diagnostics-dialog")).toBeVisible();
+  const uiCommit = (await page.locator("#diag-ui-commit").textContent())?.trim();
+  expect(uiCommit).toBeTruthy();
+  await expect(page.locator("#diag-server-commit")).toHaveText(uiCommit);
+  await expect(page.locator("#diag-worker-commit")).toHaveText(uiCommit);
+  await expect(page.locator("#diag-registration")).toContainText("Registered");
+  await expect(page.locator("#diag-controller")).toHaveText("Yes");
+  await expect(page.locator("#diag-cache")).toContainText("Complete");
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.locator("#diagnostics-dialog")).toBeHidden();
+});
+
 test("a background update offers an operator-controlled refresh", async ({ page }) => {
   await waitForCachedShell(page);
   await page.request.post("/fixture/worker-update");
