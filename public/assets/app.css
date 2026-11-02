@@ -1576,6 +1576,12 @@ video {
   height: max(var(--preview-min-height), calc(var(--preview-height) - var(--preview-scroll, 0px)));
 }
 
+/* The offline-ready state means the full local app shell has been saved. */
+.offline-status {
+  font-size: 0.85rem;
+  color: var(--muted, inherit);
+}
+
 /* Updates are ready to apply, but never force a reload during camera operation. */
 .update-notice {
   display: flex;
