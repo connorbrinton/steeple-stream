@@ -17,7 +17,9 @@ async function waitForCachedShell(page) {
         const cacheName = keys.find((key) => key.startsWith("workbox-precache-"));
         if (!cacheName) return false;
         const cache = await caches.open(cacheName);
-        return (await cache.keys()).some((request) => new URL(request.url).pathname === "/operator-shell");
+        return (await cache.keys()).some(
+          (request) => new URL(request.url).pathname === "/operator-shell",
+        );
       }),
     )
     .toBe(true);

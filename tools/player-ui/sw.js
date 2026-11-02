@@ -15,10 +15,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  if (
-    request.mode === "navigate" &&
-    /^\/broadcasts\/[^/]+\/broadcaster$/.test(url.pathname)
-  ) {
+  if (request.mode === "navigate" && /^\/broadcasts\/[^/]+\/broadcaster$/.test(url.pathname)) {
     event.respondWith(matchPrecache("/operator-shell").then((cached) => cached || fetch(request)));
     return;
   }

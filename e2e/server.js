@@ -214,7 +214,8 @@ server = http.createServer(async (req, res) => {
     }
     if (url.pathname === "/sw.js") {
       const publicDir = path.join(dir, "../public");
-      const script = (await fs.readFile(path.join(publicDir, "build/sw.js"), "utf8")) +
+      const script =
+        (await fs.readFile(path.join(publicDir, "build/sw.js"), "utf8")) +
         `\n/* simulated deploy ${workerRevision} */\n`;
       res.writeHead(200, {
         "content-type": "text/javascript; charset=utf-8",

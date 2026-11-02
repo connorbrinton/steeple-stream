@@ -7,7 +7,9 @@ import { VitePWA } from "vite-plugin-pwa";
 const publicDir = resolve(import.meta.dirname, "../../public");
 const buildDir = resolve(publicDir, "build");
 const revision = (file: string) =>
-  createHash("sha256").update(readFileSync(resolve(publicDir, file))).digest("hex");
+  createHash("sha256")
+    .update(readFileSync(resolve(publicDir, file)))
+    .digest("hex");
 
 /**
  * The web application has multiple entry points, but offline support is deliberately
@@ -22,10 +24,9 @@ function broadcasterFiles(): Set<string> {
     css?: string[];
     assets?: string[];
   };
-  const manifest = JSON.parse(readFileSync(resolve(buildDir, ".vite/manifest.json"), "utf8")) as Record<
-    string,
-    Entry
-  >;
+  const manifest = JSON.parse(
+    readFileSync(resolve(buildDir, ".vite/manifest.json"), "utf8"),
+  ) as Record<string, Entry>;
   const root = Object.keys(manifest).find(
     (key) => manifest[key]?.isEntry && manifest[key]?.name === "broadcaster",
   );
@@ -74,8 +75,11 @@ export default defineConfig({
                   /^\/build\//,
                   "",
                 );
-                return required.has(filename) || entry.url.startsWith("/operator-shell") ||
-                  entry.url.startsWith("/assets/early-play.js");
+                return (
+                  required.has(filename) ||
+                  entry.url.startsWith("/operator-shell") ||
+                  entry.url.startsWith("/assets/early-play.js")
+                );
               }),
               warnings: [],
             };
