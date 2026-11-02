@@ -1576,6 +1576,62 @@ video {
   height: max(var(--preview-min-height), calc(var(--preview-height) - var(--preview-scroll, 0px)));
 }
 
+.broadcaster-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.5rem 1.25rem 1.25rem;
+}
+
+.diagnostics-link {
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  opacity: 0.8;
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.diagnostics-dialog {
+  max-width: min(36rem, calc(100vw - 2rem));
+  width: 100%;
+  border: 1px solid #475569;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  color: #e6f0f5;
+  background: #17232d;
+}
+
+.diagnostics-dialog::backdrop {
+  background: rgb(0 0 0 / 65%);
+}
+
+.diagnostics-grid {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) minmax(10rem, 1.5fr);
+  gap: 0.65rem 1rem;
+  margin-block: 1rem;
+  font-size: 0.85rem;
+}
+
+.diagnostics-grid dt {
+  color: #b7c7d0;
+}
+
+.diagnostics-grid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, monospace;
+}
+
+.diagnostics-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
 /* The offline-ready state means the full local app shell has been saved. */
 .offline-status {
   font-size: 0.85rem;
