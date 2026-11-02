@@ -551,6 +551,7 @@ async function registerOfflineShell() {
     });
   } catch (error) {
     console.warn("Offline shell could not be installed", error);
+    offlineStatus.textContent = "Offline cache unavailable";
   }
 }
 
