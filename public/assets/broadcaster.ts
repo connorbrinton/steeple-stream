@@ -444,6 +444,7 @@ async function connect() {
     const principal = await response.json();
     csrfToken = principal.csrfToken;
     sessionReady = true;
+    document.documentElement.dataset.controlSessionReady = "true";
     void refresh().catch(console.error);
 
     const events = new EventSource("/api/events");
