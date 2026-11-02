@@ -99,39 +99,6 @@ export async function frontendVersion(publicDir: string) {
   return hash.digest("hex").slice(0, 20);
 }
 
-/** Static files sufficient to start the broadcaster without loading media components. */
-export async function broadcasterPrecacheAssets(publicDir: string): Promise<string[]> {
-  type ManifestEntry = {
-    name?: string;
-    isEntry?: boolean;
-    file: string;
-    imports?: string[];
-    css?: string[];
-    assets?: string[];
-  };
-  const manifest = JSON.parse(
-    await fs.readFile(path.join(publicDir, "build/.vite/manifest.json"), "utf8"),
-  ) as Record<string, ManifestEntry>;
-  const entryKey = Object.keys(manifest).find(
-    (key) => manifest[key]?.isEntry && manifest[key]?.name === "broadcaster",
-  );
-  if (!entryKey) throw new Error("Broadcaster entry is missing from the Vite manifest");
-  const urls = new Set<string>(["/operator-shell", "/assets/early-play.js", "/build/app.css"]);
-  const visited = new Set<string>();
-  const visit = (key: string): void => {
-    if (visited.has(key)) return;
-    visited.add(key);
-    const item = manifest[key];
-    if (!item) throw new Error(`Missing Vite manifest import: ${key}`);
-    urls.add(`/build/${item.file}`);
-    for (const file of [...(item.css || []), ...(item.assets || [])]) urls.add(`/build/${file}`);
-    for (const dependency of item.imports || []) visit(dependency);
-    // Dynamic preview imports are intentionally excluded.
-  };
-  visit(entryKey);
-  return [...urls];
-}
-
 export async function proxyHttp(
   req: IncomingMessage,
   res: ServerResponse,
