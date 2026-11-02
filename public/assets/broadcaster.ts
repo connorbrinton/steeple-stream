@@ -469,6 +469,154 @@ async function connect() {
   }
 }
 
+declare const __STEEPLE_BUILD_COMMIT__: string;
+
+// This revision is baked into the JS bundle. It remains available even if the
+// appliance has upgraded while this browser is running an older offline shell.
+const clientCommit =
+  typeof __STEEPLE_BUILD_COMMIT__ === "string" ? __STEEPLE_BUILD_COMMIT__ : "development";
+const shortCommit = (revision: string) =>
+  /^[0-9a-f]{40}$/i.test(revision) ? revision.slice(0, 9) : revision;
+
+const diagnosticsDialog = document.querySelector<HTMLDialogElement>("#diagnostics-dialog")!;
+const diagnosticsOpen = document.querySelector<HTMLButtonElement>("#diagnostics-open")!;
+const diagnosticsCopyStatus = document.querySelector<HTMLElement>("#diagnostics-copy-status")!;
+const diagnosticIds = [
+  ["Loaded UI commit", "diag-ui-commit"],
+  ["Live server commit", "diag-server-commit"],
+  ["Browser network signal", "diag-online"],
+  ["Service worker registration", "diag-registration"],
+  ["Service worker controlling page", "diag-controller"],
+  ["Active service worker commit", "diag-worker-commit"],
+  ["Waiting update commit", "diag-waiting-commit"],
+  ["Offline control cache", "diag-cache"],
+] as const;
+
+document.querySelector("#app-revision")!.textContent = shortCommit(clientCommit);
+document.querySelector("#diag-ui-commit")!.textContent = clientCommit;
+
+function diagnosticValue(id: string, value: string) {
+  document.getElementById(id)!.textContent = value;
+}
+
+/** Read the installed worker's own revision, not the browser page's JS revision. */
+function workerCommit(worker: ServiceWorker | null): Promise<string> {
+  if (!worker) return Promise.resolve("Not installed");
+  return new Promise((resolve) => {
+    const channel = new MessageChannel();
+    let complete = false;
+    const finish = (value: string) => {
+      if (complete) return;
+      complete = true;
+      clearTimeout(timer);
+      channel.port1.close();
+      resolve(value);
+    };
+    const timer = setTimeout(() => finish("No response"), 2000);
+    channel.port1.onmessage = (event) => {
+      finish(typeof event.data?.commit === "string" ? event.data.commit : "Unknown");
+    };
+    try {
+      worker.postMessage({ type: "GET_VERSION" }, [channel.port2]);
+    } catch {
+      finish("Unavailable");
+    }
+  });
+}
+
+async function cacheDiagnostics(): Promise<string> {
+  if (!("caches" in window)) return "Cache Storage unavailable";
+  const required = ["/operator-shell", "/build/broadcaster.js", "/build/app.css"];
+  const keys = (await caches.keys()).filter((key) => key.startsWith("workbox-precache-"));
+  if (!keys.length) return "No Workbox cache installed";
+  const descriptions: string[] = [];
+  for (const name of keys) {
+    const cache = await caches.open(name);
+    const cachedPaths = new Set((await cache.keys()).map((request) => new URL(request.url).pathname));
+    const missing = required.filter((url) => !cachedPaths.has(url));
+    descriptions.push(
+      missing.length
+        ? `Incomplete (missing: ${missing.join(", ")})`
+        : `Complete (${cachedPaths.size} cached resources)`,
+    );
+  }
+  return descriptions.join("; ");
+}
+
+async function refreshDiagnostics() {
+  diagnosticValue("diag-online", navigator.onLine ? "Online (browser signal)" : "Offline");
+  diagnosticValue("diag-server-commit", "Checking…");
+  diagnosticValue("diag-registration", "Checking…");
+  diagnosticValue("diag-cache", "Checking…");
+
+  const registration = "serviceWorker" in navigator
+    ? await navigator.serviceWorker.getRegistration().catch(() => undefined)
+    : undefined;
+  diagnosticValue(
+    "diag-registration",
+    registration
+      ? `Registered (active: ${registration.active?.state ?? "none"}; installing: ${registration.installing?.state ?? "none"})`
+      : "Not registered",
+  );
+  diagnosticValue(
+    "diag-controller",
+    navigator.serviceWorker?.controller ? "Yes" : "No",
+  );
+
+  const results = await Promise.allSettled([
+    fetch("/api/version", { cache: "no-store", signal: AbortSignal.timeout(3500) })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload: unknown = await response.json();
+        if (
+          typeof payload !== "object" ||
+          payload === null ||
+          !("commit" in payload) ||
+          typeof payload.commit !== "string"
+        ) throw new Error("Unexpected response");
+        return payload.commit;
+      }),
+    workerCommit(registration?.active ?? null),
+    workerCommit(registration?.waiting ?? null),
+    cacheDiagnostics(),
+  ]);
+
+  const ids = ["diag-server-commit", "diag-worker-commit", "diag-waiting-commit", "diag-cache"];
+  for (let i = 0; i < ids.length; i++) {
+    const result = results[i]!;
+    diagnosticValue(
+      ids[i]!,
+      result.status === "fulfilled" ? result.value : i === 0 ? "Unreachable / older server" : "Unavailable",
+    );
+  }
+}
+
+diagnosticsOpen.addEventListener("click", () => {
+  diagnosticsDialog.showModal();
+  void refreshDiagnostics();
+});
+document.querySelector("#diagnostics-recheck")!.addEventListener("click", () => {
+  void refreshDiagnostics();
+});
+document.querySelector("#diagnostics-close")!.addEventListener("click", () => {
+  diagnosticsDialog.close();
+});
+document.querySelector("#diagnostics-copy")!.addEventListener("click", () => {
+  const report = diagnosticIds
+    .map(([label, id]) => `${label}: ${document.getElementById(id)!.textContent}`)
+    .join("\n");
+  void navigator.clipboard.writeText(report).then(
+    () => {
+      diagnosticsCopyStatus.textContent = "Diagnostics copied";
+      diagnosticsCopyStatus.hidden = false;
+    },
+    () => {
+      diagnosticsCopyStatus.textContent = "Copy failed; you can select the values above";
+      diagnosticsCopyStatus.hidden = false;
+    },
+  );
+});
+
 const offlineStatus = document.querySelector<HTMLElement>("#offline-status")!;
 
 /**
