@@ -51,7 +51,12 @@ export function sendJson(
   res.end(body);
 }
 
-export async function sendStatic(res: ServerResponse, publicDir: string, filePath: string) {
+export async function sendStatic(
+  res: ServerResponse,
+  publicDir: string,
+  filePath: string,
+  extraHeaders: Record<string, string> = {},
+) {
   const safePath = filePath === "/" ? "/index.html" : filePath;
   const absolute = path.join(publicDir, path.normalize(safePath).replace(/^(\.\.[/\\])+/, ""));
   try {
@@ -64,6 +69,7 @@ export async function sendStatic(res: ServerResponse, publicDir: string, filePat
       "content-type": contentType(absolute),
       "content-length": body.length,
       ...uncachedHeaders,
+      ...extraHeaders,
     });
     res.end(body);
   } catch (error) {
