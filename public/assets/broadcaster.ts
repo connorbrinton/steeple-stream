@@ -529,6 +529,7 @@ async function registerOfflineShell() {
     };
     registration.addEventListener("updatefound", watchInstaller);
     watchInstaller();
+    void checkOfflineReady();
 
     refreshButton.addEventListener("click", () => {
       refreshButton.disabled = true;
