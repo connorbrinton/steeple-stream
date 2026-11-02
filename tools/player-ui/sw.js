@@ -6,6 +6,11 @@ import { matchPrecache, precache } from "workbox-precaching";
 // oxlint-disable-next-line no-underscore-dangle -- Workbox injection point is required.
 precache(self.__WB_MANIFEST);
 
+// Claim the first installed worker immediately so a primed page can reload offline.
+self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") void self.skipWaiting();
 });
