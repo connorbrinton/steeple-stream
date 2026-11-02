@@ -50,6 +50,11 @@ function broadcasterFiles(): Set<string> {
 
 export default defineConfig({
   publicDir: false,
+  define: {
+    __STEEPLE_BUILD_COMMIT__: JSON.stringify(
+      process.env.STEEPLE_BUILD_COMMIT || process.env.GITHUB_SHA || "development",
+    ),
+  },
   plugins: [
     VitePWA({
       strategies: "injectManifest",
