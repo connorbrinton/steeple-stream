@@ -165,9 +165,10 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   }
 
   if (method === "GET" && url.pathname === "/sw.js") {
-    res.setHeader("cache-control", "no-cache, must-revalidate");
-    res.setHeader("service-worker-allowed", "/");
-    await sendStatic(res, publicDir, "/build/sw.js");
+    await sendStatic(res, publicDir, "/build/sw.js", {
+      "cache-control": "no-cache, must-revalidate",
+      "service-worker-allowed": "/",
+    });
     return;
   }
 
