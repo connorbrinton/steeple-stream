@@ -101,7 +101,10 @@ function isUnitSelection(
 }
 
 async function refresh() {
-  const response = await fetch("/api/state", { cache: "no-store", signal: AbortSignal.timeout(6000) });
+  const response = await fetch("/api/state", {
+    cache: "no-store",
+    signal: AbortSignal.timeout(6000),
+  });
   if (!response.ok) {
     if (response.status === 401) {
       location.href = "/auth/login";
@@ -155,7 +158,7 @@ function renderState(state) {
       JSON.stringify({
         cameraReady: Boolean(
           state.cameraControlSource?.ndi?.sourceName ||
-            (state.source?.type === "ndi" && state.source?.ndi?.sourceName),
+          (state.source?.type === "ndi" && state.source?.ndi?.sourceName),
         ),
         presets: state.ptz.presets.map((preset) => ({
           id: preset.id,
@@ -176,7 +179,7 @@ function renderPtzControls(state) {
       ? state.cameraReady
       : Boolean(
           state.cameraControlSource?.ndi?.sourceName ||
-            (state.source?.type === "ndi" && state.source?.ndi?.sourceName),
+          (state.source?.type === "ndi" && state.source?.ndi?.sourceName),
         );
   const signature = JSON.stringify([
     state.ptz.presets,
@@ -390,8 +393,10 @@ function loadHlsScript(): Promise<void> {
     if (window.Hls) return resolve();
     const script = document.createElement("script");
     script.src = "/vendor/hls.min.js";
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Could not load HLS preview"));
+    script.addEventListener("load", () => resolve(), { once: true });
+    script.addEventListener("error", () => reject(new Error("Could not load HLS preview")), {
+      once: true,
+    });
     document.head.append(script);
   });
 }
@@ -487,12 +492,10 @@ async function registerOfflineShell() {
         location.reload();
         return;
       }
-      navigator.serviceWorker.addEventListener(
-        "controllerchange",
-        () => location.reload(),
-        { once: true },
-      );
-      waiting.postMessage({ type: "ACTIVATE_UPDATE" });
+      navigator.serviceWorker.addEventListener("controllerchange", () => location.reload(), {
+        once: true,
+      });
+      waiting.postMessage({ type: "ACTIVATE_UPDATE" }, []);
     });
 
     // Update checks must never delay app startup or interrupt the operator.
