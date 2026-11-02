@@ -260,6 +260,15 @@ server = http.createServer(async (req, res) => {
       );
       return;
     }
+    if (url.pathname === "/api/version") {
+      res.setHeader("content-type", "application/json");
+      res.end(
+        JSON.stringify({
+          commit: process.env.STEEPLE_BUILD_COMMIT || process.env.GITHUB_SHA || "development",
+        }),
+      );
+      return;
+    }
     if (url.pathname === "/api/session") {
       res.setHeader("content-type", "application/json");
       res.end(
