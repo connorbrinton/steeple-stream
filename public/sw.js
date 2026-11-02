@@ -63,15 +63,18 @@ self.addEventListener("fetch", (event) => {
 
   // The API, video media, authentication, and dynamically imported player are network-only.
   if (url.pathname.startsWith("/build/") || url.pathname === "/assets/early-play.js") {
-    event.respondWith((async () => {
-      // Scope is "/" to cover /build, but never serve old assets to admin/viewer pages.
-      const client = event.clientId ? await self.clients.get(event.clientId) : null;
-      const broadcaster = client &&
-        new URL(client.url).pathname.startsWith("/broadcasts/") &&
-        new URL(client.url).pathname.endsWith("/broadcaster");
-      if (!broadcaster) return fetch(request);
-      const cache = await caches.open(CACHE_NAME);
-      return (await cache.match(url.pathname)) || fetch(request);
-    })());
+    event.respondWith(
+      (async () => {
+        // Scope is "/" to cover /build, but never serve old assets to admin/viewer pages.
+        const client = event.clientId ? await self.clients.get(event.clientId) : null;
+        const broadcaster =
+          client &&
+          new URL(client.url).pathname.startsWith("/broadcasts/") &&
+          new URL(client.url).pathname.endsWith("/broadcaster");
+        if (!broadcaster) return fetch(request);
+        const cache = await caches.open(CACHE_NAME);
+        return (await cache.match(url.pathname)) || fetch(request);
+      })(),
+    );
   }
 });
