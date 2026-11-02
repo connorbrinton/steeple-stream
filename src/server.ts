@@ -1,5 +1,4 @@
 import http from "node:http";
-import fs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
@@ -14,14 +13,7 @@ import { runSynchronizedMove } from "./smoothPtz.js";
 import { PresetCaptureBatch } from "./presetCaptureBatch.js";
 import { configuredCameraHost, probeVisca, readViscaPosition } from "./viscaProbe.js";
 import { ManualPtz, cameraVelocity } from "./manualPtz.js";
-import {
-  parseJson,
-  proxyHttp,
-  sendJson,
-  sendStatic,
-  frontendVersion,
-  broadcasterPrecacheAssets,
-} from "./httpUtils.js";
+import { parseJson, proxyHttp, sendJson, sendStatic } from "./httpUtils.js";
 import { SourceDiscoveryService } from "./sourceDiscoveryService.js";
 import { LocationCommandCoordinator } from "./commandCoordinator.js";
 import { AuthService } from "./authService.js";
@@ -173,16 +165,9 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   }
 
   if (method === "GET" && url.pathname === "/sw.js") {
-    const template = await fs.readFile(path.join(publicDir, "sw.js"), "utf8");
-    const script = template
-      .replaceAll("__ASSET_VERSION__", await frontendVersion(publicDir))
-      .replace("__PRECACHE_ASSETS__", JSON.stringify(await broadcasterPrecacheAssets(publicDir)));
-    res.writeHead(200, {
-      "content-type": "text/javascript; charset=utf-8",
-      "cache-control": "no-cache, must-revalidate",
-      "service-worker-allowed": "/",
-    });
-    res.end(script);
+    res.setHeader("cache-control", "no-cache, must-revalidate");
+    res.setHeader("service-worker-allowed", "/");
+    await sendStatic(res, publicDir, "/build/sw.js");
     return;
   }
 
