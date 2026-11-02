@@ -69,7 +69,6 @@ test("all page templates version their scripts and stylesheets", async (t) => {
       assets: [
         "/build/app.css",
         "/assets/early-play.js",
-        "/vendor/hls.min.js",
         "/build/broadcaster.js",
       ],
     },
