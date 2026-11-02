@@ -90,6 +90,22 @@ test("footer diagnostics show the loaded UI, live server, and installed worker r
   await expect(page.locator("#diag-registration")).toContainText("Registered");
   await expect(page.locator("#diag-controller")).toHaveText("Yes");
   await expect(page.locator("#diag-cache")).toContainText("Complete");
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async (text) => {
+          window.copiedDiagnosticReport = text;
+        },
+      },
+    });
+  });
+  await page.getByRole("button", { name: "Copy diagnostics" }).click();
+  await expect(page.locator("#diagnostics-copy-status")).toHaveText("Diagnostics copied");
+  const copied = await page.evaluate(() => window.copiedDiagnosticReport);
+  expect(copied).toContain(`Loaded UI commit: ${uiCommit}`);
+  expect(copied).toContain(`Live server commit: ${uiCommit}`);
+  expect(copied).toContain("Offline control cache: Complete");
   await page.getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.locator("#diagnostics-dialog")).toBeHidden();
 });
