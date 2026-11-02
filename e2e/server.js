@@ -8,7 +8,7 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
-import { proxyHttp, sendStatic } from "../src/httpUtils.js";
+import { proxyHttp, sendStatic, frontendVersion, broadcasterPrecacheAssets } from "../src/httpUtils.js";
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 const artifacts = path.join(dir, "artifacts");
@@ -58,6 +58,7 @@ const broadcasterState = {
   ptz: { presets: [] },
 };
 let shuttingDown = false;
+let workerRevision = 0;
 function start(command, args, name) {
   const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
   const log = createWriteStream(path.join(artifacts, `${name}.log`));
@@ -199,6 +200,29 @@ server = http.createServer(async (req, res) => {
   try {
     if (url.pathname === "/ready") {
       res.end("ready");
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/fixture/worker-update") {
+      workerRevision++;
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+    if (url.pathname === "/operator-shell") {
+      await sendStatic(res, path.join(dir, "../public"), "/broadcaster.html");
+      return;
+    }
+    if (url.pathname === "/sw.js") {
+      const publicDir = path.join(dir, "../public");
+      const template = await fs.readFile(path.join(publicDir, "sw.js"), "utf8");
+      const script = template
+        .replaceAll("__ASSET_VERSION__", (await frontendVersion(publicDir)) + "-" + workerRevision)
+        .replace("__PRECACHE_ASSETS__", JSON.stringify(await broadcasterPrecacheAssets(publicDir)));
+      res.writeHead(200, {
+        "content-type": "text/javascript; charset=utf-8",
+        "cache-control": "no-cache",
+      });
+      res.end(script);
       return;
     }
     if (url.pathname === "/fixture/config") {
