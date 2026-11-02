@@ -158,6 +158,14 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   const method = req.method || "GET";
 
+  // Version is intentionally unauthenticated and network-only. It exposes
+  // no user/session information and lets cached clients distinguish stale UI
+  // from an outdated live appliance.
+  if (method === "GET" && url.pathname === "/api/version") {
+    sendJson(res, 200, { commit: process.env.STEEPLE_BUILD_COMMIT || "development" });
+    return;
+  }
+
   // The shell has no user data. API calls still require authentication.
   if (method === "GET" && url.pathname === "/operator-shell") {
     await sendStatic(res, publicDir, "/broadcaster.html");

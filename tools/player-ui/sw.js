@@ -13,6 +13,11 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") void self.skipWaiting();
+  if (event.data?.type === "GET_VERSION") {
+    event.ports?.[0]?.postMessage({
+      commit: __STEEPLE_BUILD_COMMIT__,
+    });
+  }
 });
 
 self.addEventListener("fetch", (event) => {
