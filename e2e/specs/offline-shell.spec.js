@@ -21,9 +21,10 @@ async function waitForCachedShell(page) {
     .toBe(true);
 }
 
-test("cached broadcaster and presets open without network or API requests", async ({
+test("cached broadcaster and presets open without an available API", async ({
   page,
   context,
+  browserName,
 }) => {
   await waitForCachedShell(page);
   await page.evaluate(() => {
@@ -36,7 +37,13 @@ test("cached broadcaster and presets open without network or API requests", asyn
     );
   });
 
-  await context.setOffline(true);
+  if (browserName === "webkit") {
+    // Playwright WebKit's offline emulation can crash on SW-controlled reloads.
+    // Simulate the unavailable API; Chromium and Firefox exercise full offline mode.
+    await page.route("**/api/**", (route) => route.abort());
+  } else {
+    await context.setOffline(true);
+  }
   await page.reload();
 
   await expect(page.getByRole("button", { name: "Pulpit", exact: true })).toBeVisible();
