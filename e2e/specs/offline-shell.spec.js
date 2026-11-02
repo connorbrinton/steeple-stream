@@ -26,7 +26,10 @@ test("cached broadcaster and presets open without an available API", async ({
   context,
   browserName,
 }) => {
-  test.skip(browserName === "webkit", "Playwright WebKit cannot simulate an offline SW reload reliably");
+  test.skip(
+    browserName === "webkit",
+    "Playwright WebKit cannot simulate an offline SW reload reliably",
+  );
   await waitForCachedShell(page);
   await page.evaluate(() => {
     localStorage.setItem(
