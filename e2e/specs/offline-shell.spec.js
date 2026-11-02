@@ -28,7 +28,10 @@ test("a newly opened tab loads the broadcaster controls while completely offline
   context,
   browserName,
 }) => {
-  test.skip(browserName === "webkit", "Playwright WebKit offline emulation crashes on service-worker navigation");
+  test.skip(
+    browserName === "webkit",
+    "Playwright WebKit offline emulation crashes on service-worker navigation",
+  );
   await waitForCachedShell(page);
   await page.evaluate(() => {
     localStorage.setItem(

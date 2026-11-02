@@ -532,7 +532,9 @@ async function cacheDiagnostics(): Promise<string> {
   const descriptions: string[] = [];
   for (const name of keys) {
     const cache = await caches.open(name);
-    const cachedPaths = new Set((await cache.keys()).map((request) => new URL(request.url).pathname));
+    const cachedPaths = new Set(
+      (await cache.keys()).map((request) => new URL(request.url).pathname),
+    );
     const missing = required.filter((url) => !cachedPaths.has(url));
     descriptions.push(
       missing.length
@@ -549,23 +551,21 @@ async function refreshDiagnostics() {
   diagnosticValue("diag-registration", "Checking…");
   diagnosticValue("diag-cache", "Checking…");
 
-  const registration = "serviceWorker" in navigator
-    ? await navigator.serviceWorker.getRegistration().catch(() => undefined)
-    : undefined;
+  const registration =
+    "serviceWorker" in navigator
+      ? await navigator.serviceWorker.getRegistration().catch(() => undefined)
+      : undefined;
   diagnosticValue(
     "diag-registration",
     registration
       ? `Registered (active: ${registration.active?.state ?? "none"}; installing: ${registration.installing?.state ?? "none"})`
       : "Not registered",
   );
-  diagnosticValue(
-    "diag-controller",
-    navigator.serviceWorker?.controller ? "Yes" : "No",
-  );
+  diagnosticValue("diag-controller", navigator.serviceWorker?.controller ? "Yes" : "No");
 
   const results = await Promise.allSettled([
-    fetch("/api/version", { cache: "no-store", signal: AbortSignal.timeout(3500) })
-      .then(async (response) => {
+    fetch("/api/version", { cache: "no-store", signal: AbortSignal.timeout(3500) }).then(
+      async (response) => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const payload: unknown = await response.json();
         if (
@@ -573,9 +573,11 @@ async function refreshDiagnostics() {
           payload === null ||
           !("commit" in payload) ||
           typeof payload.commit !== "string"
-        ) throw new Error("Unexpected response");
+        )
+          throw new Error("Unexpected response");
         return payload.commit;
-      }),
+      },
+    ),
     workerCommit(registration?.active ?? null),
     workerCommit(registration?.waiting ?? null),
     cacheDiagnostics(),
@@ -586,7 +588,11 @@ async function refreshDiagnostics() {
     const result = results[i]!;
     diagnosticValue(
       ids[i]!,
-      result.status === "fulfilled" ? result.value : i === 0 ? "Unreachable / older server" : "Unavailable",
+      result.status === "fulfilled"
+        ? result.value
+        : i === 0
+          ? "Unreachable / older server"
+          : "Unavailable",
     );
   }
 }
