@@ -32,7 +32,13 @@ self.addEventListener("fetch", (event) => {
         // The worker controls the root origin, but only the broadcaster may use
         // its cached assets. All API and media traffic remains network-only.
         const client = event.clientId ? await self.clients.get(event.clientId) : null;
-        if (!client || !/^\/broadcasts\/[^/]+\/broadcaster$/.test(new URL(client.url).pathname))
+        // Chromium can omit clientId while loading a newly navigated offline page.
+        // Prefer the referrer when present; if neither is available, serve the
+        // already-precached file rather than making an impossible network request.
+        const pageUrl =
+          client?.url ||
+          (request.referrer.startsWith(self.location.origin) ? request.referrer : "");
+        if (pageUrl && !/^\/broadcasts\/[^/]+\/broadcaster$/.test(new URL(pageUrl).pathname))
           return fetch(request);
         return (await matchPrecache(url.pathname)) || fetch(request);
       })(),
