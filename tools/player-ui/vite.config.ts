@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 export default defineConfig({
   publicDir: false,
   build: {
+    manifest: true,
     outDir: resolve(import.meta.dirname, "../../public/build"),
     emptyOutDir: true,
     target: "es2022",
