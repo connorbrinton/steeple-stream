@@ -1575,3 +1575,18 @@ video {
   animation: none;
   height: max(var(--preview-min-height), calc(var(--preview-height) - var(--preview-scroll, 0px)));
 }
+
+
+/* Updates are ready to apply, but never force a reload during camera operation. */
+.update-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid currentColor;
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+}
+.update-notice[hidden] { display: none; }
+.update-notice .button { font-size: 0.85rem; }
