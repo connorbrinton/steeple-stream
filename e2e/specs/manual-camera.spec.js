@@ -1,5 +1,8 @@
 import { test, expect } from "@playwright/test";
 
+// These tests mock PTZ fetches with page.route; SW-controlled fetches bypass that hook in WebKit.
+test.use({ serviceWorkers: "block" });
+
 test.describe("touch joysticks", () => {
   test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
   test("two touches can aim and zoom independently", async ({ page, browserName }) => {
@@ -13,6 +16,7 @@ test.describe("touch joysticks", () => {
       await route.fulfill({ json: { accepted: true } });
     });
     await page.goto("/broadcasts/stakecenter/broadcaster");
+    await expect(page.locator("html")).toHaveAttribute("data-control-session-ready", "true");
     const pan = page.getByRole("group", { name: "Pan and tilt joystick", exact: true });
     const zoom = page.getByRole("group", { name: "Zoom joystick", exact: true });
     await pan.scrollIntoViewIfNeeded();
@@ -54,6 +58,7 @@ test("manual buttons send movement while held and stop on release", async ({ pag
     await route.fulfill({ json: { accepted: true } });
   });
   await page.goto("/broadcasts/stakecenter/broadcaster");
+  await expect(page.locator("html")).toHaveAttribute("data-control-session-ready", "true");
   const button = page.getByRole("button", { name: "Pan right", exact: true });
   await expect(button).toBeVisible();
   await button.hover();
@@ -82,6 +87,7 @@ test("gamepad waits for neutral inputs and disables on focus loss", async ({ pag
     await route.fulfill({ json: { accepted: true } });
   });
   await page.goto("/broadcasts/stakecenter/broadcaster");
+  await expect(page.locator("html")).toHaveAttribute("data-control-session-ready", "true");
   const enabled = page.getByRole("checkbox", { name: "Enable gamepad control" });
   await enabled.check();
   await expect(page.getByText("Release sticks and triggers to enable control.")).toBeVisible();
@@ -119,6 +125,7 @@ test("drag joysticks start at the press location and provide proportional speed"
     await route.fulfill({ json: { accepted: true } });
   });
   await page.goto("/broadcasts/stakecenter/broadcaster");
+  await expect(page.locator("html")).toHaveAttribute("data-control-session-ready", "true");
   const pad = page.getByRole("group", { name: "Pan and tilt joystick", exact: true });
   await expect(pad).toBeVisible();
   await pad.scrollIntoViewIfNeeded();

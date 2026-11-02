@@ -158,6 +158,20 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   const method = req.method || "GET";
 
+  // The shell has no user data. API calls still require authentication.
+  if (method === "GET" && url.pathname === "/operator-shell") {
+    await sendStatic(res, publicDir, "/broadcaster.html");
+    return;
+  }
+
+  if (method === "GET" && url.pathname === "/sw.js") {
+    await sendStatic(res, publicDir, "/build/sw.js", {
+      "cache-control": "no-cache, must-revalidate",
+      "service-worker-allowed": "/",
+    });
+    return;
+  }
+
   if (method === "GET" && ["/auth/login", "/auth/google"].includes(url.pathname)) {
     if (config.auth.mode === "trusted-proxy") {
       auth.authorize(req, "operator");

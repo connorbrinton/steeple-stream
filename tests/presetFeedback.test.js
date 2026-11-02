@@ -35,12 +35,19 @@ function harness() {
       return new Promise((resolve, reject) => requests.push({ resolve, reject }));
     },
     alert: (message) => alerts.push(message),
+    location: { pathname: "/broadcasts/stakecenter/broadcaster" },
+    localStorage: { getItem: () => null, setItem() {} },
+    navigator: {},
+    window: { addEventListener() {} },
+    AbortSignal: { timeout: () => undefined },
     console,
     setInterval() {},
   });
   // Manual controls are exercised separately; keep this harness focused on preset feedback.
   context.installManualCamera = () => {};
   vm.runInContext(source.replace(/^import .*manual-camera.*;\n/m, ""), context);
+  // The unit test bypasses real session establishment and supplies a valid CSRF token.
+  vm.runInContext('csrfToken = "test"', context);
   context.refresh = async () => {};
   const resolve = (index) => requests[index].resolve({ ok: true, json: async () => ({}) });
   return { context, buttons, requests, resolve, alerts };

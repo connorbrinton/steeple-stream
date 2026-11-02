@@ -58,6 +58,7 @@ const broadcasterState = {
   ptz: { presets: [] },
 };
 let shuttingDown = false;
+let workerRevision = 0;
 function start(command, args, name) {
   const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
   const log = createWriteStream(path.join(artifacts, `${name}.log`));
@@ -199,6 +200,28 @@ server = http.createServer(async (req, res) => {
   try {
     if (url.pathname === "/ready") {
       res.end("ready");
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/fixture/worker-update") {
+      workerRevision++;
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+    if (url.pathname === "/operator-shell") {
+      await sendStatic(res, path.join(dir, "../public"), "/broadcaster.html");
+      return;
+    }
+    if (url.pathname === "/sw.js") {
+      const publicDir = path.join(dir, "../public");
+      const script =
+        (await fs.readFile(path.join(publicDir, "build/sw.js"), "utf8")) +
+        `\n/* simulated deploy ${workerRevision} */\n`;
+      res.writeHead(200, {
+        "content-type": "text/javascript; charset=utf-8",
+        "cache-control": "no-cache",
+      });
+      res.end(script);
       return;
     }
     if (url.pathname === "/fixture/config") {
