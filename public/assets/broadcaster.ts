@@ -412,7 +412,7 @@ function loadPreview(): Promise<void> {
   return previewAssets;
 }
 
-document.querySelector("#preview-play")!.addEventListener("click", () => {
+function requestPreview() {
   previewRequested = true;
   void loadPreview()
     .then(() => {
@@ -422,7 +422,10 @@ document.querySelector("#preview-play")!.addEventListener("click", () => {
       previewTransport.textContent = "Preview failed to load. Tap Play to retry.";
       console.error(error);
     });
-});
+}
+document.querySelector("#preview-play")!.addEventListener("click", requestPreview);
+// early-play.js runs before the main bundle. Honor clicks made during a slow initial load.
+if (window.SteepleEarlyPlay?.requested) requestPreview();
 
 /** Reauthenticate only when reachable; don't redirect due to network timeouts. */
 async function connect() {
