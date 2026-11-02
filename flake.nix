@@ -61,6 +61,9 @@
                 in !builtins.elem name [ ".git" "data" "node_modules" "result" ];
             };
             npmDepsHash = "sha256-y85PKhJAAlwsSrwlnSYjwssCVpK9VqxAKmjM2MFbIHY=";
+            # Embed the exact flake revision in the built frontend and expose the
+            # same revision to the running Node server.
+            STEEPLE_BUILD_COMMIT = self.rev or (self.dirtyRev or "development");
             nativeBuildInputs = [ pkgs.makeWrapper ];
             preInstall = ''
               npm prune --omit=dev
@@ -71,6 +74,7 @@
               cp -R package.json src public node_modules $out/share/steeple-stream/
               makeWrapper ${pkgs.nodejs_22}/bin/node $out/bin/steeple-stream \
                 --add-flags "$out/share/steeple-stream/src/server.js" \
+                --set STEEPLE_BUILD_COMMIT ${self.rev or (self.dirtyRev or "development")} \
                 --prefix PATH : ${pkgs.lib.makeBinPath ([ pkgs.nodejs_22 ] ++ mediaPackages pkgs)} \
                 --set-default STEEPLE_MEDIAMTX_RUNTIME system \
                 --set-default STEEPLE_INGEST_RUNTIME system \
