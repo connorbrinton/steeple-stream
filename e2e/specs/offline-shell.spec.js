@@ -20,6 +20,29 @@ async function waitForCachedShell(page) {
   expect(cachedPaths).toEqual(
     expect.arrayContaining(["/operator-shell", "/build/broadcaster.js", "/build/app.css"]),
   );
+  await expect(page.locator("#offline-status")).toHaveText("Offline controls ready");
+}
+
+test("a newly opened tab loads the broadcaster controls while completely offline", async ({
+  page,
+  context,
+  browserName,
+}) => {
+  test.skip(browserName === "webkit", "Playwright WebKit offline emulation crashes on service-worker navigation");
+  await waitForCachedShell(page);
+  await page.evaluate(() => {
+    localStorage.setItem(
+      `steeple:camera-presets:${location.pathname}`,
+      JSON.stringify({ cameraReady: true, presets: [{ id: "pulpit", name: "Pulpit" }] }),
+    );
+  });
+
+  await context.setOffline(true);
+  const newPage = await context.newPage();
+  await newPage.goto(broadcaster);
+  await expect(newPage.getByRole("button", { name: "Pulpit", exact: true })).toBeVisible();
+  await expect(newPage.locator("#offline-status")).toHaveText("Offline controls ready");
+  await context.setOffline(false);
 }
 
 test("cached broadcaster and presets open without an available API", async ({
