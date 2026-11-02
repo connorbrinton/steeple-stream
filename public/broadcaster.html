@@ -88,6 +88,43 @@
         </div>
       </section>
     </main>
+    <footer class="broadcaster-footer">
+      <button class="diagnostics-link" id="diagnostics-open" type="button" aria-haspopup="dialog">
+        Build <code id="app-revision">…</code> · Diagnostics
+      </button>
+    </footer>
+    <dialog
+      class="diagnostics-dialog"
+      id="diagnostics-dialog"
+      aria-labelledby="diagnostics-title"
+    >
+      <h2 id="diagnostics-title">Broadcaster diagnostics</h2>
+      <p>Versions and offline-cache status for this device. No login details are included.</p>
+      <dl class="diagnostics-grid">
+        <dt>Loaded UI commit</dt>
+        <dd id="diag-ui-commit">—</dd>
+        <dt>Live server commit</dt>
+        <dd id="diag-server-commit">Checking…</dd>
+        <dt>Browser network signal</dt>
+        <dd id="diag-online">—</dd>
+        <dt>Service worker registration</dt>
+        <dd id="diag-registration">Checking…</dd>
+        <dt>Service worker controlling page</dt>
+        <dd id="diag-controller">—</dd>
+        <dt>Active service worker commit</dt>
+        <dd id="diag-worker-commit">—</dd>
+        <dt>Waiting update commit</dt>
+        <dd id="diag-waiting-commit">—</dd>
+        <dt>Offline control cache</dt>
+        <dd id="diag-cache">Checking…</dd>
+      </dl>
+      <div class="diagnostics-actions">
+        <button class="button" id="diagnostics-recheck" type="button">Recheck</button>
+        <button class="button" id="diagnostics-copy" type="button">Copy diagnostics</button>
+        <button class="button primary" id="diagnostics-close" type="button">Close</button>
+      </div>
+      <p id="diagnostics-copy-status" class="meta" role="status" hidden></p>
+    </dialog>
     <dialog class="unit-dialog" id="unit-dialog" aria-labelledby="unit-dialog-title">
       <h2 id="unit-dialog-title">Which unit is broadcasting?</h2>
       <p>More than one of your assigned units could be starting now.</p>
