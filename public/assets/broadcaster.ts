@@ -15,7 +15,12 @@ const unitDialogOptions = document.querySelector("#unit-dialog-options")!;
 let latestHealth: { ingest?: unknown } | null = null;
 let latestState: unknown = null;
 let latestPreviewSignature = "";
-let csrfToken = "development";
+let csrfToken = "";
+let sessionReady = false;
+let sessionPending = false;
+let previewRequested = false;
+let previewAssets: Promise<void> | null = null;
+const presetStorageKey = `steeple:camera-presets:${location.pathname}`;
 let presetSignature = "";
 let latestRecall = 0;
 let manualSourceSignature = "";
@@ -42,10 +47,15 @@ document
 document.querySelector("#end")!.addEventListener("click", () => post("/api/broadcast/end"));
 
 async function post(url, body = {}, method: "POST" | "PUT" = "POST", refreshAfter = true) {
+  if (!csrfToken) {
+    alert("Connecting to camera control. Check your connection and try again.");
+    throw new Error("Not connected to camera control");
+  }
   const response = await fetch(url, {
     method,
     headers: { "content-type": "application/json", "x-steeple-csrf": csrfToken },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(5000),
   }).catch((error) => {
     alert("Could not send the request. Check your connection and try again.");
     throw error;
@@ -91,12 +101,27 @@ function isUnitSelection(
 }
 
 async function refresh() {
-  const [state, healthState] = await Promise.all([
-    fetch("/api/state").then((response) => response.json()),
-    fetch("/api/health").then((response) => response.json()),
-  ]);
-  latestHealth = healthState;
-  renderState(state);
+  const response = await fetch("/api/state", { cache: "no-store", signal: AbortSignal.timeout(6000) });
+  if (!response.ok) {
+    if (response.status === 401) {
+      location.href = "/auth/login";
+      return;
+    }
+    throw new Error(`Could not refresh camera state: ${response.status}`);
+  }
+  renderState(await response.json());
+
+  // A slow health/preview endpoint must not delay camera controls.
+  void fetch("/api/health", { cache: "no-store", signal: AbortSignal.timeout(6000) })
+    .then((result) => {
+      if (!result.ok) throw new Error(`Health request failed: ${result.status}`);
+      return result.json();
+    })
+    .then((healthState) => {
+      latestHealth = healthState;
+      if (previewRequested && window.SteeplePlayer && latestState) renderPreview(latestState);
+    })
+    .catch(console.error);
 }
 
 function renderState(state) {
@@ -122,15 +147,37 @@ function renderState(state) {
   details.textContent = `Status: ${broadcast.status}. Mode: ${broadcast.mode}.${association} Started: ${format(broadcast.startedAt)}. Expires: ${format(broadcast.expiresAt)}.`;
   document.querySelector("#chapel")!.classList.toggle("active", broadcast.mode === "chapel");
   document.querySelector("#sacrament")!.classList.toggle("active", broadcast.mode === "sacrament");
-  renderPreview(state);
+  if (previewRequested && window.SteeplePlayer) renderPreview(state);
   renderPtzControls(state);
+  try {
+    localStorage.setItem(
+      presetStorageKey,
+      JSON.stringify({
+        cameraReady: Boolean(
+          state.cameraControlSource?.ndi?.sourceName ||
+            (state.source?.type === "ndi" && state.source?.ndi?.sourceName),
+        ),
+        presets: state.ptz.presets.map((preset) => ({
+          id: preset.id,
+          name: preset.name,
+          group: preset.group,
+          ndiPreset: preset.ndiPreset,
+        })),
+      }),
+    );
+  } catch {
+    // Storage may be unavailable; online controls still work.
+  }
 }
 
 function renderPtzControls(state) {
-  const cameraReady = Boolean(
-    state.cameraControlSource?.ndi?.sourceName ||
-    (state.source?.type === "ndi" && state.source?.ndi?.sourceName),
-  );
+  const cameraReady =
+    typeof state.cameraReady === "boolean"
+      ? state.cameraReady
+      : Boolean(
+          state.cameraControlSource?.ndi?.sourceName ||
+            (state.source?.type === "ndi" && state.source?.ndi?.sourceName),
+        );
   const signature = JSON.stringify([
     state.ptz.presets,
     cameraReady,
@@ -324,26 +371,148 @@ function format(value) {
   return value ? new Date(value).toLocaleString() : "not set";
 }
 
-async function initialize() {
-  const response = await fetch("/api/session");
-  if (!response.ok) {
-    location.href = "/auth/login";
-    return;
+/** Show last-known controls before making a network request. */
+function restorePresets() {
+  try {
+    const snapshot = JSON.parse(localStorage.getItem(presetStorageKey) || "null");
+    if (!snapshot || !Array.isArray(snapshot.presets)) return;
+    renderPtzControls({
+      ptz: { presets: snapshot.presets },
+      cameraReady: snapshot.cameraReady === true,
+    });
+  } catch {
+    // An absent or invalid snapshot should not interfere with startup.
   }
-  const principal = await response.json();
-  csrfToken = principal.csrfToken;
-  installManualCamera(() => csrfToken);
-  await refresh();
-  const events = new EventSource("/api/events");
-  events.addEventListener("state", (event) => renderState(JSON.parse(event.data)));
-  events.addEventListener("health", (event) => {
-    const healthState = JSON.parse(event.data);
-    latestHealth = healthState;
-    if (latestState && previewStreamKey(healthState.ingest) !== latestPreviewSignature) {
-      renderPreview(latestState);
-    }
+}
+
+function loadHlsScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (window.Hls) return resolve();
+    const script = document.createElement("script");
+    script.src = "/vendor/hls.min.js";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Could not load HLS preview"));
+    document.head.append(script);
   });
 }
 
-initialize().catch(console.error);
-setInterval(() => refresh().catch(console.error), 30000);
+function loadPreview(): Promise<void> {
+  previewAssets ??= (async () => {
+    await Promise.all([import("../../tools/player-ui/index.ts"), loadHlsScript()]);
+    await import("./player.ts");
+  })().catch((error) => {
+    previewAssets = null;
+    throw error;
+  });
+  return previewAssets;
+}
+
+document.querySelector("#preview-play")!.addEventListener("click", () => {
+  previewRequested = true;
+  void loadPreview()
+    .then(() => {
+      if (latestState) renderPreview(latestState);
+    })
+    .catch((error) => {
+      previewTransport.textContent = "Preview failed to load. Tap Play to retry.";
+      console.error(error);
+    });
+});
+
+/** Reauthenticate only when reachable; don't redirect due to network timeouts. */
+async function connect() {
+  if (sessionPending || sessionReady) return;
+  sessionPending = true;
+  try {
+    const response = await fetch("/api/session", {
+      cache: "no-store",
+      signal: AbortSignal.timeout(6000),
+    });
+    if (response.status === 401) {
+      location.href = "/auth/login";
+      return;
+    }
+    if (!response.ok) throw new Error(`Session request failed: ${response.status}`);
+    const principal = await response.json();
+    csrfToken = principal.csrfToken;
+    sessionReady = true;
+    void refresh().catch(console.error);
+
+    const events = new EventSource("/api/events");
+    events.addEventListener("state", (event) => renderState(JSON.parse(event.data)));
+    events.addEventListener("health", (event) => {
+      const healthState = JSON.parse(event.data);
+      latestHealth = healthState;
+      if (
+        previewRequested &&
+        window.SteeplePlayer &&
+        latestState &&
+        previewStreamKey(healthState.ingest) !== latestPreviewSignature
+      ) {
+        renderPreview(latestState);
+      }
+    });
+  } catch (error) {
+    statusLabel.textContent = "Disconnected · retrying";
+    console.warn("Camera control not yet reachable", error);
+  } finally {
+    sessionPending = false;
+  }
+}
+
+async function registerOfflineShell() {
+  if (!("serviceWorker" in navigator)) return;
+  try {
+    const registration = await navigator.serviceWorker.register("/sw.js", {
+      scope: "/",
+      updateViaCache: "none",
+    });
+    const notice = document.querySelector<HTMLElement>("#update-notice")!;
+    const refreshButton = document.querySelector<HTMLButtonElement>("#refresh-update")!;
+    const showWaitingUpdate = () => {
+      notice.hidden = !(registration.waiting && navigator.serviceWorker.controller);
+    };
+    const watchInstaller = () => {
+      const installing = registration.installing;
+      installing?.addEventListener("statechange", showWaitingUpdate);
+      showWaitingUpdate();
+    };
+    registration.addEventListener("updatefound", watchInstaller);
+    watchInstaller();
+
+    refreshButton.addEventListener("click", () => {
+      refreshButton.disabled = true;
+      const waiting = registration.waiting;
+      if (!waiting) {
+        location.reload();
+        return;
+      }
+      navigator.serviceWorker.addEventListener(
+        "controllerchange",
+        () => location.reload(),
+        { once: true },
+      );
+      waiting.postMessage({ type: "ACTIVATE_UPDATE" });
+    });
+
+    // Update checks must never delay app startup or interrupt the operator.
+    void registration.update().catch(console.warn);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) void registration.update().catch(console.warn);
+    });
+  } catch (error) {
+    console.warn("Offline shell could not be installed", error);
+  }
+}
+
+restorePresets();
+installManualCamera(() => csrfToken);
+void registerOfflineShell();
+void connect();
+window.addEventListener("online", () => void connect());
+setInterval(() => {
+  if (!sessionReady) void connect();
+}, 8000);
+setInterval(() => {
+  if (sessionReady) void refresh().catch(console.error);
+}, 30000);
