@@ -13,7 +13,7 @@ test.describe("touch joysticks", () => {
       await route.fulfill({ json: { accepted: true } });
     });
     await page.goto("/broadcasts/stakecenter/broadcaster");
-  await expect(page.locator("html")).toHaveAttribute("data-control-session-ready", "true");
+    await expect(page.locator("html")).toHaveAttribute("data-control-session-ready", "true");
     const pan = page.getByRole("group", { name: "Pan and tilt joystick", exact: true });
     const zoom = page.getByRole("group", { name: "Zoom joystick", exact: true });
     await pan.scrollIntoViewIfNeeded();
