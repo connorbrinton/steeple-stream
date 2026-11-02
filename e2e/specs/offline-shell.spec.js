@@ -14,8 +14,10 @@ async function waitForCachedShell(page) {
     .poll(() =>
       page.evaluate(async () => {
         const keys = await caches.keys();
-        const cache = await caches.open(keys.find((key) => key.startsWith("steeple-broadcaster-")));
-        return Boolean(await cache.match("/operator-shell"));
+        const cacheName = keys.find((key) => key.startsWith("workbox-precache-"));
+        if (!cacheName) return false;
+        const cache = await caches.open(cacheName);
+        return (await cache.keys()).some((request) => new URL(request.url).pathname === "/operator-shell");
       }),
     )
     .toBe(true);
