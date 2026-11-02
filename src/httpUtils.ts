@@ -124,8 +124,7 @@ export async function broadcasterPrecacheAssets(publicDir: string): Promise<stri
     const item = manifest[key];
     if (!item) throw new Error(`Missing Vite manifest import: ${key}`);
     urls.add(`/build/${item.file}`);
-    for (const file of [...(item.css || []), ...(item.assets || [])])
-      urls.add(`/build/${file}`);
+    for (const file of [...(item.css || []), ...(item.assets || [])]) urls.add(`/build/${file}`);
     for (const dependency of item.imports || []) visit(dependency);
     // Dynamic preview imports are intentionally excluded.
   };
