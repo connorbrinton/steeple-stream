@@ -43,7 +43,7 @@ test("a newly opened tab loads the broadcaster controls while completely offline
   await expect(newPage.getByRole("button", { name: "Pulpit", exact: true })).toBeVisible();
   await expect(newPage.locator("#offline-status")).toHaveText("Offline controls ready");
   await context.setOffline(false);
-}
+});
 
 test("cached broadcaster and presets open without an available API", async ({
   page,
