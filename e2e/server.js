@@ -221,14 +221,8 @@ server = http.createServer(async (req, res) => {
       const publicDir = path.join(dir, "../public");
       const template = await fs.readFile(path.join(publicDir, "sw.js"), "utf8");
       const script = template
-        .replaceAll(
-          "__ASSET_VERSION__",
-          (await frontendVersion(publicDir)) + "-" + workerRevision,
-        )
-        .replace(
-          "__PRECACHE_ASSETS__",
-          JSON.stringify(await broadcasterPrecacheAssets(publicDir)),
-        );
+        .replaceAll("__ASSET_VERSION__", (await frontendVersion(publicDir)) + "-" + workerRevision)
+        .replace("__PRECACHE_ASSETS__", JSON.stringify(await broadcasterPrecacheAssets(publicDir)));
       res.writeHead(200, {
         "content-type": "text/javascript; charset=utf-8",
         "cache-control": "no-cache",
