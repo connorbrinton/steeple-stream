@@ -1,0 +1,29 @@
+name: Format offline diagnostics (one-time)
+on:
+  push:
+    branches: [fix/offline-new-tab-readiness-20261102]
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/offline-new-tab-readiness-20261102
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run format
+      - name: Commit formatting fixes
+        run: |
+          if ! git diff --quiet -- e2e/specs/offline-shell.spec.js public/assets/broadcaster.ts public/broadcaster.html; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add e2e/specs/offline-shell.spec.js public/assets/broadcaster.ts public/broadcaster.html
+            git commit -m 'style: format offline readiness and diagnostics UI'
+            git push origin HEAD:fix/offline-new-tab-readiness-20261102
+          fi
