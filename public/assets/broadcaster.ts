@@ -615,11 +615,14 @@ document.querySelector("#diagnostics-copy")!.addEventListener("click", () => {
     .map(([label, id]) => `${label}: ${document.getElementById(id)!.textContent}`)
     .join("\n");
   diagnosticsCopyStatus.hidden = true;
-  // Clipboard access requires a user gesture. Call it immediately on the click,
-  // rather than after another asynchronous operation.
-  void Promise.resolve()
-    .then(() => navigator.clipboard.writeText(report))
-    .then(
+  // Clipboard access requires a user gesture; invoke it synchronously.
+  let copyResult: Promise<void>;
+  try {
+    copyResult = navigator.clipboard.writeText(report);
+  } catch (error) {
+    copyResult = Promise.reject(error);
+  }
+  void copyResult.then(
       () => {
         diagnosticsCopyStatus.textContent = "Diagnostics copied";
         diagnosticsCopyStatus.hidden = false;
