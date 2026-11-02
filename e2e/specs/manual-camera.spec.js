@@ -1,5 +1,8 @@
 import { test, expect } from "@playwright/test";
 
+// These tests mock PTZ fetches with page.route; SW-controlled fetches bypass that hook in WebKit.
+test.use({ serviceWorkers: "block" });
+
 test.describe("touch joysticks", () => {
   test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
   test("two touches can aim and zoom independently", async ({ page, browserName }) => {
