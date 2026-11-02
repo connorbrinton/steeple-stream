@@ -18,9 +18,11 @@ async function waitForCachedShell(page) {
         if (!cacheName) return false;
         const cache = await caches.open(cacheName);
         const cachedPaths = (await cache.keys()).map((request) => new URL(request.url).pathname);
-        return ["/operator-shell", "/build/broadcaster.js", "/build/app.css"].every((path) =>
-          cachedPaths.includes(path),
+        const missing = ["/operator-shell", "/build/broadcaster.js", "/build/app.css"].filter(
+          (path) => !cachedPaths.includes(path),
         );
+        if (missing.length) console.log("Workbox cache debug", { missing, cachedPaths });
+        return missing.length === 0;
       }),
     )
     .toBe(true);
