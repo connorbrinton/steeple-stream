@@ -499,7 +499,7 @@ async function registerOfflineShell() {
       navigator.serviceWorker.addEventListener("controllerchange", () => location.reload(), {
         once: true,
       });
-      waiting.postMessage({ type: "ACTIVATE_UPDATE" }, []);
+      waiting.postMessage({ type: "SKIP_WAITING" }, []);
     });
 
     // Update checks must never delay app startup or interrupt the operator.
