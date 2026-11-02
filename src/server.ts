@@ -14,7 +14,14 @@ import { runSynchronizedMove } from "./smoothPtz.js";
 import { PresetCaptureBatch } from "./presetCaptureBatch.js";
 import { configuredCameraHost, probeVisca, readViscaPosition } from "./viscaProbe.js";
 import { ManualPtz, cameraVelocity } from "./manualPtz.js";
-import { parseJson, proxyHttp, sendJson, sendStatic, frontendVersion, broadcasterPrecacheAssets } from "./httpUtils.js";
+import {
+  parseJson,
+  proxyHttp,
+  sendJson,
+  sendStatic,
+  frontendVersion,
+  broadcasterPrecacheAssets,
+} from "./httpUtils.js";
 import { SourceDiscoveryService } from "./sourceDiscoveryService.js";
 import { LocationCommandCoordinator } from "./commandCoordinator.js";
 import { AuthService } from "./authService.js";
