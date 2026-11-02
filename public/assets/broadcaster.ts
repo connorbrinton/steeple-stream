@@ -469,8 +469,43 @@ async function connect() {
   }
 }
 
+const offlineStatus = document.querySelector<HTMLElement>("#offline-status")!;
+
+/**
+ * The browser may display the broadcaster before the service worker has
+ * finished installing. Check the actual precached resources, not just
+ * registration, before telling an operator that offline startup is ready.
+ */
+async function verifyOfflineCache(): Promise<boolean> {
+  if (!navigator.serviceWorker.controller) return false;
+  const required = ["/operator-shell", "/build/broadcaster.js", "/build/app.css"];
+  const keys = await caches.keys();
+  for (const key of keys.filter((key) => key.startsWith("workbox-precache-"))) {
+    const cache = await caches.open(key);
+    const paths = new Set((await cache.keys()).map((request) => new URL(request.url).pathname));
+    if (required.every((resource) => paths.has(resource))) return true;
+  }
+  return false;
+}
+
 async function registerOfflineShell() {
-  if (!("serviceWorker" in navigator)) return;
+  if (!("serviceWorker" in navigator) || !("caches" in window)) {
+    offlineStatus.textContent = "Offline cache unavailable";
+    return;
+  }
+  const checkOfflineReady = async () => {
+    try {
+      offlineStatus.textContent = (await verifyOfflineCache())
+        ? "Offline controls ready"
+        : "Preparing offline controls…";
+    } catch (error) {
+      console.warn("Offline cache status check failed", error);
+      offlineStatus.textContent = "Offline cache unavailable";
+    }
+  };
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    void checkOfflineReady();
+  });
   try {
     const registration = await navigator.serviceWorker.register("/sw.js", {
       scope: "/",
