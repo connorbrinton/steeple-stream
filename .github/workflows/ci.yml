@@ -85,3 +85,30 @@ jobs:
             e2e/playwright-report/
             e2e/test-results/
             e2e/artifacts/*.log
+
+  format-pwa:
+    name: Format PWA source files (one-time)
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/offline-broadcaster-shell-20261101'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run format
+      - name: Commit formatted files to PR branch
+        run: |
+          if ! git diff --quiet -- e2e/server.js e2e/specs/offline-shell.spec.js tools/player-ui/sw.js tools/player-ui/vite.config.ts; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add e2e/server.js e2e/specs/offline-shell.spec.js tools/player-ui/sw.js tools/player-ui/vite.config.ts
+            git commit -m 'style(pwa): apply repository formatter'
+            git push origin HEAD:feat/offline-broadcaster-shell-20261101
+          fi
