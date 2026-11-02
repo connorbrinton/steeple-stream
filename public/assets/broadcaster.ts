@@ -623,16 +623,16 @@ document.querySelector("#diagnostics-copy")!.addEventListener("click", () => {
     copyResult = Promise.reject(error);
   }
   void copyResult.then(
-      () => {
-        diagnosticsCopyStatus.textContent = "Diagnostics copied";
-        diagnosticsCopyStatus.hidden = false;
-      },
-      (error) => {
-        console.warn("Could not copy diagnostic report", error);
-        diagnosticsCopyStatus.textContent = "Copy failed; you can select the values above";
-        diagnosticsCopyStatus.hidden = false;
-      },
-    );
+    () => {
+      diagnosticsCopyStatus.textContent = "Diagnostics copied";
+      diagnosticsCopyStatus.hidden = false;
+    },
+    (error) => {
+      console.warn("Could not copy diagnostic report", error);
+      diagnosticsCopyStatus.textContent = "Copy failed; you can select the values above";
+      diagnosticsCopyStatus.hidden = false;
+    },
+  );
 });
 
 const offlineStatus = document.querySelector<HTMLElement>("#offline-status")!;
