@@ -91,6 +91,9 @@ export const config = {
     ndiRuntimeDir: process.env.STEEPLE_NDI_RUNTIME_DIR || null,
     ndiNixPackage: process.env.STEEPLE_NDI_NIX_PACKAGE || "nixpkgs#ndi",
   },
+  rtmps: {
+    binary: process.env.STEEPLE_FFMPEG_BINARY || "ffmpeg",
+  },
   mediamtx: {
     channelId: process.env.STEEPLE_CHANNEL_ID || "stakecenter",
     autoStart: process.env.STEEPLE_MEDIAMTX_AUTO_START !== "0",

@@ -22,6 +22,10 @@ interface IngestManager {
   restartForState(state: PublicState): Promise<unknown>;
 }
 
+interface RtmpsOutput {
+  sync(live: boolean): Promise<void>;
+}
+
 interface MediaManager {
   setRecording?(enabled: boolean): Promise<unknown>;
 }
@@ -30,18 +34,21 @@ interface LocationCommandCoordinatorOptions {
   service: CoordinatedService;
   ingestManager: IngestManager;
   mediaManager?: MediaManager | null;
+  rtmpsOutput?: RtmpsOutput | null;
 }
 
 export class LocationCommandCoordinator extends EventEmitter {
   declare service: CoordinatedService;
   declare ingestManager: IngestManager;
   declare mediaManager: MediaManager | null;
+  declare rtmpsOutput: RtmpsOutput | null;
 
-  constructor({ service, ingestManager, mediaManager = null }: LocationCommandCoordinatorOptions) {
+  constructor({ service, ingestManager, mediaManager = null, rtmpsOutput = null }: LocationCommandCoordinatorOptions) {
     super();
     this.service = service;
     this.ingestManager = ingestManager;
     this.mediaManager = mediaManager;
+    this.rtmpsOutput = rtmpsOutput;
     this.ingestManager?.on?.("changed", () => this.emit("health-changed"));
   }
 
@@ -49,10 +56,13 @@ export class LocationCommandCoordinator extends EventEmitter {
     const state = await this.service.start(actor, association);
     await this.ingestManager.startForState(state);
     await this.mediaManager?.setRecording?.(true);
+    // External publishing is best-effort and never gates local broadcasting.
+    await this.rtmpsOutput?.sync(true).catch((error) => console.error("RTMPS relay error", error));
     return this.changed(await this.service.summary());
   }
 
   async end(actor: Actor | null = null) {
+    await this.rtmpsOutput?.sync(false).catch((error) => console.error("RTMPS relay error", error));
     await this.mediaManager?.setRecording?.(false);
     return this.changed(await this.service.end(actor));
   }

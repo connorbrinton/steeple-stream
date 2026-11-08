@@ -11,6 +11,52 @@ const previewTransport = document.querySelector<HTMLElement>("#preview-transport
 const previewTransportDetail = document.querySelector<HTMLElement>("#preview-transport-detail")!;
 const unitDialog = document.querySelector<HTMLDialogElement>("#unit-dialog")!;
 const unitDialogOptions = document.querySelector("#unit-dialog-options")!;
+const rtmpsServer = document.querySelector<HTMLInputElement>("#rtmps-server")!;
+const rtmpsKey = document.querySelector<HTMLInputElement>("#rtmps-key")!;
+const rtmpsStatus = document.querySelector<HTMLElement>("#rtmps-status")!;
+let rtmpsInitialized = false;
+
+async function refreshRtmps(fillForm = false) {
+  if (!sessionReady || broadcastControlsGroup.hidden) return;
+  try {
+    const response = await fetch("/api/broadcast/rtmps", {
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) throw new Error("RTMPS status is unavailable");
+    const state = await response.json();
+    if (fillForm || !rtmpsInitialized) {
+      rtmpsServer.value = state.serverUrl || "";
+      rtmpsKey.value = "";
+      rtmpsInitialized = true;
+    }
+    rtmpsStatus.textContent = state.enabled
+      ? "Destination saved · " + state.status + (state.lastError ? " · " + state.lastError : "")
+      : "RTMPS disabled. Local broadcasting is unaffected.";
+  } catch {
+    rtmpsStatus.textContent = "RTMPS status unavailable; check your connection.";
+  }
+}
+
+document.querySelector("#rtmps-save")!.addEventListener("click", async () => {
+  try {
+    await post("/api/broadcast/rtmps", {
+      serverUrl: rtmpsServer.value,
+      streamKey: rtmpsKey.value,
+    }, "PUT", false);
+    await refreshRtmps(true);
+  } catch (error) {
+    console.warn("Could not save RTMPS settings", error);
+  }
+});
+document.querySelector("#rtmps-disable")!.addEventListener("click", async () => {
+  try {
+    await post("/api/broadcast/rtmps", { enabled: false }, "PUT", false);
+    await refreshRtmps(true);
+  } catch (error) {
+    console.warn("Could not disable RTMPS", error);
+  }
+});
 
 let latestHealth: { ingest?: unknown } | null = null;
 let latestState: unknown = null;
@@ -446,6 +492,7 @@ async function connect() {
     sessionReady = true;
     document.documentElement.dataset.controlSessionReady = "true";
     void refresh().catch(console.error);
+    void refreshRtmps(true);
 
     const events = new EventSource("/api/events");
     events.addEventListener("state", (event) => renderState(JSON.parse(event.data)));
@@ -730,5 +777,8 @@ setInterval(() => {
   if (!sessionReady) void connect();
 }, 8000);
 setInterval(() => {
-  if (sessionReady) void refresh().catch(console.error);
+  if (sessionReady) {
+    void refresh().catch(console.error);
+    void refreshRtmps();
+  }
 }, 30000);

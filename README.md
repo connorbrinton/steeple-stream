@@ -103,6 +103,28 @@ Useful environment variables:
 
 `docker-compose.yml` is retained only as an optional development convenience.
 
+## External RTMPS output
+
+In the `broadcast` profile, a broadcaster can optionally forward a live
+broadcast to a destination such as YouTube Live. Open the broadcaster console,
+enter the RTMPS server URL (for example, `rtmps://a.rtmps.youtube.com/live2`)
+and its stream key in **separate fields**, and save. The key is retained between
+broadcasts; leaving the key field blank when saving retains the previous value.
+Disabling RTMPS removes the saved key.
+
+The relay runs only during a live broadcast, automatically resumes after an
+application restart if the broadcast is still live, and retries unexpected
+disconnections. It copies the existing local H.264/AAC RTMP stream with FFmpeg,
+rather than re-encoding it or modifying local playback and recording.
+The broadcaster console shows relay status. An RTMPS failure does not stop the
+local broadcast.
+
+Stream keys are stored in the local SQLite database; the API and health output
+never return the key. Protect the SQLite file and host process list (the FFmpeg
+command line contains the destination URL). The appliance package includes
+FFmpeg; other runtimes must provide it on PATH or set `STEEPLE_FFMPEG_BINARY`.
+RTMPS is unavailable in `camera-control` profile until full broadcasting is enabled.
+
 ## Ingest and Playback
 
 NDI is one supported ingest adapter, not a requirement of the media core.

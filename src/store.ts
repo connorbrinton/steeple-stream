@@ -4,6 +4,7 @@ import type { ApplicationState, PtzPreset, StateMutator, VideoSource } from "./d
 
 export const defaultState: ApplicationState = {
   version: 1,
+  rtmpsDestination: null,
   broadcast: {
     id: null,
     channelId: "stakecenter",
