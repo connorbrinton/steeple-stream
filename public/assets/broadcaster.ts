@@ -40,10 +40,15 @@ async function refreshRtmps(fillForm = false) {
 
 document.querySelector("#rtmps-save")!.addEventListener("click", async () => {
   try {
-    await post("/api/broadcast/rtmps", {
-      serverUrl: rtmpsServer.value,
-      streamKey: rtmpsKey.value,
-    }, "PUT", false);
+    await post(
+      "/api/broadcast/rtmps",
+      {
+        serverUrl: rtmpsServer.value,
+        streamKey: rtmpsKey.value,
+      },
+      "PUT",
+      false,
+    );
     await refreshRtmps(true);
   } catch (error) {
     console.warn("Could not save RTMPS settings", error);

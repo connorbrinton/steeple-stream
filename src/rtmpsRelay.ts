@@ -22,9 +22,12 @@ export function validateRtmpsDestination(serverUrl: unknown, streamKey: unknown)
     url.search ||
     url.hash
   ) {
-    throw Object.assign(new Error("Use an rtmps:// server URL without credentials or query parameters."), {
-      status: 400,
-    });
+    throw Object.assign(
+      new Error("Use an rtmps:// server URL without credentials or query parameters."),
+      {
+        status: 400,
+      },
+    );
   }
   if (
     typeof streamKey !== "string" ||
@@ -89,7 +92,8 @@ export class RtmpsRelay {
         return;
       }
       const oldKey = state.rtmpsDestination?.streamKey || "";
-      const key = input.streamKey === "" || input.streamKey === undefined ? oldKey : input.streamKey;
+      const key =
+        input.streamKey === "" || input.streamKey === undefined ? oldKey : input.streamKey;
       state.rtmpsDestination = validateRtmpsDestination(input.serverUrl, key);
     });
     await this.sync(this.live);
@@ -105,9 +109,10 @@ export class RtmpsRelay {
 
   private async reconcile() {
     const { rtmpsDestination: destination } = await this.store.read();
-    const target = this.live && destination
-      ? destination.serverUrl + "/" + encodeURIComponent(destination.streamKey)
-      : null;
+    const target =
+      this.live && destination
+        ? destination.serverUrl + "/" + encodeURIComponent(destination.streamKey)
+        : null;
     if (target && target === this.target && this.child) return;
     await this.stopChild();
     if (!target) {
@@ -122,9 +127,22 @@ export class RtmpsRelay {
     const child = this.spawnProcess(
       this.binary,
       [
-        "-nostdin", "-hide_banner", "-nostats", "-loglevel", "error",
-        "-stats_period", "3", "-progress", "pipe:2",
-        "-i", this.inputUrl, "-c", "copy", "-f", "flv", target,
+        "-nostdin",
+        "-hide_banner",
+        "-nostats",
+        "-loglevel",
+        "error",
+        "-stats_period",
+        "3",
+        "-progress",
+        "pipe:2",
+        "-i",
+        this.inputUrl,
+        "-c",
+        "copy",
+        "-f",
+        "flv",
+        target,
       ],
       { stdio: ["ignore", "ignore", "pipe"] },
     );
@@ -146,7 +164,8 @@ export class RtmpsRelay {
       if (child !== this.child) return;
       this.child = null;
       this.state = "error";
-      this.lastError = "RTMPS connection stopped (exit code " + code + "). Verify the destination and network.";
+      this.lastError =
+        "RTMPS connection stopped (exit code " + code + "). Verify the destination and network.";
       this.scheduleRetry();
     });
   }

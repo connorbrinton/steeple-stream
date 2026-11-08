@@ -43,7 +43,12 @@ export class LocationCommandCoordinator extends EventEmitter {
   declare mediaManager: MediaManager | null;
   declare rtmpsOutput: RtmpsOutput | null;
 
-  constructor({ service, ingestManager, mediaManager = null, rtmpsOutput = null }: LocationCommandCoordinatorOptions) {
+  constructor({
+    service,
+    ingestManager,
+    mediaManager = null,
+    rtmpsOutput = null,
+  }: LocationCommandCoordinatorOptions) {
     super();
     this.service = service;
     this.ingestManager = ingestManager;

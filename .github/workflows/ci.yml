@@ -30,10 +30,6 @@ jobs:
       - run: npm ci
       - name: Lint, typecheck, and build
         run: |
-          npm run format
-          echo 'FORMAT_DIFF_START'
-          git diff -- public/assets/broadcaster.ts public/broadcaster.html src/commandCoordinator.ts src/rtmpsRelay.ts src/server.ts tests/rtmpsRelay.test.js
-          echo 'FORMAT_DIFF_END'
           npm run format:check
           npm run lint
           npm run typecheck

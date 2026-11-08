@@ -60,7 +60,11 @@ const ingestManager = new IngestManager({
   config: config.ingest,
   ndiDiscovery: async (source) => sourceDiscovery.listNdiSources(source),
 });
-const rtmpsRelay = new RtmpsRelay({ store, inputUrl: config.ingest.rtmpUrl, binary: config.rtmps.binary });
+const rtmpsRelay = new RtmpsRelay({
+  store,
+  inputUrl: config.ingest.rtmpUrl,
+  binary: config.rtmps.binary,
+});
 const coordinator = new LocationCommandCoordinator({
   service,
   ingestManager,

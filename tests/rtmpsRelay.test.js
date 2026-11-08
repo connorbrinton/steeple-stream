@@ -34,8 +34,14 @@ function fixture() {
 
 test("requires an RTMPS server and separate stream key", () => {
   assert.throws(() => validateRtmpsDestination("rtmp://example.com/live", "secret"), /rtmps:/);
-  assert.throws(() => validateRtmpsDestination("rtmps://example.com/live?key=x", "secret"), /rtmps:/);
-  assert.throws(() => validateRtmpsDestination("rtmps://example.com/live", "secret/other"), /stream key/);
+  assert.throws(
+    () => validateRtmpsDestination("rtmps://example.com/live?key=x", "secret"),
+    /rtmps:/,
+  );
+  assert.throws(
+    () => validateRtmpsDestination("rtmps://example.com/live", "secret/other"),
+    /stream key/,
+  );
   assert.equal(
     validateRtmpsDestination("rtmps://example.com/live2", "stream-key").serverUrl,
     "rtmps://example.com/live2",
@@ -66,7 +72,11 @@ test("relay starts and stops with the broadcast without touching ingest", async 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].command, "ffmpeg");
   assert.deepEqual(calls[0].args.slice(-5), [
-    "-c", "copy", "-f", "flv", "rtmps://example.com/live/secret",
+    "-c",
+    "copy",
+    "-f",
+    "flv",
+    "rtmps://example.com/live/secret",
   ]);
   assert.equal((await relay.summary()).status, "connecting");
   children[0].stderr.emit("data", Buffer.from("out_time_ms=23000\n"));
