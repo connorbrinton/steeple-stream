@@ -289,6 +289,60 @@ test("ingest manager keeps saved NDI direct address when discovery has no match"
   assert.equal(calls[0].args.includes("192.0.2.10:5962"), true);
 });
 
+test("unexpected NDI failures alternate direct address with name-only discovery", async (t) => {
+  const commands = [];
+  const children = [];
+  const manager = makeIngestManager({
+    runner: {
+      spawn(command, args) {
+        commands.push(args);
+        const child = new FakeProcess();
+        children.push(child);
+        return child;
+      },
+    },
+    ndiDiscovery: async () => [],
+    config: {
+      autoStart: true,
+      runtime: "system",
+      rtmpUrl: "rtmp://127.0.0.1:1935/stakecenter",
+      frameRate: 30,
+      videoBitrateKbps: 4500,
+      audioBitrate: 128000,
+    },
+  });
+  t.after(() => manager.stop());
+  const state = {
+    broadcast: { mode: "chapel" },
+    source: {
+      type: "ndi",
+      ndi: { sourceName: "CHAPEL CAMERA", urlAddress: "192.0.2.10:5962" },
+    },
+  };
+
+  await manager.startForState(state);
+  assert.equal(commands[0].includes("--ndi-url-address"), true);
+
+  children[0].emit("exit", 1, null);
+  await manager.startForState(state);
+  assert.equal(commands[1].includes("--ndi-source"), true);
+  assert.equal(commands[1].includes("--ndi-url-address"), false);
+
+  children[1].emit("exit", 1, null);
+  await manager.startForState(state);
+  assert.equal(commands[2].includes("--ndi-url-address"), true);
+
+  children[2].emit("exit", 1, null);
+  await manager.startForState({
+    ...state,
+    source: {
+      ...state.source,
+      ndi: { ...state.source.ndi, sourceName: "OTHER CAMERA" },
+    },
+  });
+  assert.equal(commands[3].includes("--ndi-url-address"), true);
+});
+
 test("ingest manager switches scene mode without restarting the controller", async () => {
   const { calls, runner, child } = makeRunner();
   const manager = makeIngestManager({

@@ -41,6 +41,7 @@ export class IngestManager extends EventEmitter {
   declare retryTimer: NodeJS.Timeout | null;
   declare retryAttempt: number;
   declare lastRequestedState: RequestedState | null;
+  declare retryWithoutDirectAddress: boolean;
   declare engine: GStreamerMediaEngine;
 
   constructor({
@@ -62,6 +63,7 @@ export class IngestManager extends EventEmitter {
     this.retryTimer = null;
     this.retryAttempt = 0;
     this.lastRequestedState = null;
+    this.retryWithoutDirectAddress = false;
     this.engine = new GStreamerMediaEngine({
       config,
       cwd,
@@ -72,6 +74,15 @@ export class IngestManager extends EventEmitter {
   }
 
   async startForState(state: RequestedState): Promise<IngestStatus> {
+    // An intentional source change starts with the selected connection settings.
+    // Unexpected NDI failures instead alternate between a direct address and
+    // SDK name discovery, so a stale cached IP:port cannot cause endless retries.
+    if (
+      this.lastRequestedState &&
+      JSON.stringify(this.lastRequestedState.source) !== JSON.stringify(state.source)
+    ) {
+      this.retryWithoutDirectAddress = false;
+    }
     this.lastRequestedState = structuredClone(state);
     let source = state.source;
     const mode =
@@ -182,9 +193,15 @@ export class IngestManager extends EventEmitter {
       !stopping && !sdkMissing && this.lastRequestedState && this.config.autoStart;
     if (!shouldRetry) return;
 
+    if (this.lastRequestedState?.source?.type === "ndi") {
+      this.retryWithoutDirectAddress = !this.retryWithoutDirectAddress;
+    }
     this.engine.setState({
       status: "starting",
-      message: `Ingest exited with code=${code} signal=${signal}; retrying shortly.`,
+      message:
+        this.lastRequestedState?.source?.type === "ndi"
+          ? `NDI ingest exited with code=${code} signal=${signal}; next attempt uses ${this.retryWithoutDirectAddress ? "source-name discovery" : "the direct address"}.`
+          : `Ingest exited with code=${code} signal=${signal}; retrying shortly.`,
     });
     this.scheduleRetry();
   }
@@ -225,9 +242,15 @@ export class IngestManager extends EventEmitter {
   }
 
   async resolveRuntimeSource(source: VideoSource): Promise<VideoSource> {
-    if (source?.type !== "ndi" || !source.ndi?.sourceName || !this.ndiDiscovery) {
+    if (source?.type !== "ndi" || !source.ndi?.sourceName) {
       return source;
     }
+    if (this.retryWithoutDirectAddress) {
+      // Omitting url-address lets the NDI SDK resolve the source using its own
+      // discovery instead of repeatedly attempting an obsolete direct endpoint.
+      return { ...source, ndi: { ...source.ndi, urlAddress: "" } };
+    }
+    if (!this.ndiDiscovery) return source;
     try {
       const discovered = await this.ndiDiscovery(source);
       const match = discovered.find(

@@ -143,7 +143,17 @@ STEEPLE_NDI_RUNTIME_DIR=/path/to/ndi/lib
 ```
 
 The admin Health panel shows ingest status. Saving a different source in the
-admin UI restarts the bridge automatically.
+admin UI restarts the bridge automatically. When an NDI ingest process crashes
+unexpectedly, the supervisor alternates between the configured/discovered
+direct NDI address and source-name discovery on retries. This allows recovery
+if an NDI sender's advertised port has changed; an intentional source change
+resets the fallback.
+
+For a device-specific failure, compare `/api/health` ingest diagnostics with
+`journalctl -u steeple-stream -n 100` on the appliance. Check whether the source
+is present in discovery, whether video/audio buffers arrive, and whether the
+GStreamer subprocess reports a missing NDI runtime. This fallback does not
+correct missing SDK dependencies, multicast blocking, or incompatible firmware.
 
 Useful environment variables:
 
