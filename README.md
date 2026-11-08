@@ -98,10 +98,38 @@ Useful environment variables:
 - `STEEPLE_MEDIAMTX_RUNTIME=system|auto|binary|nix|download` selects the runtime strategy.
 - `STEEPLE_MEDIAMTX_BINARY=/path/to/mediamtx` uses a specific binary.
 - `STEEPLE_MEDIAMTX_NIX_PACKAGE=nixpkgs#mediamtx` changes the Nix fallback package reference.
-- `STEEPLE_MEDIAMTX_VERSION=v1.19.2` changes the downloaded fallback version.
+- `STEEPLE_MEDIAMTX_VERSION=v1.21.1` changes the downloaded fallback version.
 - `STEEPLE_MEDIAMTX_CACHE_DIR=/path/to/cache` changes where downloaded fallback binaries are stored.
 
 `docker-compose.yml` is retained only as an optional development convenience.
+
+## External RTMPS output
+
+In the `broadcast` profile, a broadcaster can optionally forward a live
+broadcast to a destination such as YouTube Live. Open the broadcaster console,
+enter the RTMPS server URL (for example, `rtmps://a.rtmps.youtube.com/live2`)
+and its stream key in **separate fields**, and save. The key is retained between
+broadcasts; leaving the key field blank when saving retains the previous value.
+Disabling RTMPS removes the saved key.
+
+Steeple Stream updates the main MediaMTX path's native `forward` list through
+the localhost-only Control API when broadcasting starts or ends. MediaMTX
+forwards the encoded H.264/AAC stream without an extra FFmpeg process,
+independently of local playback and recording. Changes to the destination take
+effect during a broadcast without restarting the stream. MediaMTX retries
+disrupted forwarding connections; Steeple Stream retries Control API failures
+and restores forwarding after an application or managed MediaMTX restart.
+The broadcaster console shows MediaMTX's live forwarding state. An external
+streaming failure does not stop the local broadcast.
+
+Requires MediaMTX v1.20 or later (the bundled Nix runtime supplies v1.21.1
+at the current lockfile; the downloaded fallback defaults to v1.21.1).
+Stream keys are stored in the local SQLite database and sent only to the
+loopback MediaMTX Control API; Steeple Stream never returns keys through its
+HTTP API or health output. MediaMTX itself stores forwarding URLs including
+stream keys in its in-memory config and returns them unredacted through its
+localhost-only Control API, so keep that port private.
+RTMPS is unavailable in `camera-control` profile until full broadcasting is enabled.
 
 ## Ingest and Playback
 

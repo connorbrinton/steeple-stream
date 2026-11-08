@@ -152,8 +152,14 @@ export interface AuditEntry {
   createdAt: string;
 }
 
+export interface RtmpsDestination {
+  serverUrl: string;
+  streamKey: string;
+}
+
 export interface ApplicationState {
   version: number;
+  rtmpsDestination: RtmpsDestination | null;
   broadcast: Broadcast;
   source: VideoSource;
   cameraControlSource: VideoSource | null;

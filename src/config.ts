@@ -99,7 +99,7 @@ export const config = {
     runtime: process.env.STEEPLE_MEDIAMTX_RUNTIME || "system",
     nixPackage: process.env.STEEPLE_MEDIAMTX_NIX_PACKAGE || "nixpkgs#mediamtx",
     binaryPath: process.env.STEEPLE_MEDIAMTX_BINARY || null,
-    version: process.env.STEEPLE_MEDIAMTX_VERSION || "v1.19.2",
+    version: process.env.STEEPLE_MEDIAMTX_VERSION || "v1.21.1",
     cacheDir: process.env.STEEPLE_MEDIAMTX_CACHE_DIR || path.join(dataDir, "bin", "mediamtx"),
     configPath: process.env.STEEPLE_MEDIAMTX_CONFIG || path.join(dataDir, "mediamtx.yml"),
     recordingsDir: process.env.STEEPLE_RECORDINGS_DIR || path.join(dataDir, "recordings"),

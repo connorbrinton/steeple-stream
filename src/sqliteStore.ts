@@ -35,6 +35,8 @@ export class SqliteStore {
     if (this.loaded) return this.read();
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
     this.database = new DatabaseSync(this.filePath);
+    // This database includes broadcaster-configured RTMPS stream keys.
+    fs.chmodSync(this.filePath, 0o600);
     this.db.exec("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
     this.migrate();
     this.importLegacyState();
