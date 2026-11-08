@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { EventEmitter } from "node:events";
 import fsSync from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -29,7 +30,7 @@ interface ResolvedCommand {
   args: string[];
 }
 
-export class MediaMtxManager {
+export class MediaMtxManager extends EventEmitter {
   declare options: MediaMtxManagerOptions;
   declare process: ChildProcessByStdio<null, Readable, Readable> | null;
   declare stopping: boolean;
@@ -37,6 +38,7 @@ export class MediaMtxManager {
   declare retryAttempt: number;
 
   constructor(options: MediaMtxManagerOptions) {
+    super();
     this.options = options;
     this.process = null;
     this.stopping = false;
@@ -78,6 +80,7 @@ export class MediaMtxManager {
       }
     });
 
+    this.emit("started");
     return {
       started: true,
       runtime: command.runtime,

@@ -782,8 +782,8 @@ setInterval(() => {
   if (!sessionReady) void connect();
 }, 8000);
 setInterval(() => {
-  if (sessionReady) {
-    void refresh().catch(console.error);
-    void refreshRtmps();
-  }
+  if (sessionReady) void refresh().catch(console.error);
 }, 30000);
+setInterval(() => {
+  if (sessionReady) void refreshRtmps();
+}, 5000);

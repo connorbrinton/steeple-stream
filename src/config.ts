@@ -91,9 +91,6 @@ export const config = {
     ndiRuntimeDir: process.env.STEEPLE_NDI_RUNTIME_DIR || null,
     ndiNixPackage: process.env.STEEPLE_NDI_NIX_PACKAGE || "nixpkgs#ndi",
   },
-  rtmps: {
-    binary: process.env.STEEPLE_FFMPEG_BINARY || "ffmpeg",
-  },
   mediamtx: {
     channelId: process.env.STEEPLE_CHANNEL_ID || "stakecenter",
     autoStart: process.env.STEEPLE_MEDIAMTX_AUTO_START !== "0",
@@ -102,7 +99,7 @@ export const config = {
     runtime: process.env.STEEPLE_MEDIAMTX_RUNTIME || "system",
     nixPackage: process.env.STEEPLE_MEDIAMTX_NIX_PACKAGE || "nixpkgs#mediamtx",
     binaryPath: process.env.STEEPLE_MEDIAMTX_BINARY || null,
-    version: process.env.STEEPLE_MEDIAMTX_VERSION || "v1.19.2",
+    version: process.env.STEEPLE_MEDIAMTX_VERSION || "v1.21.1",
     cacheDir: process.env.STEEPLE_MEDIAMTX_CACHE_DIR || path.join(dataDir, "bin", "mediamtx"),
     configPath: process.env.STEEPLE_MEDIAMTX_CONFIG || path.join(dataDir, "mediamtx.yml"),
     recordingsDir: process.env.STEEPLE_RECORDINGS_DIR || path.join(dataDir, "recordings"),

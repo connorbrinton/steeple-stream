@@ -8,7 +8,7 @@ import { MediaMtxBackend, type MediaBackendHealth } from "./mediaBackend.js";
 import { MediaMtxManager } from "./mediamtxManager.js";
 import { BroadcastService } from "./broadcastService.js";
 import { IngestManager } from "./ingestManager.js";
-import { RtmpsRelay } from "./rtmpsRelay.js";
+import { RtmpsForwarding } from "./rtmpsForwarding.js";
 import { PtzController } from "./ptzController.js";
 import { runSynchronizedMove } from "./smoothPtz.js";
 import { PresetCaptureBatch } from "./presetCaptureBatch.js";
@@ -60,16 +60,16 @@ const ingestManager = new IngestManager({
   config: config.ingest,
   ndiDiscovery: async (source) => sourceDiscovery.listNdiSources(source),
 });
-const rtmpsRelay = new RtmpsRelay({
+const rtmpsForwarding = new RtmpsForwarding({
   store,
-  inputUrl: config.ingest.rtmpUrl,
-  binary: config.rtmps.binary,
+  apiBaseUrl: config.mediamtx.apiBaseUrl,
+  channelId: config.channelId,
 });
 const coordinator = new LocationCommandCoordinator({
   service,
   ingestManager,
   mediaManager: mediamtxManager,
-  rtmpsOutput: rtmpsRelay,
+  rtmpsOutput: rtmpsForwarding,
 });
 const presetCaptureBatch = new PresetCaptureBatch({
   plan: async () => {
@@ -121,12 +121,22 @@ const server = http.createServer(async (req: IncomingMessage, res: ServerRespons
 
 await auth.initialize();
 if (config.capabilities.obsControl) await obsEndpoints.reload();
+// Regenerated MediaMTX configurations must regain their live forwarding destination.
+let mediaMtxInitiallyStarted = false;
+mediamtxManager.on("started", () => {
+  if (!mediaMtxInitiallyStarted || !config.capabilities.broadcastControls) return;
+  void service
+    .summary()
+    .then((state) => rtmpsForwarding.mediaRestart(state.broadcast.status === "live"))
+    .catch(() => console.error("Could not restore RTMPS forwarding after MediaMTX restart"));
+});
 await mediamtxManager.start();
+mediaMtxInitiallyStarted = true;
 await sourceDiscovery.start({ waitForInitial: true });
 await ingestManager.startForState(await service.summary());
 if (config.capabilities.broadcastControls) {
   const state = await service.summary();
-  await rtmpsRelay.sync(state.broadcast.status === "live").catch(console.error);
+  await rtmpsForwarding.sync(state.broadcast.status === "live").catch(console.error);
 }
 
 server.listen(config.port, config.host, () => {
@@ -142,7 +152,7 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
     await ptzController.interruptMotion();
     await manualPtz.stop();
     await ingestManager.stop();
-    await rtmpsRelay.stop();
+    await rtmpsForwarding.stop();
     sourceDiscovery.stop();
     await mediamtxManager.stop();
     await obsEndpoints.stop();
@@ -369,12 +379,12 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     requireCapability("broadcastControls");
     if (method === "GET") {
       auth.authorize(req, "operator");
-      sendJson(res, 200, await rtmpsRelay.summary());
+      sendJson(res, 200, await rtmpsForwarding.summary());
       return;
     }
     if (method === "PUT") {
       auth.authorize(req, "operator", { csrfRequired: true });
-      sendJson(res, 200, await rtmpsRelay.configure(await parseJson(req)));
+      sendJson(res, 200, await rtmpsForwarding.configure(await parseJson(req)));
       return;
     }
   }
@@ -856,7 +866,7 @@ async function healthSummary({ refreshBackend = true }: HealthOptions = {}) {
     app: "steeple-stream",
     backend,
     ingest: ingestManager.status(),
-    ...(config.capabilities.broadcastControls ? { rtmps: await rtmpsRelay.summary() } : {}),
+    ...(config.capabilities.broadcastControls ? { rtmps: await rtmpsForwarding.summary() } : {}),
     discovery: sourceDiscovery.status(),
   };
 }
