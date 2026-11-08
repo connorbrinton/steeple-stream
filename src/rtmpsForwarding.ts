@@ -95,8 +95,7 @@ export class RtmpsForwarding {
               ? body.items
               : [];
           const entry = items.find(
-            (item: unknown) =>
-              item && typeof item === "object" && "pos" in item && item.pos === 0,
+            (item: unknown) => item && typeof item === "object" && "pos" in item && item.pos === 0,
           );
           const runtimeState =
             entry && typeof entry === "object" && "state" in entry ? entry.state : null;

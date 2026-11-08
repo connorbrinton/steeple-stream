@@ -39,10 +39,18 @@ function fixture() {
     state,
     forwarding,
     requests,
-    get forward() { return forward; },
-    setRuntimeState: (value) => { runtimeState = value; },
-    setPatchStatus: (value) => { patchStatus = value; },
-    setListStatus: (value) => { listStatus = value; },
+    get forward() {
+      return forward;
+    },
+    setRuntimeState: (value) => {
+      runtimeState = value;
+    },
+    setPatchStatus: (value) => {
+      patchStatus = value;
+    },
+    setListStatus: (value) => {
+      listStatus = value;
+    },
   };
 }
 

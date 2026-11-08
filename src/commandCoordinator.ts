@@ -62,12 +62,16 @@ export class LocationCommandCoordinator extends EventEmitter {
     await this.ingestManager.startForState(state);
     await this.mediaManager?.setRecording?.(true);
     // External publishing is best-effort and never gates local broadcasting.
-    await this.rtmpsOutput?.sync(true).catch((error) => console.error("RTMPS forwarding error", error));
+    await this.rtmpsOutput
+      ?.sync(true)
+      .catch((error) => console.error("RTMPS forwarding error", error));
     return this.changed(await this.service.summary());
   }
 
   async end(actor: Actor | null = null) {
-    await this.rtmpsOutput?.sync(false).catch((error) => console.error("RTMPS forwarding error", error));
+    await this.rtmpsOutput
+      ?.sync(false)
+      .catch((error) => console.error("RTMPS forwarding error", error));
     await this.mediaManager?.setRecording?.(false);
     return this.changed(await this.service.end(actor));
   }
