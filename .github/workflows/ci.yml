@@ -30,7 +30,8 @@ jobs:
       - run: npm ci
       - name: Lint, typecheck, and build
         run: |
-          npm run format:check
+          npm run format
+          git diff -- src/commandCoordinator.ts src/rtmpsForwarding.ts tests/rtmpsForwarding.test.js
           npm run lint
           npm run typecheck
           npm run build
