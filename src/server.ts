@@ -23,6 +23,7 @@ import { buildSourceCatalog } from "./sourceCatalog.js";
 import { AppRateLimiter, clientIp } from "./rateLimit.js";
 import { ScheduleService } from "./scheduleService.js";
 import { AdminCatalogService } from "./adminCatalogService.js";
+import { handleAdminRoutes } from "./http/adminRoutes.js";
 import { AccessService } from "./accessService.js";
 import { BroadcastStartResolver } from "./broadcastStartResolver.js";
 import type { PlaybackSession, SceneMode } from "./domain.js";
@@ -297,69 +298,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     return;
   }
 
-  if (method === "GET" && url.pathname === "/api/admin/catalog") {
-    auth.authorize(req, "administrator");
-    sendJson(res, 200, adminCatalog.list());
-    return;
-  }
-
-  if (method === "POST" && url.pathname === "/api/admin/units") {
-    auth.authorize(req, "administrator", { csrfRequired: true });
-    sendJson(res, 201, adminCatalog.saveUnit(await parseJson(req)));
-    return;
-  }
-
-  const adminUnitMatch = /^\/api\/admin\/units\/([^/]+)$/.exec(url.pathname);
-  if (method === "PUT" && adminUnitMatch) {
-    auth.authorize(req, "administrator", { csrfRequired: true });
-    sendJson(
-      res,
-      200,
-      adminCatalog.saveUnit(await parseJson(req), decodeURIComponent(adminUnitMatch[1] || "")),
-    );
-    return;
-  }
-
-  if (method === "POST" && url.pathname === "/api/admin/schedules") {
-    auth.authorize(req, "administrator", { csrfRequired: true });
-    sendJson(res, 201, adminCatalog.saveSchedule(await parseJson(req)));
-    return;
-  }
-
-  if (method === "GET" && url.pathname === "/api/admin/access") {
-    auth.authorize(req, "administrator");
-    sendJson(res, 200, { people: access.listPeople() });
-    return;
-  }
-
-  if (method === "POST" && url.pathname === "/api/admin/people") {
-    auth.authorize(req, "administrator", { csrfRequired: true });
-    sendJson(res, 201, access.save(await parseJson(req)));
-    return;
-  }
-
-  const adminPersonMatch = /^\/api\/admin\/people\/([^/]+)$/.exec(url.pathname);
-  if (method === "PUT" && adminPersonMatch) {
-    auth.authorize(req, "administrator", { csrfRequired: true });
-    sendJson(
-      res,
-      200,
-      access.save(await parseJson(req), decodeURIComponent(adminPersonMatch[1] || "")),
-    );
-    return;
-  }
-
-  const adminScheduleMatch = /^\/api\/admin\/schedules\/([^/]+)$/.exec(url.pathname);
-  if (method === "PUT" && adminScheduleMatch) {
-    auth.authorize(req, "administrator", { csrfRequired: true });
-    sendJson(
-      res,
-      200,
-      adminCatalog.saveSchedule(
-        await parseJson(req),
-        decodeURIComponent(adminScheduleMatch[1] || ""),
-      ),
-    );
+  if (await handleAdminRoutes(req, res, method, url.pathname, { auth, access, adminCatalog })) {
     return;
   }
 
