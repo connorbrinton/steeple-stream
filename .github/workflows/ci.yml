@@ -38,6 +38,18 @@ jobs:
         run: nix build .#steeple-stream
       - run: npm test
 
+  python:
+    name: Python NDI / GStreamer tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v27
+      - name: Run Python ingest and manual camera tests in the packaged media environment
+        run: nix develop --command python3 -m unittest discover -s tests -p '*test*.py' -v
+
   browser:
     name: Player / ${{ matrix.browser }}
     runs-on: ubuntu-24.04

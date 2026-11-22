@@ -48,7 +48,7 @@ npm start
 Application source is TypeScript. The build type-checks and compiles the Node
 service to colocated JavaScript, then uses Vite to compile the browser entry
 points into the ignored `public/build` directory. Colocated server JavaScript
-is ignored as well. Nix, Docker, and CI always compile both targets from source.
+is ignored as well. Nix builds and CI compile both targets from source.
 New application screens use React while the existing player and operator pages
 are migrated incrementally.
 
@@ -101,7 +101,10 @@ Useful environment variables:
 - `STEEPLE_MEDIAMTX_VERSION=v1.21.1` changes the downloaded fallback version.
 - `STEEPLE_MEDIAMTX_CACHE_DIR=/path/to/cache` changes where downloaded fallback binaries are stored.
 
-`docker-compose.yml` is retained only as an optional development convenience.
+Nix is the supported development and deployment runtime. The former Dockerfile
+and Compose setup were removed because they did not package the GStreamer/NDI
+runtime or build the current React frontend. Use `nix develop` and `nix run`
+for local development and deployment validation.
 
 ## External RTMPS output
 
@@ -154,8 +157,10 @@ The bridge:
 - reports structured media-engine state for input readiness, output publishing,
   scene transitions, heartbeats, and pipeline errors
 
-Viewers attempt WebRTC first and fall back to low-latency HLS after eight
-seconds. Only free STUN discovery is configured; there is no TURN relay.
+Live players begin HLS playback without waiting for WebRTC negotiation. In
+parallel they attempt WebRTC, promoting it when a decoded video frame is ready
+and falling back to HLS if the connection fails. Only free STUN discovery is
+configured; there is no TURN relay.
 Playback sessions record the selected ICE candidate type, HLS fallbacks,
 startup time, buffering, duration, viewer name, UUID, IP, and user agent.
 Detailed sessions are aggregated and removed after 90 days.
