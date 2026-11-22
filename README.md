@@ -101,7 +101,10 @@ Useful environment variables:
 - `STEEPLE_MEDIAMTX_VERSION=v1.21.1` changes the downloaded fallback version.
 - `STEEPLE_MEDIAMTX_CACHE_DIR=/path/to/cache` changes where downloaded fallback binaries are stored.
 
-`docker-compose.yml` is retained only as an optional development convenience.
+Nix is the supported development and deployment runtime. The former Dockerfile
+and Compose setup were removed because they did not package the GStreamer/NDI
+runtime or build the current React frontend. Use `nix develop` and `nix run`
+for local development and deployment validation.
 
 ## External RTMPS output
 
