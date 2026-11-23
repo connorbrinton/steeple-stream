@@ -9,6 +9,14 @@ recording, playback, and protocol handling to MediaMTX.
 Steeple Stream is licensed under the GNU Affero General Public License v3.0
 only. See [LICENSE](LICENSE).
 
+## Deploying application changes
+
+Merging an application change to `main` immediately starts a workflow that
+opens or updates a PR in [steeple-stream-deploy](https://github.com/connorbrinton/steeple-stream-deploy).
+The deployment PR is reviewed and merged separately before comin activates it.
+See [deployment automation setup](docs/deployment-automation.md) for the
+required cross-repository token and verification steps.
+
 ## Run Locally
 
 ```bash
