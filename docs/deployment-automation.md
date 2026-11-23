@@ -24,7 +24,7 @@ Create a **fine-grained personal access token** with:
 - An appropriate expiration date (remember to renew it)
 
 Store the token as the Actions repository secret `STEEPLE_DEPLOY_PR_TOKEN`
-in **steeple-stream** (the *application* repository, not the deployment repo):
+in **steeple-stream** (the _application_ repository, not the deployment repo):
 Settings → Secrets and variables → Actions → New repository secret.
 
 A GitHub App installation token with the same repository permissions can
