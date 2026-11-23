@@ -24,15 +24,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - name: Check cross-repository token configuration
-        env:
-          DEPLOY_TOKEN: ${{ secrets.STEEPLE_DEPLOY_PR_TOKEN }}
-        run: |
-          if [[ -z "$DEPLOY_TOKEN" ]]; then
-            echo "::error::Configure STEEPLE_DEPLOY_PR_TOKEN in the application repository's Actions secrets. See docs/deployment-automation.md."
-            exit 1
-          fi
-
       # Checkout the *deployment* repository: that is where the PR must be
       # opened. A token scoped to that repository also triggers its normal
       # pull_request CI, unlike a PR created with its own GITHUB_TOKEN.
@@ -66,6 +57,15 @@ jobs:
           fi
           revision=$(jq -er '.nodes[.nodes.root.inputs["steeple-stream"]].locked.rev' flake.lock)
           echo "revision=$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Require the deployment environment secret
+        env:
+          DEPLOY_TOKEN: ${{ secrets.STEEPLE_DEPLOY_PR_TOKEN }}
+        run: |
+          if [[ -z "$DEPLOY_TOKEN" ]]; then
+            echo "::error::Add STEEPLE_DEPLOY_PR_TOKEN as an environment secret in the deployment-pr environment, restricted to branch main. See docs/deployment-automation.md."
+            exit 1
+          fi
 
       - name: Open or refresh deployment PR
         uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1 # v8
