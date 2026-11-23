@@ -12,43 +12,75 @@ is still deliberate**, because comin watches deployment `main` and activates
 the corresponding appliance generation. Do not enable auto-merge for deployment
 PRs unless you intentionally want appliance activation to be automatic.
 
-## One-time authentication setup
+## Credential safety and one-time setup
 
-GitHub's built-in `GITHUB_TOKEN` cannot write to a different repository.
-Create a **fine-grained personal access token** with:
+**Do not create the token until the following protections are configured.**
+The token can write to the deployment repository; treat it as a production
+credential, even though this workflow never intentionally merges a PR.
+
+1. In **steeple-stream → Settings → Environments**, create the
+   `deployment-pr` environment. Under **Deployment branches and tags**,
+   choose **Selected branches and tags** and allow **only `main`**.
+   Never use the unrestricted "No restriction" option. The workflow's job
+   explicitly uses this environment and runs only for `main`.
+2. In **steeple-stream → Settings → Rules → Rulesets**, protect `main`:
+   require a pull request, require the existing CI checks, and require review
+   for changes to privileged workflow files. Restrict who may bypass these
+   requirements. This is important because a new or modified workflow on
+   `main` could read the environment secret.
+3. In **steeple-stream-deploy → Settings → Rules → Rulesets**, require
+   `Nix Check / nix` to pass and enforce review requirements for deployment
+   changes. Existing rules require a PR but (as of November 2026) have no
+   required checks and require zero approvals. **CI alone cannot prove
+   that a deployment change is trustworthy.**
+4. Prefer a dedicated **GitHub App identity** for PR creation when requiring
+   an independent approval: the app authors the deployment PR and you can
+   review/approve it. A fine-grained personal access token belonging to you
+   authors PRs as you, and GitHub does **not** allow authors to approve their
+   own PRs. With the PAT design, an additional reviewer would therefore be
+   needed to enforce a one-approval requirement.
+
+If using the fine-grained PAT shown in this PR:
 
 - Resource owner: `connorbrinton`
-- Repository access: **Only** `steeple-stream-deploy`
+- Repository access: **Only `steeple-stream-deploy`**
 - Repository permissions: **Contents → Read and write** and
   **Pull requests → Read and write** (Metadata read is automatic)
-- An appropriate expiration date (remember to renew it)
+- Use a short expiration and rotate/revoke the token if you suspect compromise.
+  **Never use a classic PAT or a token scoped to all repositories.**
 
-Store the token as the Actions repository secret `STEEPLE_DEPLOY_PR_TOKEN`
-in **steeple-stream** (the _application_ repository, not the deployment repo):
-Settings → Secrets and variables → Actions → New repository secret.
+In **steeple-stream → Settings → Environments → deployment-pr → Environment
+secrets**, add `STEEPLE_DEPLOY_PR_TOKEN`. **Do not add it as a repository
+secret**, which is accessible to workflows on other branches. The workflow
+checks out the public deployment repository without this PAT; the token
+is passed only to the PR creation action, which is pinned to a full commit
+SHA. Other third-party actions in this workflow are SHA-pinned as well.
 
-A GitHub App installation token with the same repository permissions can
-be used in place of the fine-grained PAT for non-user-owned automation.
+This workflow does not accept untrusted PR code, does not use
+`pull_request_target`, and has no branch-selectable manual trigger.
+It updates `flake.lock` only. These protections reduce exposure but **do
+not make a repository-write token incapable of misuse**: an attacker who
+obtains it may be able to manipulate or merge deployment PRs unless the
+deployment branch rules prevent it.
 
 ## After setup
 
-1. Merge the application workflow PR and configure the token.
-2. Open **steeple-stream → Actions → Propose deployment of merged application
-   changes → Run workflow** to test without waiting for a new feature.
-3. If the deployment pin already matches application `main`, the workflow
-   exits without opening a PR.
-4. After the next merge to application `main`, verify that a PR appears in
-   **steeple-stream-deploy** and that its Nix Check runs. Review and merge the
-   deployment PR when ready to activate on the appliance.
+1. Merge this application workflow PR **after** creating the protected
+   environment and storing its secret.
+2. That merge to application `main` triggers the proposal immediately.
+   If the deployment pin has already caught up, no PR is necessary.
+3. After subsequent merges to application `main`, verify that a PR appears
+   in **steeple-stream-deploy**, passes its Nix Check, and is reviewed before
+   merging to activate on the appliance.
 
 The workflow keeps one deployment PR branch (`automation/update-steeple-stream`)
-and updates it if additional application commits land before activation.
-For testing individual features one at a time, merge and verify the
-corresponding deployment PR before merging the next application feature.
+and refreshes it if additional application commits land before activation.
+To test each feature independently, merge the deployment PR and verify it
+before merging the next feature.
 
-If no deployment PR appears, inspect the application workflow run. Missing or
-expired tokens fail explicitly. If `flake.lock` changes outside the targeted
-Nix input, inspect the diff before merging; only `flake.lock` may be changed.
+If no PR appears, check the application workflow's logs, environment branch
+policy, and token expiration. Only `flake.lock` is changed by this workflow;
+review its diff for unintended transitive dependency updates.
 
 ## Manual fallback
 
