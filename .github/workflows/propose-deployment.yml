@@ -3,7 +3,6 @@ name: Propose deployment of merged application changes
 on:
   push:
     branches: [main]
-  workflow_dispatch:
 
 # The deployment repository has its own approval and validation boundary.
 # GITHUB_TOKEN is scoped to this repository, so this workflow requires a
@@ -18,6 +17,10 @@ concurrency:
 jobs:
   propose:
     name: Open or update deployment PR
+    # Configure this environment to allow ONLY branch main, and store the
+    # deployment credential as an environment (not repository) secret.
+    environment: deployment-pr
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -33,15 +36,15 @@ jobs:
       # Checkout the *deployment* repository: that is where the PR must be
       # opened. A token scoped to that repository also triggers its normal
       # pull_request CI, unlike a PR created with its own GITHUB_TOKEN.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: connorbrinton/steeple-stream-deploy
           ref: main
           path: deploy
-          token: ${{ secrets.STEEPLE_DEPLOY_PR_TOKEN }}
+          # This is a public repository. Checkout requires no deployment PAT.
           persist-credentials: false
 
-      - uses: cachix/install-nix-action@v27
+      - uses: cachix/install-nix-action@ba0dd844c9180cbf77aa72a116d6fbc515d0e87b # v27
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
@@ -65,7 +68,7 @@ jobs:
           echo "revision=$revision" >> "$GITHUB_OUTPUT"
 
       - name: Open or refresh deployment PR
-        uses: peter-evans/create-pull-request@v8
+        uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1 # v8
         with:
           path: deploy
           token: ${{ secrets.STEEPLE_DEPLOY_PR_TOKEN }}
