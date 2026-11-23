@@ -1,0 +1,85 @@
+name: Propose deployment of merged application changes
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# The deployment repository has its own approval and validation boundary.
+# GITHUB_TOKEN is scoped to this repository, so this workflow requires a
+# separately configured fine-grained token for steeple-stream-deploy.
+permissions:
+  contents: read
+
+concurrency:
+  group: propose-steeple-stream-deployment
+  cancel-in-progress: false
+
+jobs:
+  propose:
+    name: Open or update deployment PR
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check cross-repository token configuration
+        env:
+          DEPLOY_TOKEN: ${{ secrets.STEEPLE_DEPLOY_PR_TOKEN }}
+        run: |
+          if [[ -z "$DEPLOY_TOKEN" ]]; then
+            echo "::error::Configure STEEPLE_DEPLOY_PR_TOKEN in the application repository's Actions secrets. See docs/deployment-automation.md."
+            exit 1
+          fi
+
+      # Checkout the *deployment* repository: that is where the PR must be
+      # opened. A token scoped to that repository also triggers its normal
+      # pull_request CI, unlike a PR created with its own GITHUB_TOKEN.
+      - uses: actions/checkout@v4
+        with:
+          repository: connorbrinton/steeple-stream-deploy
+          ref: main
+          path: deploy
+          token: ${{ secrets.STEEPLE_DEPLOY_PR_TOKEN }}
+          persist-credentials: false
+
+      - uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Update application input only
+        id: pin
+        working-directory: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          nix flake update steeple-stream
+          git diff --check
+          # Updating the application may update its transitive flake inputs,
+          # but must not modify host configuration or unrelated files.
+          unexpected=$(git diff --name-only -- . ':!flake.lock')
+          if [[ -n "$unexpected" ]]; then
+            echo "::error::Unexpected changes outside flake.lock: $unexpected"
+            exit 1
+          fi
+          revision=$(jq -er '.nodes[.nodes.root.inputs["steeple-stream"]].locked.rev' flake.lock)
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Open or refresh deployment PR
+        uses: peter-evans/create-pull-request@v8
+        with:
+          path: deploy
+          token: ${{ secrets.STEEPLE_DEPLOY_PR_TOKEN }}
+          add-paths: flake.lock
+          branch: automation/update-steeple-stream
+          base: main
+          delete-branch: true
+          commit-message: "Update Steeple Stream application pin"
+          title: "Deploy latest Steeple Stream application"
+          body: |
+            Automatically proposed by [Steeple Stream's application workflow](https://github.com/connorbrinton/steeple-stream/actions/workflows/propose-deployment.yml) after a merge to application `main`.
+
+            **Application revision:** [${{ steps.pin.outputs.revision }}](https://github.com/connorbrinton/steeple-stream/commit/${{ steps.pin.outputs.revision }})
+
+            This PR changes only `flake.lock` and updates any application-owned transitive inputs as needed.
+
+            **Before merging:** review the application change and require the deployment repository's **Nix Check** workflow to pass. Merging deployment `main` causes comin to activate a new generation on the Beelink. There is **no automatic merge or production activation** in this workflow.
